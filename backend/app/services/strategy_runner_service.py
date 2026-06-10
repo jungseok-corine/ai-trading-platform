@@ -1,34 +1,68 @@
+import logging
+from dataclasses import dataclass
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.signal_service import SignalService
+from app.services.trade_service import TradeService
+from app.trading.broker.exceptions import KISAPIError
+from app.trading.strategy.base import Signal
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
+
+logger = logging.getLogger(__name__)
 
 STRATEGY_TYPE_MOVING_AVERAGE_CROSS = "moving_average_cross"
 
 
+@dataclass
+class StrategyRunResult:
+    """전략 1개에 대한 1회 실행 결과 (Signal 생성 + 자동 주문 시도 결과)."""
+
+    strategy_version_id: int | None
+    symbol_code: str
+    signal_created: bool
+    signal_id: int | None
+    auto_trade_enabled: bool
+    trade_attempted: bool
+    trade_approved: bool | None = None
+    trade_id: int | None = None
+    rejection_reason: str | None = None
+    error: str | None = None
+
+
 class StrategyRunnerService:
     """status가 active/testing인 strategy_versions를 조회해 전략을 실행하고
-    Signal이 생성되면 signal_logs에 저장한다. 주문은 실행하지 않는다.
+    Signal이 생성되면 signal_logs에 저장한다.
+
+    parameters.auto_trade_enabled가 true인 전략에 한해서만, 생성된 Signal을
+    TradeService.execute_signal()에 전달해 RiskManager 검증 → (승인 시) KIS 주문 → trades
+    저장까지 진행한다. auto_trade_enabled가 없거나 false이면 signal_logs 저장까지만 한다.
     """
 
-    def __init__(self, session: AsyncSession, signal_service: SignalService) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        signal_service: SignalService,
+        trade_service: TradeService | None = None,
+    ) -> None:
         self._session = session
         self._signal_service = signal_service
+        self._trade_service = trade_service
         self._strategy_version_repo = StrategyVersionRepository(session)
 
-    async def run_once(self) -> list[SignalLog]:
+    async def run_once(self) -> list[StrategyRunResult]:
         versions = await self._strategy_version_repo.list_active()
-        results: list[SignalLog] = []
+        results: list[StrategyRunResult] = []
         for version in versions:
-            log = await self._run_version(version)
-            if log is not None:
-                results.append(log)
+            result = await self._run_version(version)
+            if result is not None:
+                results.append(result)
         return results
 
-    async def _run_version(self, version: StrategyVersion) -> SignalLog | None:
+    async def _run_version(self, version: StrategyVersion) -> StrategyRunResult | None:
         params = version.parameters or {}
 
         if not params.get("enabled", True):
@@ -40,9 +74,87 @@ class StrategyRunnerService:
         if not symbol_code:
             return None
 
+        result = StrategyRunResult(
+            strategy_version_id=version.id,
+            symbol_code=symbol_code,
+            signal_created=False,
+            signal_id=None,
+            auto_trade_enabled=bool(params.get("auto_trade_enabled", False)),
+            trade_attempted=False,
+        )
+
         strategy = MovingAverageCrossStrategy(
             short_window=params.get("short_window", 5),
             long_window=params.get("long_window", 20),
             quantity=params.get("quantity", 1),
         )
-        return await self._signal_service.generate_and_log_signal(strategy, symbol_code, version.id)
+
+        try:
+            log = await self._signal_service.generate_and_log_signal(strategy, symbol_code, version.id)
+        except KISAPIError as e:
+            result.error = f"market data error: {e.msg1}"
+            logger.error("strategy_version_id=%s signal generation failed: %s", version.id, e.msg1)
+            return result
+
+        if log is None:
+            return result
+
+        result.signal_created = True
+        result.signal_id = log.id
+
+        if not result.auto_trade_enabled:
+            return result
+
+        await self._attempt_auto_trade(version, params, log, result)
+        return result
+
+    async def _attempt_auto_trade(
+        self, version: StrategyVersion, params: dict, log: SignalLog, result: StrategyRunResult
+    ) -> None:
+        account_id = params.get("account_id")
+        if account_id is None:
+            result.error = "auto_trade_enabled=true 이지만 parameters.account_id가 설정되지 않았습니다."
+            logger.warning("strategy_version_id=%s: %s", version.id, result.error)
+            return
+
+        if self._trade_service is None:
+            result.error = "TradeService가 설정되지 않아 자동 주문을 실행할 수 없습니다."
+            logger.warning("strategy_version_id=%s: %s", version.id, result.error)
+            return
+
+        signal = Signal(
+            symbol_code=log.symbol_code,
+            side=log.signal_type,
+            quantity=log.quantity or params.get("quantity", 1),
+            price=log.price,
+            reason=log.reason or "",
+            strategy_version_id=log.strategy_version_id,
+        )
+
+        result.trade_attempted = True
+        logger.info(
+            "auto-trade attempt: strategy_version_id=%s account_id=%s symbol=%s side=%s qty=%s price=%s",
+            version.id, account_id, signal.symbol_code, signal.side, signal.quantity, signal.price,
+        )
+
+        try:
+            placement = await self._trade_service.execute_signal(
+                account_id, signal, reason_source="strategy_runner"
+            )
+        except KISAPIError as e:
+            result.error = f"order error: {e.msg1}"
+            logger.error("strategy_version_id=%s auto-trade order failed: %s", version.id, e.msg1)
+            return
+
+        result.trade_approved = placement.approved
+        if placement.approved and placement.trade is not None:
+            result.trade_id = placement.trade.id
+            logger.info(
+                "auto-trade approved: strategy_version_id=%s trade_id=%s", version.id, placement.trade.id
+            )
+        else:
+            result.rejection_reason = placement.reason
+            logger.info(
+                "auto-trade rejected: strategy_version_id=%s rule=%s reason=%s",
+                version.id, placement.rule_name, placement.reason,
+            )

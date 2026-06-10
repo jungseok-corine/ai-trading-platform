@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.enums import StrategyVersionStatus, TradeSide
+from app.domain.models.enums import StrategyVersionStatus
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
 from app.services.market_data_service import MarketDataService
@@ -109,7 +109,10 @@ async def test_run_once_executes_active_strategy_and_saves_signal(db_session: As
 
     assert len(results) == 1
     assert results[0].symbol_code == "005930"
-    assert results[0].signal_type == TradeSide.BUY
+    assert results[0].signal_created is True
+    assert results[0].signal_id is not None
+    assert results[0].auto_trade_enabled is False
+    assert results[0].trade_attempted is False
 
     rows = (await db_session.execute(select(SignalLog))).scalars().all()
     assert len(rows) == 1
@@ -122,7 +125,11 @@ async def test_run_once_no_cross_saves_nothing(db_session: AsyncSession) -> None
 
     results = await _runner(db_session, broker).run_once()
 
-    assert results == []
+    assert len(results) == 1
+    assert results[0].signal_created is False
+    assert results[0].signal_id is None
+    assert results[0].trade_attempted is False
+
     rows = (await db_session.execute(select(SignalLog))).scalars().all()
     assert rows == []
 
@@ -151,7 +158,11 @@ async def test_duplicate_candle_signal_not_saved_twice(db_session: AsyncSession)
     second = await runner.run_once()
 
     assert len(first) == 1
-    assert second == []
+    assert first[0].signal_created is True
+
+    assert len(second) == 1
+    assert second[0].signal_created is False
+    assert second[0].signal_id is None
 
     rows = (await db_session.execute(select(SignalLog))).scalars().all()
     assert len(rows) == 1

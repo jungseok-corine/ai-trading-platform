@@ -11,6 +11,21 @@ class SignalGenerateRequest(BaseModel):
     strategy_version_id: int | None = None
 
 
+class StrategyRunResultRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    strategy_version_id: int | None
+    symbol_code: str
+    signal_created: bool
+    signal_id: int | None
+    auto_trade_enabled: bool
+    trade_attempted: bool
+    trade_approved: bool | None = None
+    trade_id: int | None = None
+    rejection_reason: str | None = None
+    error: str | None = None
+
+
 class EngineStatusResponse(BaseModel):
     scheduler_running: bool
     registered_jobs: list[str]

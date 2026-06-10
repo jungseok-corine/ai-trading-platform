@@ -9,6 +9,7 @@ KIS Open API 기반 AI 주식 자동매매 연구 플랫폼의 백엔드. 현재
 - **Phase 4 (주문 실행 - 모의투자)**: BrokerClient.place_order(), KIS VTS 매수/매도 주문(지정가) 연동, TradeService(Signal 변환 → RiskManager 검증 → 주문 실행 → trades 저장), 수동 주문 API (`POST /api/v1/orders`, `GET /api/v1/trades`, `GET /api/v1/trades/{id}`)
 - **Phase 5A (Strategy Engine MVP)**: Strategy 인터페이스 + MovingAverageCrossStrategy(이동평균 골든/데드크로스), MarketDataService(분봉 조회 + SMA 계산), SignalService(Signal 생성 → signal_logs 저장), Signal 조회 API (`POST /api/v1/signals/generate`, `GET /api/v1/signals`, `GET /api/v1/signals/{id}`). 아직 자동 주문/스케줄러는 없음
 - **Phase 5B (APScheduler 기반 자동 Signal 생성)**: FastAPI lifespan에서 `AsyncIOScheduler` 시작/종료, `StrategyRunnerService`(활성 strategy_versions 주기 실행 → MovingAverageCrossStrategy → signal_logs 저장), candle_ts 기반 중복 Signal 방지, Engine 상태/수동 실행 API (`GET /api/v1/engine/status`, `POST /api/v1/engine/run-once`). 자동 주문은 여전히 없음 (signal_logs 저장까지만)
+- **Phase 5C (Signal → 자동 주문 연결)**: `strategy_versions.parameters.auto_trade_enabled`(기본 false)가 true인 전략에 한해, Signal 생성 후 `TradeService.execute_signal()`을 통해 RiskManager 검증 → 승인 시 KIS VTS 주문 → trades 저장까지 자동 진행 (거부 시 risk_events만 기록). 수동 주문(`POST /api/v1/orders`)과 자동 주문이 동일한 RiskManager/TradeService 경로를 사용. `POST /api/v1/engine/run-once` 응답이 전략별 실행 결과(`signal_created`, `auto_trade_enabled`, `trade_attempted`, `trade_approved`, `trade_id`, `rejection_reason`, `error`) 목록으로 확장됨
 
 ## 요구 사항
 
@@ -71,7 +72,7 @@ uvicorn app.main:app --reload
 - `POST /api/v1/signals/generate` — MovingAverageCrossStrategy로 Signal 생성 시도 (교차 없으면 `null`)
 - `GET /api/v1/signals`, `GET /api/v1/signals/{signal_id}` — 생성된 Signal 로그 조회
 - `GET /api/v1/engine/status` — 스케줄러 상태(실행 여부/등록된 작업/마지막 실행 시각/에러/활성 전략 수) 조회
-- `POST /api/v1/engine/run-once` — 활성 전략을 즉시 1회 실행 (테스트용, 자동 주문 없음)
+- `POST /api/v1/engine/run-once` — 활성 전략을 즉시 1회 실행 (테스트용). `auto_trade_enabled=true`인 전략은 RiskManager 검증 후 자동 주문까지 시도하고, 전략별 실행 결과 목록을 반환
 
 최초 호출 시 접근토큰을 발급받아 `backend/.cache/kis_token.json`에 캐싱하고, 이후 만료 5분 전까지는 캐시된 토큰을 재사용한다.
 
@@ -155,8 +156,9 @@ backend/
 - **Phase 4**: 주문 실행(모의투자) — `BrokerClient.place_order()` (KIS VTS 매수/매도, 지정가), `TradeService` (Signal 변환 → RiskManager 검증 → 승인 시 KIS 주문 → trades 저장 / 거부 시 risk_events에만 기록), 수동 주문 API. TradingEngine/Strategy 자동 실행 로직은 아직 없음
 - **Phase 5A**: Strategy Engine MVP — `Strategy` 인터페이스, `MovingAverageCrossStrategy`(SMA 5/20 골든·데드크로스), `MarketDataService`(분봉 조회 + SMA 계산), `SignalService`(Signal 생성 → `signal_logs` 저장), Signal 조회 API. 자동 주문/스케줄러(APScheduler)/TradingEngine은 아직 없음
 - **Phase 5B**: APScheduler 기반 자동 Signal 생성 — FastAPI lifespan에서 `AsyncIOScheduler` 시작/종료, `StrategyRunnerService`가 활성(`active`/`testing`) `strategy_versions`을 주기적으로 실행해 `signal_logs`에 저장, `candle_ts` 기준 중복 Signal 방지(앱 레벨 체크 + DB unique 제약), `GET /api/v1/engine/status`/`POST /api/v1/engine/run-once`. 자동 주문(RiskManager/TradeService 연결)은 아직 없음
+- **Phase 5C**: Signal → 자동 주문 연결 — `TradeService.execute_signal()`을 신설해 수동 주문(`place_order`)과 자동 주문이 동일한 RiskManager 검증 → KIS 주문 → trades 저장 경로를 공유. `StrategyRunnerService`는 `parameters.auto_trade_enabled`(기본 false)가 true이고 `parameters.account_id`가 설정된 전략에 한해 Signal 생성 후 자동 주문을 시도하며, 실행 결과(Signal 생성 여부/주문 시도·승인 여부/거부 사유/오류)를 전략별로 반환. KIS 오류는 전략 단위로 격리되어 스케줄러/`run-once` 전체를 중단시키지 않음
 
-TradingEngine 자동 주문 연결, 포지션/체결 동기화 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md`, `../docs/risk-management.md` 참고.
+체결 확인/주문 상태 동기화, 포지션 관리 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md`, `../docs/risk-management.md` 참고.
 
 ## 테스트 실행
 

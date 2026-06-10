@@ -1,22 +1,33 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_broker_client
 from app.db.session import get_db
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.market_data_service import MarketDataService
+from app.services.risk_service import RiskService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
+from app.services.trade_service import TradeService
 from app.trading.broker.base import BrokerClient
-from app.trading.broker.exceptions import KISAPIError
-from app.trading.strategy.schemas import EngineStatusResponse, SignalLogRead
+from app.trading.strategy.schemas import EngineStatusResponse, StrategyRunResultRead
 
 router = APIRouter(prefix="/engine", tags=["engine"])
 
 KST = ZoneInfo("Asia/Seoul")
+
+
+def get_strategy_runner_service(
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> StrategyRunnerService:
+    signal_service = SignalService(session, MarketDataService(broker))
+    risk_service = RiskService(session, broker)
+    trade_service = TradeService(session, broker, risk_service)
+    return StrategyRunnerService(session, signal_service, trade_service)
 
 
 @router.get("/status", response_model=EngineStatusResponse)
@@ -37,22 +48,23 @@ async def get_engine_status(
     )
 
 
-@router.post("/run-once", response_model=list[SignalLogRead])
+@router.post("/run-once", response_model=list[StrategyRunResultRead])
 async def run_once(
     request: Request,
-    session: AsyncSession = Depends(get_db),
-    broker: BrokerClient = Depends(get_broker_client),
-) -> list[SignalLogRead]:
-    """활성 전략을 즉시 1회 실행한다 (테스트/수동 실행용). 자동 주문은 실행하지 않는다."""
-    runner = StrategyRunnerService(session, SignalService(session, MarketDataService(broker)))
+    runner: StrategyRunnerService = Depends(get_strategy_runner_service),
+) -> list[StrategyRunResultRead]:
+    """활성 전략을 즉시 1회 실행한다 (테스트/수동 실행용).
 
+    auto_trade_enabled=true인 전략에 한해 RiskManager 검증 → (승인 시) KIS 주문까지 시도한다.
+    KIS/주문 관련 오류는 전략별 결과의 error 필드에 기록되며 전체 요청을 실패시키지 않는다.
+    """
     try:
         results = await runner.run_once()
-    except KISAPIError as e:
-        request.app.state.scheduler_last_error = e.msg1
+        request.app.state.scheduler_last_error = None
+    except Exception as e:
+        request.app.state.scheduler_last_error = str(e)
         request.app.state.scheduler_last_run_at = datetime.now(KST)
-        raise HTTPException(status_code=502, detail=e.msg1) from e
+        raise
 
-    request.app.state.scheduler_last_error = None
     request.app.state.scheduler_last_run_at = datetime.now(KST)
-    return [SignalLogRead.model_validate(log) for log in results]
+    return [StrategyRunResultRead.model_validate(r) for r in results]
