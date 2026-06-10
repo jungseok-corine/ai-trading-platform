@@ -113,6 +113,7 @@ class KISClientBase:
         path: str,
         tr_id: str,
         params: dict[str, str] | None = None,
+        json_body: dict | None = None,
     ) -> dict:
         token = await self._get_access_token()
         headers = {
@@ -124,7 +125,7 @@ class KISClientBase:
             "custtype": "P",
         }
         response = await self._http.request(
-            method, f"{self._base_url}{path}", headers=headers, params=params
+            method, f"{self._base_url}{path}", headers=headers, params=params, json=json_body
         )
         if response.status_code != 200:
             raise KISAPIError(str(response.status_code), response.text)

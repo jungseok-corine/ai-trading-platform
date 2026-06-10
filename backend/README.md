@@ -6,6 +6,8 @@ KIS Open API 기반 AI 주식 자동매매 연구 플랫폼의 백엔드. 현재
 - **Phase 1 (KIS 모의투자 연동)**: KISPaperBrokerClient — 접근토큰 발급/캐싱/자동갱신, 현재가/분봉/계좌 조회 API
 - **Phase 2 (핵심 도메인 모델 + DB 마이그레이션)**: accounts, strategies, strategy_versions, trades, market_data, risk_configs, risk_events 테이블 및 기본 CRUD Repository
 - **Phase 3 (Risk Management Layer)**: RiskContext/RiskContextBuilder, 6개 RiskRule, RiskManager, risk_events 기록, Risk Config API
+- **Phase 4 (주문 실행 - 모의투자)**: BrokerClient.place_order(), KIS VTS 매수/매도 주문(지정가) 연동, TradeService(Signal 변환 → RiskManager 검증 → 주문 실행 → trades 저장), 수동 주문 API (`POST /api/v1/orders`, `GET /api/v1/trades`, `GET /api/v1/trades/{id}`)
+- **Phase 5A (Strategy Engine MVP)**: Strategy 인터페이스 + MovingAverageCrossStrategy(이동평균 골든/데드크로스), MarketDataService(분봉 조회 + SMA 계산), SignalService(Signal 생성 → signal_logs 저장), Signal 조회 API (`POST /api/v1/signals/generate`, `GET /api/v1/signals`, `GET /api/v1/signals/{id}`). 아직 자동 주문/스케줄러는 없음
 
 ## 요구 사항
 
@@ -63,6 +65,10 @@ uvicorn app.main:app --reload
 - `GET /api/v1/market/price/{symbol_code}` — 현재가 조회 (예: `005930` 삼성전자)
 - `GET /api/v1/market/candles/{symbol_code}` — 당일 분봉 조회
 - `GET /api/v1/account` — 모의투자 계좌 잔고/보유종목 조회
+- `POST /api/v1/orders` — 수동 주문 (RiskManager 검증 → 승인 시 KIS VTS 주문 실행)
+- `GET /api/v1/trades`, `GET /api/v1/trades/{trade_id}` — 주문/거래 내역 조회
+- `POST /api/v1/signals/generate` — MovingAverageCrossStrategy로 Signal 생성 시도 (교차 없으면 `null`)
+- `GET /api/v1/signals`, `GET /api/v1/signals/{signal_id}` — 생성된 Signal 로그 조회
 
 최초 호출 시 접근토큰을 발급받아 `backend/.cache/kis_token.json`에 캐싱하고, 이후 만료 5분 전까지는 캐시된 토큰을 재사용한다.
 
@@ -94,28 +100,38 @@ backend/
 │   │   ├── models/          # SQLAlchemy 모델 (accounts, strategies, trades, market_data, risk...)
 │   │   └── repositories/     # 기본 CRUD Repository
 │   ├── services/
-│   │   └── risk_service.py   # RiskContext 생성 + RiskManager 판정 + risk_events 기록
+│   │   ├── risk_service.py        # RiskContext 생성 + RiskManager 판정 + risk_events 기록
+│   │   ├── trade_service.py       # Signal 변환 → RiskManager 검증 → 주문 실행 → trades 저장
+│   │   ├── market_data_service.py # 분봉 조회 + SMA 계산 (Strategy가 사용)
+│   │   └── signal_service.py      # Strategy 실행 → Signal 생성 → signal_logs 저장
 │   ├── api/
 │   │   ├── deps.py          # BrokerClient 의존성 주입
 │   │   └── v1/
 │   │       ├── market.py    # 현재가/분봉 조회 API
 │   │       ├── account.py   # 계좌 조회 API
-│   │       └── risk_config.py # Risk Config 조회/수정/비상정지 API
+│   │       ├── risk_config.py # Risk Config 조회/수정/비상정지 API
+│   │       ├── orders.py    # 수동 주문 API (POST /orders, GET /trades)
+│   │       └── signals.py   # Signal 생성/조회 API (POST /signals/generate, GET /signals)
 │   └── trading/
 │       ├── broker/
-│       │   ├── base.py       # BrokerClient 추상 인터페이스
-│       │   ├── kis_client.py # KIS 공통 클라이언트 (토큰 발급/캐싱/갱신)
-│       │   ├── kis_paper.py  # KISPaperBrokerClient (VTS)
-│       │   ├── schemas.py    # 응답 스키마 (PriceQuote, MinuteCandle, AccountBalance...)
+│       │   ├── base.py       # BrokerClient 추상 인터페이스 (place_order 포함)
+│       │   ├── kis_client.py # KIS 공통 클라이언트 (토큰 발급/캐싱/갱신, GET/POST 요청)
+│       │   ├── kis_paper.py  # KISPaperBrokerClient (VTS) — 시세/계좌/주문
+│       │   ├── schemas.py    # 응답 스키마 (PriceQuote, MinuteCandle, AccountBalance, OrderRequest/Result...)
 │       │   └── exceptions.py # KISAPIError
+│       ├── order/
+│       │   └── schemas.py    # 주문 API 요청/응답 스키마 (OrderCreateRequest, TradeRead, OrderResponse)
 │       ├── strategy/
-│       │   └── base.py       # Signal dataclass
+│       │   ├── base.py                  # Strategy 인터페이스, Signal dataclass
+│       │   ├── indicators.py            # calculate_sma 등 지표 계산 함수
+│       │   ├── moving_average_cross.py  # MovingAverageCrossStrategy (골든/데드크로스)
+│       │   └── schemas.py               # Signal API 요청/응답 스키마 (SignalLogRead 등)
 │       └── risk/
 │           ├── context.py    # RiskContext, RiskContextBuilder
 │           ├── rules.py       # RiskRule 인터페이스 + 6개 규칙
 │           ├── manager.py     # RiskManager
 │           └── schemas.py     # Risk Config API 요청/응답 스키마
-├── tests/                 # pytest (RiskManager 단위 테스트 + RiskService 통합 테스트)
+├── tests/                 # pytest (RiskManager/TradeService/Strategy 단위 테스트 + 통합 테스트)
 ├── alembic/               # DB 마이그레이션
 ├── docker-compose.yml     # PostgreSQL
 ├── .env.example
@@ -128,8 +144,10 @@ backend/
 - **Phase 1**: `KISPaperBrokerClient` (모의투자 VTS) — 접근토큰 발급/파일 캐싱/자동 갱신, 현재가·분봉·계좌 조회. DB 저장은 아직 하지 않음 (조회 전용)
 - **Phase 2**: 핵심 도메인 모델(accounts, strategies, strategy_versions, trades, market_data, risk_configs, risk_events) + Alembic 마이그레이션 + 기본 CRUD Repository
 - **Phase 3**: Risk Management Layer — `RiskContextBuilder`, 6개 `RiskRule`, `RiskManager.validate()`, `risk_events` 기록, Risk Config API. 주문 실행/TradingEngine/Strategy 로직은 아직 없음
+- **Phase 4**: 주문 실행(모의투자) — `BrokerClient.place_order()` (KIS VTS 매수/매도, 지정가), `TradeService` (Signal 변환 → RiskManager 검증 → 승인 시 KIS 주문 → trades 저장 / 거부 시 risk_events에만 기록), 수동 주문 API. TradingEngine/Strategy 자동 실행 로직은 아직 없음
+- **Phase 5A**: Strategy Engine MVP — `Strategy` 인터페이스, `MovingAverageCrossStrategy`(SMA 5/20 골든·데드크로스), `MarketDataService`(분봉 조회 + SMA 계산), `SignalService`(Signal 생성 → `signal_logs` 저장), Signal 조회 API. 자동 주문/스케줄러(APScheduler)/TradingEngine은 아직 없음
 
-주문 실행, TradingEngine, Strategy 로직 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md`, `../docs/risk-management.md` 참고.
+TradingEngine, 자동 실행 스케줄러, 포지션/체결 동기화 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md`, `../docs/risk-management.md` 참고.
 
 ## 테스트 실행
 

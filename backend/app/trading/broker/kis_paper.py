@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from app.domain.models.enums import OrderStatus, TradeSide
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.kis_client import KST, KISClientBase
 from app.trading.broker.schemas import (
@@ -7,6 +8,9 @@ from app.trading.broker.schemas import (
     AccountHolding,
     AccountSummary,
     MinuteCandle,
+    OrderRequest,
+    OrderResult,
+    OrderType,
     PriceQuote,
 )
 
@@ -19,6 +23,15 @@ TR_ID_INQUIRE_PRICE = "FHKST01010100"
 TR_ID_INQUIRE_TIME_ITEMCHARTPRICE = "FHKST03010200"
 # tr_id: 주식잔고조회 (모의투자)
 TR_ID_INQUIRE_BALANCE = "VTTC8434R"
+# tr_id: 주식 현금 매수 주문 (모의투자)
+TR_ID_ORDER_CASH_BUY = "VTTC0012U"
+# tr_id: 주식 현금 매도 주문 (모의투자)
+TR_ID_ORDER_CASH_SELL = "VTTC0011U"
+
+# 주문구분: 지정가
+ORD_DVSN_LIMIT = "00"
+# 거래소ID구분코드: KRX
+EXCG_ID_DVSN_CD_KRX = "KRX"
 
 
 class KISPaperBrokerClient(KISClientBase, BrokerClient):
@@ -129,3 +142,32 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             total_profit_loss_amount=summary_row["evlu_pfls_smtl_amt"],
         )
         return AccountBalance(holdings=holdings, summary=summary)
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        if order.order_type != OrderType.LIMIT:
+            raise ValueError("MVP에서는 지정가(LIMIT) 주문만 지원합니다.")
+
+        tr_id = TR_ID_ORDER_CASH_BUY if order.side == TradeSide.BUY else TR_ID_ORDER_CASH_SELL
+
+        data = await self._request(
+            "POST",
+            "/uapi/domestic-stock/v1/trading/order-cash",
+            tr_id=tr_id,
+            json_body={
+                "CANO": self._cano,
+                "ACNT_PRDT_CD": self._acnt_prdt_cd,
+                "PDNO": order.symbol_code,
+                "ORD_DVSN": ORD_DVSN_LIMIT,
+                "ORD_QTY": str(order.quantity),
+                "ORD_UNPR": str(order.price),
+                "EXCG_ID_DVSN_CD": EXCG_ID_DVSN_CD_KRX,
+                "SLL_TYPE": "" if order.side == TradeSide.BUY else "01",
+                "CNDT_PRIC": "",
+            },
+        )
+        output = data["output"]
+        return OrderResult(
+            broker_order_id=output["ODNO"],
+            order_status=OrderStatus.PENDING,
+            ordered_at=datetime.now(KST),
+        )

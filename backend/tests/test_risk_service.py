@@ -9,7 +9,14 @@ from app.domain.models.enums import AccountType, RiskEventResult, TradeSide
 from app.domain.models.risk import RiskConfig, RiskEvent
 from app.services.risk_service import RiskService
 from app.trading.broker.base import BrokerClient
-from app.trading.broker.schemas import AccountBalance, AccountSummary, MinuteCandle, PriceQuote
+from app.trading.broker.schemas import (
+    AccountBalance,
+    AccountSummary,
+    MinuteCandle,
+    OrderRequest,
+    OrderResult,
+    PriceQuote,
+)
 from app.trading.strategy.base import Signal
 
 
@@ -34,6 +41,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        raise NotImplementedError
 
 
 @pytest.fixture

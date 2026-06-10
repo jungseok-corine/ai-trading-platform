@@ -1,6 +1,10 @@
+import enum
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel
+
+from app.domain.models.enums import OrderStatus, TradeSide
 
 
 class PriceQuote(BaseModel):
@@ -45,3 +49,22 @@ class AccountSummary(BaseModel):
 class AccountBalance(BaseModel):
     holdings: list[AccountHolding]
     summary: AccountSummary
+
+
+class OrderType(str, enum.Enum):
+    LIMIT = "limit"
+    MARKET = "market"
+
+
+class OrderRequest(BaseModel):
+    symbol_code: str
+    side: TradeSide
+    quantity: int
+    price: Decimal
+    order_type: OrderType = OrderType.LIMIT
+
+
+class OrderResult(BaseModel):
+    broker_order_id: str
+    order_status: OrderStatus
+    ordered_at: datetime

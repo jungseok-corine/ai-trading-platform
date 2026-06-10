@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
-from app.api.v1 import account, market, risk_config
+from app.api.v1 import account, market, orders, risk_config, signals
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.session import engine
@@ -38,6 +38,8 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(market.router, prefix="/api/v1")
 app.include_router(account.router, prefix="/api/v1")
 app.include_router(risk_config.router, prefix="/api/v1")
+app.include_router(orders.router, prefix="/api/v1")
+app.include_router(signals.router, prefix="/api/v1")
 
 
 @app.get("/health")
