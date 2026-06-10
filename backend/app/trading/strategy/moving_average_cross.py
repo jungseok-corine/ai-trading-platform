@@ -1,7 +1,7 @@
 from app.domain.models.enums import TradeSide
 from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.base import Signal, Strategy
-from app.trading.strategy.indicators import calculate_sma
+from app.trading.strategy.indicators import calculate_sma, candle_timestamp
 
 
 class MovingAverageCrossStrategy(Strategy):
@@ -39,7 +39,11 @@ class MovingAverageCrossStrategy(Strategy):
             return None
 
         price = candles[-1].close_price
-        metadata = {"short_ma": curr_short, "long_ma": curr_long}
+        metadata = {
+            "short_ma": curr_short,
+            "long_ma": curr_long,
+            "candle_ts": candle_timestamp(candles[-1]),
+        }
 
         if prev_short <= prev_long and curr_short > curr_long:
             return Signal(

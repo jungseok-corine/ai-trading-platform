@@ -34,11 +34,19 @@ class SignalService:
             return None
 
         metadata = signal.metadata or {}
+        candle_ts = metadata.get("candle_ts")
+
+        if await self._signal_log_repo.exists_for_candle(
+            signal.strategy_version_id, signal.symbol_code, signal.side, candle_ts
+        ):
+            return None
+
         log = await self._signal_log_repo.create(
             symbol_code=signal.symbol_code,
             strategy_version_id=signal.strategy_version_id,
             signal_type=signal.side,
             generated_at=datetime.now(KST),
+            candle_ts=candle_ts,
             reason=signal.reason,
             short_ma=metadata.get("short_ma"),
             long_ma=metadata.get("long_ma"),

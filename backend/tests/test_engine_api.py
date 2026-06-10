@@ -1,0 +1,72 @@
+from decimal import Decimal
+
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_broker_client
+from app.main import app
+from app.scheduler.lifecycle import STRATEGY_RUNNER_JOB_ID
+from app.trading.broker.base import BrokerClient
+from app.trading.broker.schemas import (
+    AccountBalance,
+    AccountSummary,
+    MinuteCandle,
+    OrderRequest,
+    OrderResult,
+    PriceQuote,
+)
+
+
+class FakeBrokerClient(BrokerClient):
+    async def get_current_price(self, symbol_code: str) -> PriceQuote:
+        raise NotImplementedError
+
+    async def get_minute_candles(
+        self, symbol_code: str, target_time: str | None = None, include_past_data: bool = True
+    ) -> list[MinuteCandle]:
+        return []
+
+    async def get_account_balance(self) -> AccountBalance:
+        return AccountBalance(
+            holdings=[],
+            summary=AccountSummary(
+                total_deposit=Decimal("0"),
+                total_purchase_amount=Decimal("0"),
+                total_evaluation_amount=Decimal("0"),
+                total_profit_loss_amount=Decimal("0"),
+            ),
+        )
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        raise NotImplementedError
+
+
+async def test_engine_status_and_run_once_and_lifespan() -> None:
+    app.dependency_overrides[get_broker_client] = lambda: FakeBrokerClient()
+
+    try:
+        with TestClient(app) as client:
+            # lifespan에서 scheduler가 시작되고 작업이 등록되어야 한다
+            scheduler = app.state.scheduler
+            assert scheduler.running is True
+            assert any(job.id == STRATEGY_RUNNER_JOB_ID for job in scheduler.get_jobs())
+
+            status_resp = client.get("/api/v1/engine/status")
+            assert status_resp.status_code == 200
+            status_data = status_resp.json()
+            assert status_data["scheduler_running"] is True
+            assert STRATEGY_RUNNER_JOB_ID in status_data["registered_jobs"]
+            assert "active_strategy_count" in status_data
+            assert "last_run_at" in status_data
+            assert "last_error" in status_data
+
+            run_resp = client.post("/api/v1/engine/run-once")
+            assert run_resp.status_code == 200
+            assert run_resp.json() == []
+
+            status_resp_after = client.get("/api/v1/engine/status")
+            assert status_resp_after.json()["last_run_at"] is not None
+
+        # lifespan 종료 시 scheduler가 정상적으로 shutdown 되어야 한다
+        assert scheduler.running is False
+    finally:
+        app.dependency_overrides.clear()

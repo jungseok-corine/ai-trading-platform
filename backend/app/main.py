@@ -5,9 +5,11 @@ import httpx
 from fastapi import FastAPI
 
 from app.api.v1 import account, market, orders, risk_config, signals
+from app.api.v1 import engine as engine_api
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.session import engine
+from app.scheduler.lifecycle import shutdown_scheduler, start_scheduler
 from app.trading.broker.kis_paper import KISPaperBrokerClient
 
 settings = get_settings()
@@ -27,8 +29,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         token_cache_path=settings.kis_token_cache_path,
     )
 
+    start_scheduler(app)
+
     yield
 
+    shutdown_scheduler(app)
     await http_client.aclose()
     await engine.dispose()
 
@@ -40,6 +45,7 @@ app.include_router(account.router, prefix="/api/v1")
 app.include_router(risk_config.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(signals.router, prefix="/api/v1")
+app.include_router(engine_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     kis_real_base_url: str = "https://openapi.koreainvestment.com:9443"
     kis_token_cache_path: str = ".cache/kis_token.json"
 
+    # Strategy Engine 스케줄러 (APScheduler)
+    strategy_scheduler_enabled: bool = True
+    strategy_scheduler_interval_seconds: int = 60
+
 
 @lru_cache
 def get_settings() -> Settings:

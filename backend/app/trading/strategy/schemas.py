@@ -11,6 +11,14 @@ class SignalGenerateRequest(BaseModel):
     strategy_version_id: int | None = None
 
 
+class EngineStatusResponse(BaseModel):
+    scheduler_running: bool
+    registered_jobs: list[str]
+    last_run_at: datetime | None
+    last_error: str | None
+    active_strategy_count: int
+
+
 class SignalLogRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -19,6 +27,7 @@ class SignalLogRead(BaseModel):
     strategy_version_id: int | None
     signal_type: TradeSide
     generated_at: datetime
+    candle_ts: datetime | None
     reason: str | None
     short_ma: Decimal | None
     long_ma: Decimal | None
