@@ -9,6 +9,7 @@ from alembic import context
 
 from app.core.config import get_settings
 from app.db.session import Base
+from app.domain import models  # noqa: F401  (Base.metadata 등록을 위한 임포트)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -4,6 +4,7 @@ KIS Open API 기반 AI 주식 자동매매 연구 플랫폼의 백엔드. 현재
 
 - **Phase 0 (프로젝트 기반)**: FastAPI 서버 + PostgreSQL 연결 + Alembic 마이그레이션 환경
 - **Phase 1 (KIS 모의투자 연동)**: KISPaperBrokerClient — 접근토큰 발급/캐싱/자동갱신, 현재가/분봉/계좌 조회 API
+- **Phase 2 (핵심 도메인 모델 + DB 마이그레이션)**: accounts, strategies, strategy_versions, trades, market_data, risk_configs, risk_events 테이블 및 기본 CRUD Repository
 
 ## 요구 사항
 
@@ -88,6 +89,9 @@ backend/
 │   │   └── logging.py      # 로깅 설정
 │   ├── db/
 │   │   └── session.py      # SQLAlchemy async engine/session, Base
+│   ├── domain/
+│   │   ├── models/          # SQLAlchemy 모델 (accounts, strategies, trades, market_data, risk...)
+│   │   └── repositories/     # 기본 CRUD Repository
 │   ├── api/
 │   │   ├── deps.py          # BrokerClient 의존성 주입
 │   │   └── v1/
@@ -110,8 +114,9 @@ backend/
 
 - **Phase 0**: FastAPI 스켈레톤 + health check, PostgreSQL 연결 (async SQLAlchemy), Alembic 마이그레이션 환경
 - **Phase 1**: `KISPaperBrokerClient` (모의투자 VTS) — 접근토큰 발급/파일 캐싱/자동 갱신, 현재가·분봉·계좌 조회. DB 저장은 아직 하지 않음 (조회 전용)
+- **Phase 2**: 핵심 도메인 모델(accounts, strategies, strategy_versions, trades, market_data, risk_configs, risk_events) + Alembic 마이그레이션 + 기본 CRUD Repository. 주문 실행/RiskManager/Strategy 로직은 아직 없음
 
-주문 실행, RiskManager, Strategy, DB 저장 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md` 참고.
+주문 실행, RiskManager, Strategy 로직 등은 이후 Phase에서 추가된다. 자세한 내용은 `../docs/mvp-plan.md`, `../docs/risk-management.md` 참고.
 
 ## KIS 계정 연결 전 준비사항
 
