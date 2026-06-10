@@ -33,6 +33,7 @@ class BaseRepository(Generic[ModelType]):
         for key, value in kwargs.items():
             setattr(instance, key, value)
         await self.session.flush()
+        await self.session.refresh(instance)
         return instance
 
     async def delete(self, instance: ModelType) -> None:
