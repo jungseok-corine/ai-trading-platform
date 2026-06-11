@@ -1,9 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.domain.models.enums import TradeSide
+from app.domain.models.enums import StrategyVersionStatus, TradeSide
 
 
 class SignalGenerateRequest(BaseModel):
@@ -57,3 +57,71 @@ class SignalLogRead(BaseModel):
     price: Decimal | None
     quantity: int | None
     created_at: datetime
+
+
+class StrategyCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+
+
+class StrategyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: str | None
+    created_at: datetime
+    version_count: int = 0
+
+
+class StrategyVersionParameters(BaseModel):
+    """strategy_versions.parameters JSONB에 저장되는 구조.
+
+    StrategyRunnerService가 그대로 읽는 키(strategy_type, symbol_code, short_window,
+    long_window, quantity, account_id, enabled, auto_trade_enabled)와 일치한다.
+    """
+
+    strategy_type: str = "moving_average_cross"
+    symbol_code: str
+    short_window: int = 5
+    long_window: int = 20
+    quantity: int = 1
+    timeframe: str = "1m"
+    account_id: int | None = None
+    enabled: bool = True
+    auto_trade_enabled: bool = False
+
+    @model_validator(mode="after")
+    def _validate_auto_trade_requires_account(self) -> "StrategyVersionParameters":
+        if self.auto_trade_enabled and self.account_id is None:
+            raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
+        return self
+
+
+class StrategyVersionCreateRequest(BaseModel):
+    parameters: StrategyVersionParameters
+    change_description: str | None = None
+    status: StrategyVersionStatus = StrategyVersionStatus.DRAFT
+
+
+class StrategyVersionUpdateRequest(BaseModel):
+    parameters: StrategyVersionParameters | None = None
+    change_description: str | None = None
+    status: StrategyVersionStatus | None = None
+
+
+class StrategyVersionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    strategy_id: int
+    version_no: int
+    parameters: dict
+    change_description: str | None
+    status: StrategyVersionStatus
+    win_rate: Decimal | None
+    avg_profit: Decimal | None
+    avg_loss: Decimal | None
+    mdd: Decimal | None
+    created_at: datetime
+    updated_at: datetime

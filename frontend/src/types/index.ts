@@ -98,3 +98,64 @@ export interface RiskConfig {
   emergency_stop: boolean;
   updated_at: string;
 }
+
+export type StrategyVersionStatus = "draft" | "testing" | "active" | "retired";
+
+export interface Strategy {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  version_count: number;
+}
+
+export interface StrategyVersionParameters {
+  strategy_type: string;
+  symbol_code: string;
+  short_window: number;
+  long_window: number;
+  quantity: number;
+  timeframe: string;
+  account_id: number | null;
+  enabled: boolean;
+  auto_trade_enabled: boolean;
+}
+
+export interface StrategyVersion {
+  id: number;
+  strategy_id: number;
+  version_no: number;
+  parameters: StrategyVersionParameters;
+  change_description: string | null;
+  status: StrategyVersionStatus;
+  win_rate: string | null;
+  avg_profit: string | null;
+  avg_loss: string | null;
+  mdd: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StrategyVersionCreateRequest {
+  parameters: StrategyVersionParameters;
+  change_description?: string | null;
+  status?: StrategyVersionStatus;
+}
+
+export interface StrategyVersionUpdateRequest {
+  parameters?: StrategyVersionParameters;
+  change_description?: string | null;
+  status?: StrategyVersionStatus;
+}
+
+export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
+  strategy_type: "moving_average_cross",
+  symbol_code: "",
+  short_window: 5,
+  long_window: 20,
+  quantity: 1,
+  timeframe: "1m",
+  account_id: null,
+  enabled: true,
+  auto_trade_enabled: false,
+};

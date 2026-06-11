@@ -171,3 +171,89 @@ th {
   background: #dafbe1;
   color: #1a7f37;
 }
+
+.top-nav {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px 0;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.form-row label {
+  width: 160px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #444;
+}
+
+.form-row input,
+.form-row select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+  font-size: 13px;
+}
+
+.strategy-create-form,
+.strategy-version-create-form,
+.strategy-version-editor {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.strategy-create-form h3,
+.strategy-version-create-form h4,
+.strategy-version-editor h4 {
+  margin-top: 0;
+}
+
+.parameters-form {
+  max-width: 480px;
+}
+
+.parameters-cell {
+  margin: 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  max-width: 280px;
+}
+
+.auto-trade-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.status-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-select select {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+  font-size: 13px;
+}
+
+tr.selected {
+  background: #eef4ff;
+}
+
+.warning-banner {
+  background: #fff8c5;
+  border-color: #d4a72c;
+  color: #4d3800;
+  font-size: 13px;
+}

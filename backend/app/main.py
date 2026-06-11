@@ -5,7 +5,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import account, market, orders, positions, risk_config, signals
+from app.api.v1 import account, market, orders, positions, risk_config, signals, strategies
 from app.api.v1 import engine as engine_api
 from app.core.config import get_settings
 from app.core.logging import setup_logging
@@ -55,6 +55,7 @@ app.include_router(risk_config.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(positions.router, prefix="/api/v1")
 app.include_router(signals.router, prefix="/api/v1")
+app.include_router(strategies.router, prefix="/api/v1")
 app.include_router(engine_api.router, prefix="/api/v1")
 
 

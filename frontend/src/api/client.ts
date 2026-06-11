@@ -5,7 +5,11 @@ import type {
   Position,
   RiskConfig,
   SignalLog,
+  Strategy,
   StrategyRunResult,
+  StrategyVersion,
+  StrategyVersionCreateRequest,
+  StrategyVersionUpdateRequest,
   Trade,
 } from "../types";
 
@@ -40,6 +44,44 @@ export async function getTrades(): Promise<Trade[]> {
 
 export async function getPositions(): Promise<Position[]> {
   const { data } = await apiClient.get<Position[]>("/positions");
+  return data;
+}
+
+export async function getStrategies(): Promise<Strategy[]> {
+  const { data } = await apiClient.get<Strategy[]>("/strategies");
+  return data;
+}
+
+export async function createStrategy(payload: {
+  name: string;
+  description?: string | null;
+}): Promise<Strategy> {
+  const { data } = await apiClient.post<Strategy>("/strategies", payload);
+  return data;
+}
+
+export async function getStrategyVersions(strategyId: number): Promise<StrategyVersion[]> {
+  const { data } = await apiClient.get<StrategyVersion[]>(`/strategies/${strategyId}/versions`);
+  return data;
+}
+
+export async function createStrategyVersion(
+  strategyId: number,
+  payload: StrategyVersionCreateRequest,
+): Promise<StrategyVersion> {
+  const { data } = await apiClient.post<StrategyVersion>(`/strategies/${strategyId}/versions`, payload);
+  return data;
+}
+
+export async function updateStrategyVersion(
+  strategyId: number,
+  versionId: number,
+  payload: StrategyVersionUpdateRequest,
+): Promise<StrategyVersion> {
+  const { data } = await apiClient.patch<StrategyVersion>(
+    `/strategies/${strategyId}/versions/${versionId}`,
+    payload,
+  );
   return data;
 }
 
