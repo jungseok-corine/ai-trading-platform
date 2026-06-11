@@ -10,6 +10,9 @@ KIS Open API 기반 AI 주식 자동매매 연구 플랫폼의 백엔드. 현재
 - **Phase 5A (Strategy Engine MVP)**: Strategy 인터페이스 + MovingAverageCrossStrategy(이동평균 골든/데드크로스), MarketDataService(분봉 조회 + SMA 계산), SignalService(Signal 생성 → signal_logs 저장), Signal 조회 API (`POST /api/v1/signals/generate`, `GET /api/v1/signals`, `GET /api/v1/signals/{id}`). 아직 자동 주문/스케줄러는 없음
 - **Phase 5B (APScheduler 기반 자동 Signal 생성)**: FastAPI lifespan에서 `AsyncIOScheduler` 시작/종료, `StrategyRunnerService`(활성 strategy_versions 주기 실행 → MovingAverageCrossStrategy → signal_logs 저장), candle_ts 기반 중복 Signal 방지, Engine 상태/수동 실행 API (`GET /api/v1/engine/status`, `POST /api/v1/engine/run-once`). 자동 주문은 여전히 없음 (signal_logs 저장까지만)
 - **Phase 5C (Signal → 자동 주문 연결)**: `strategy_versions.parameters.auto_trade_enabled`(기본 false)가 true인 전략에 한해, Signal 생성 후 `TradeService.execute_signal()`을 통해 RiskManager 검증 → 승인 시 KIS VTS 주문 → trades 저장까지 자동 진행 (거부 시 risk_events만 기록). 수동 주문(`POST /api/v1/orders`)과 자동 주문이 동일한 RiskManager/TradeService 경로를 사용. `POST /api/v1/engine/run-once` 응답이 전략별 실행 결과(`signal_created`, `auto_trade_enabled`, `trade_attempted`, `trade_approved`, `trade_id`, `rejection_reason`, `error`) 목록으로 확장됨
+- **Phase 5D (주문 체결 확인 및 상태 동기화)**: `OrderSyncService`가 KIS 모의투자 일별 체결 조회(`inquire-daily-ccld`)로 pending/partial 주문의 체결 상태를 동기화 (`POST /api/v1/engine/sync-orders`, APScheduler `order_sync` job)
+- **Position & PnL 계산**: `positions`/`position_events` 테이블, `PositionService`가 체결 시 평단가/실현·미실현 손익을 계산하고 `OrderSyncService`와 연동되어 신규 체결분만 누적 반영 (중복 방지). 조회 API: `GET /api/v1/positions`, `GET /api/v1/positions/{account_id}/{symbol_code}`, `GET /api/v1/positions/{position_id}/events`, `POST /api/v1/positions/{position_id}/refresh-price`
+- **Phase 6 (Web Dashboard MVP)**: React + TypeScript + Vite + TanStack Query 기반 최소 대시보드 (`../frontend`). 엔진 상태/Signal/Trade/Position/Risk Config 조회 및 Run Once / Sync Orders / Emergency Stop 수동 실행. CORS는 `http://localhost:5173`을 허용하도록 설정됨. 실행 방법은 `../frontend/README.md` 참고
 
 ## 요구 사항
 
