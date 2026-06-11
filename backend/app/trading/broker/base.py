@@ -1,6 +1,13 @@
 from abc import ABC, abstractmethod
 
-from app.trading.broker.schemas import AccountBalance, MinuteCandle, OrderRequest, OrderResult, PriceQuote
+from app.trading.broker.schemas import (
+    AccountBalance,
+    MinuteCandle,
+    OrderExecution,
+    OrderRequest,
+    OrderResult,
+    PriceQuote,
+)
 
 
 class BrokerClient(ABC):
@@ -27,3 +34,6 @@ class BrokerClient(ABC):
 
     @abstractmethod
     async def place_order(self, order: OrderRequest) -> OrderResult: ...
+
+    @abstractmethod
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]: ...

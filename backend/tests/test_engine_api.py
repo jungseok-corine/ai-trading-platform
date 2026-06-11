@@ -4,12 +4,13 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_broker_client
 from app.main import app
-from app.scheduler.lifecycle import STRATEGY_RUNNER_JOB_ID
+from app.scheduler.lifecycle import ORDER_SYNC_JOB_ID, STRATEGY_RUNNER_JOB_ID
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
     AccountSummary,
     MinuteCandle,
+    OrderExecution,
     OrderRequest,
     OrderResult,
     PriceQuote,
@@ -39,6 +40,9 @@ class FakeBrokerClient(BrokerClient):
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
 
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        return []
+
 
 async def test_engine_status_and_run_once_and_lifespan() -> None:
     app.dependency_overrides[get_broker_client] = lambda: FakeBrokerClient()
@@ -55,9 +59,12 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
             status_data = status_resp.json()
             assert status_data["scheduler_running"] is True
             assert STRATEGY_RUNNER_JOB_ID in status_data["registered_jobs"]
+            assert ORDER_SYNC_JOB_ID in status_data["registered_jobs"]
             assert "active_strategy_count" in status_data
             assert "last_run_at" in status_data
             assert "last_error" in status_data
+            assert "order_sync_last_run_at" in status_data
+            assert "order_sync_last_error" in status_data
 
             run_resp = client.post("/api/v1/engine/run-once")
             assert run_resp.status_code == 200
@@ -65,6 +72,16 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
 
             status_resp_after = client.get("/api/v1/engine/status")
             assert status_resp_after.json()["last_run_at"] is not None
+
+            sync_resp = client.post("/api/v1/engine/sync-orders")
+            assert sync_resp.status_code == 200
+            sync_data = sync_resp.json()
+            assert sync_data == {"checked": 0, "updated": 0, "errors": []}
+
+            status_resp_after_sync = client.get("/api/v1/engine/status")
+            sync_status_data = status_resp_after_sync.json()
+            assert sync_status_data["order_sync_last_run_at"] is not None
+            assert sync_status_data["order_sync_last_error"] is None
 
         # lifespan 종료 시 scheduler가 정상적으로 shutdown 되어야 한다
         assert scheduler.running is False

@@ -32,6 +32,14 @@ class EngineStatusResponse(BaseModel):
     last_run_at: datetime | None
     last_error: str | None
     active_strategy_count: int
+    order_sync_last_run_at: datetime | None
+    order_sync_last_error: str | None
+
+
+class OrderSyncResultRead(BaseModel):
+    checked: int
+    updated: int
+    errors: list[str]
 
 
 class SignalLogRead(BaseModel):

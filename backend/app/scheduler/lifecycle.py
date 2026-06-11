@@ -5,19 +5,22 @@ from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 
 from app.core.config import get_settings
-from app.scheduler.jobs import run_strategy_job
+from app.scheduler.jobs import order_sync_job, run_strategy_job
 
 logger = logging.getLogger(__name__)
 
 STRATEGY_RUNNER_JOB_ID = "strategy_runner"
+ORDER_SYNC_JOB_ID = "order_sync"
 
 
 def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
-    """AsyncIOScheduler를 생성하고, 활성화 설정인 경우 전략 실행 작업을 등록 후 시작한다."""
+    """AsyncIOScheduler를 생성하고, 활성화 설정인 경우 전략 실행/주문 동기화 작업을 등록 후 시작한다."""
     settings = get_settings()
 
     app.state.scheduler_last_run_at = None
     app.state.scheduler_last_error = None
+    app.state.order_sync_last_run_at = None
+    app.state.order_sync_last_error = None
 
     scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
@@ -26,6 +29,16 @@ def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
             run_strategy_job,
             trigger=IntervalTrigger(seconds=settings.strategy_scheduler_interval_seconds),
             id=STRATEGY_RUNNER_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
+    if settings.order_sync_scheduler_enabled:
+        scheduler.add_job(
+            order_sync_job,
+            trigger=IntervalTrigger(seconds=settings.order_sync_scheduler_interval_seconds),
+            id=ORDER_SYNC_JOB_ID,
             args=[app],
             max_instances=1,
             replace_existing=True,

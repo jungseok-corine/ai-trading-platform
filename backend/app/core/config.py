@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     strategy_scheduler_enabled: bool = True
     strategy_scheduler_interval_seconds: int = 60
 
+    # 주문 체결 동기화 스케줄러 (APScheduler)
+    order_sync_scheduler_enabled: bool = True
+    order_sync_scheduler_interval_seconds: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

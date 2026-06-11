@@ -13,6 +13,7 @@ from app.trading.broker.schemas import (
     AccountBalance,
     AccountSummary,
     MinuteCandle,
+    OrderExecution,
     OrderRequest,
     OrderResult,
     PriceQuote,
@@ -43,6 +44,9 @@ class FakeBrokerClient(BrokerClient):
         )
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
+        raise NotImplementedError
+
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
         raise NotImplementedError
 
 

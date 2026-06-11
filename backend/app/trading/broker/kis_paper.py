@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from app.domain.models.enums import OrderStatus, TradeSide
 from app.trading.broker.base import BrokerClient
@@ -8,6 +9,7 @@ from app.trading.broker.schemas import (
     AccountHolding,
     AccountSummary,
     MinuteCandle,
+    OrderExecution,
     OrderRequest,
     OrderResult,
     OrderType,
@@ -27,6 +29,8 @@ TR_ID_INQUIRE_BALANCE = "VTTC8434R"
 TR_ID_ORDER_CASH_BUY = "VTTC0012U"
 # tr_id: 주식 현금 매도 주문 (모의투자)
 TR_ID_ORDER_CASH_SELL = "VTTC0011U"
+# tr_id: 주식일별주문체결조회 (모의투자, 3개월 이내)
+TR_ID_INQUIRE_DAILY_CCLD = "VTTC8001R"
 
 # 주문구분: 지정가
 ORD_DVSN_LIMIT = "00"
@@ -171,3 +175,52 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             order_status=OrderStatus.PENDING,
             ordered_at=datetime.now(KST),
         )
+
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        if target_date is None:
+            target_date = datetime.now(KST).strftime("%Y%m%d")
+
+        data = await self._request(
+            "GET",
+            "/uapi/domestic-stock/v1/trading/inquire-daily-ccld",
+            tr_id=TR_ID_INQUIRE_DAILY_CCLD,
+            params={
+                "CANO": self._cano,
+                "ACNT_PRDT_CD": self._acnt_prdt_cd,
+                "INQR_STRT_DT": target_date,
+                "INQR_END_DT": target_date,
+                "SLL_BUY_DVSN_CD": "00",
+                "INQR_DVSN": "00",
+                "PDNO": "",
+                "CCLD_DVSN": "00",
+                "ORD_GNO_BRNO": "",
+                "ODNO": "",
+                "INQR_DVSN_3": "00",
+                "INQR_DVSN_1": "",
+                "CTX_AREA_FK100": "",
+                "CTX_AREA_NK100": "",
+            },
+        )
+
+        executions = []
+        for row in data["output1"]:
+            filled_quantity = int(row["tot_ccld_qty"])
+            filled_price = Decimal(row["avg_prvs"]) if filled_quantity > 0 and row.get("avg_prvs") else None
+            recorded_at = None
+            if row.get("ord_dt") and row.get("ord_tmd"):
+                recorded_at = datetime.strptime(
+                    f"{row['ord_dt']}{row['ord_tmd']}", "%Y%m%d%H%M%S"
+                ).replace(tzinfo=KST)
+
+            executions.append(
+                OrderExecution(
+                    broker_order_id=row["odno"],
+                    total_quantity=int(row["ord_qty"]),
+                    filled_quantity=filled_quantity,
+                    filled_price=filled_price,
+                    cancelled=row.get("cncl_yn") == "Y",
+                    recorded_at=recorded_at,
+                    raw=row,
+                )
+            )
+        return executions

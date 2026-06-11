@@ -17,6 +17,7 @@ from app.trading.broker.schemas import (
     AccountBalance,
     AccountSummary,
     MinuteCandle,
+    OrderExecution,
     OrderRequest,
     OrderResult,
     PriceQuote,
@@ -58,6 +59,9 @@ class FakeBrokerClient(BrokerClient):
             order_status=OrderStatus.PENDING,
             ordered_at=datetime.now(KST),
         )
+
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        raise NotImplementedError
 
 
 async def _create_account_with_risk_config(session: AsyncSession, **config_overrides) -> Account:

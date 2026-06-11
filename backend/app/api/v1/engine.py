@@ -8,12 +8,13 @@ from app.api.deps import get_broker_client
 from app.db.session import get_db
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.market_data_service import MarketDataService
+from app.services.order_sync_service import OrderSyncService
 from app.services.risk_service import RiskService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
 from app.trading.broker.base import BrokerClient
-from app.trading.strategy.schemas import EngineStatusResponse, StrategyRunResultRead
+from app.trading.strategy.schemas import EngineStatusResponse, OrderSyncResultRead, StrategyRunResultRead
 
 router = APIRouter(prefix="/engine", tags=["engine"])
 
@@ -28,6 +29,13 @@ def get_strategy_runner_service(
     risk_service = RiskService(session, broker)
     trade_service = TradeService(session, broker, risk_service)
     return StrategyRunnerService(session, signal_service, trade_service)
+
+
+def get_order_sync_service(
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> OrderSyncService:
+    return OrderSyncService(session, broker)
 
 
 @router.get("/status", response_model=EngineStatusResponse)
@@ -45,6 +53,8 @@ async def get_engine_status(
         last_run_at=getattr(request.app.state, "scheduler_last_run_at", None),
         last_error=getattr(request.app.state, "scheduler_last_error", None),
         active_strategy_count=len(active_versions),
+        order_sync_last_run_at=getattr(request.app.state, "order_sync_last_run_at", None),
+        order_sync_last_error=getattr(request.app.state, "order_sync_last_error", None),
     )
 
 
@@ -68,3 +78,15 @@ async def run_once(
 
     request.app.state.scheduler_last_run_at = datetime.now(KST)
     return [StrategyRunResultRead.model_validate(r) for r in results]
+
+
+@router.post("/sync-orders", response_model=OrderSyncResultRead)
+async def sync_orders(
+    request: Request,
+    sync_service: OrderSyncService = Depends(get_order_sync_service),
+) -> OrderSyncResultRead:
+    """pending/partial 주문의 체결 상태를 즉시 1회 동기화한다 (테스트/수동 실행용)."""
+    result = await sync_service.sync_pending_orders()
+    request.app.state.order_sync_last_error = "; ".join(result.errors) if result.errors else None
+    request.app.state.order_sync_last_run_at = datetime.now(KST)
+    return OrderSyncResultRead(checked=result.checked, updated=result.updated, errors=result.errors)

@@ -68,3 +68,15 @@ class OrderResult(BaseModel):
     broker_order_id: str
     order_status: OrderStatus
     ordered_at: datetime
+
+
+class OrderExecution(BaseModel):
+    """KIS 주문체결조회 응답 1건을 정규화한 모델."""
+
+    broker_order_id: str
+    total_quantity: int
+    filled_quantity: int
+    filled_price: Decimal | None = None
+    cancelled: bool = False
+    recorded_at: datetime | None = None
+    raw: dict
