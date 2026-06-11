@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { runOnce, syncOrders } from "../api/client";
 import EngineStatusCard from "../components/EngineStatusCard";
+import SchedulerRunsCard from "../components/SchedulerRunsCard";
 import PositionsTable from "../components/PositionsTable";
 import TradesTable from "../components/TradesTable";
 import SignalsTable from "../components/SignalsTable";
@@ -17,6 +18,7 @@ export default function DashboardPage() {
     mutationFn: runOnce,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["engine-status"] });
+      queryClient.invalidateQueries({ queryKey: ["scheduler-runs"] });
       queryClient.invalidateQueries({ queryKey: ["signals"] });
       queryClient.invalidateQueries({ queryKey: ["trades"] });
       queryClient.invalidateQueries({ queryKey: ["positions"] });
@@ -27,6 +29,7 @@ export default function DashboardPage() {
     mutationFn: syncOrders,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["engine-status"] });
+      queryClient.invalidateQueries({ queryKey: ["scheduler-runs"] });
       queryClient.invalidateQueries({ queryKey: ["trades"] });
       queryClient.invalidateQueries({ queryKey: ["positions"] });
     },
@@ -37,6 +40,7 @@ export default function DashboardPage() {
       <h1>AI Trading Platform Dashboard</h1>
 
       <EngineStatusCard />
+      <SchedulerRunsCard />
 
       <div className="card">
         <h2>Actions</h2>

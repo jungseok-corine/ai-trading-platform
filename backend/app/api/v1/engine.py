@@ -10,11 +10,17 @@ from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.market_data_service import MarketDataService
 from app.services.order_sync_service import OrderSyncService
 from app.services.risk_service import RiskService
+from app.services.scheduler_run_service import SchedulerRunService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
 from app.trading.broker.base import BrokerClient
-from app.trading.strategy.schemas import EngineStatusResponse, OrderSyncResultRead, StrategyRunResultRead
+from app.trading.strategy.schemas import (
+    EngineStatusResponse,
+    OrderSyncResultRead,
+    SchedulerRunRead,
+    StrategyRunResultRead,
+)
 
 router = APIRouter(prefix="/engine", tags=["engine"])
 
@@ -46,6 +52,10 @@ async def get_engine_status(
     scheduler = getattr(request.app.state, "scheduler", None)
     registered_jobs = [job.id for job in scheduler.get_jobs()] if scheduler is not None else []
     active_versions = await StrategyVersionRepository(session).list_active()
+    auto_trade_enabled_count = sum(
+        1 for v in active_versions if (v.parameters or {}).get("auto_trade_enabled", False)
+    )
+    recent_run_has_failure = await SchedulerRunService(session).has_recent_failure(limit=20)
 
     return EngineStatusResponse(
         scheduler_running=scheduler is not None and scheduler.running,
@@ -55,6 +65,8 @@ async def get_engine_status(
         active_strategy_count=len(active_versions),
         order_sync_last_run_at=getattr(request.app.state, "order_sync_last_run_at", None),
         order_sync_last_error=getattr(request.app.state, "order_sync_last_error", None),
+        recent_run_has_failure=recent_run_has_failure,
+        auto_trade_enabled_count=auto_trade_enabled_count,
     )
 
 
@@ -78,6 +90,16 @@ async def run_once(
 
     request.app.state.scheduler_last_run_at = datetime.now(KST)
     return [StrategyRunResultRead.model_validate(r) for r in results]
+
+
+@router.get("/runs", response_model=list[SchedulerRunRead])
+async def list_scheduler_runs(
+    limit: int = 20,
+    session: AsyncSession = Depends(get_db),
+) -> list[SchedulerRunRead]:
+    """최근 scheduler job(strategy_runner, order_sync) 실행 기록을 조회한다."""
+    runs = await SchedulerRunService(session).list_recent(limit)
+    return [SchedulerRunRead.model_validate(r) for r in runs]
 
 
 @router.post("/sync-orders", response_model=OrderSyncResultRead)

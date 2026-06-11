@@ -1,18 +1,25 @@
 import logging
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.enums import TradeAttemptStatus
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
+from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
+from app.trading.broker.error_classifier import classify_kis_error
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.strategy.base import Signal
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
 
 logger = logging.getLogger(__name__)
+
+KST = ZoneInfo("Asia/Seoul")
 
 STRATEGY_TYPE_MOVING_AVERAGE_CROSS = "moving_average_cross"
 
@@ -31,6 +38,7 @@ class StrategyRunResult:
     trade_id: int | None = None
     rejection_reason: str | None = None
     error: str | None = None
+    error_category: str | None = None
 
 
 class StrategyRunnerService:
@@ -52,6 +60,7 @@ class StrategyRunnerService:
         self._signal_service = signal_service
         self._trade_service = trade_service
         self._strategy_version_repo = StrategyVersionRepository(session)
+        self._signal_log_repo = SignalLogRepository(session)
 
     async def run_once(self) -> list[StrategyRunResult]:
         versions = await self._strategy_version_repo.list_active()
@@ -93,7 +102,11 @@ class StrategyRunnerService:
             log = await self._signal_service.generate_and_log_signal(strategy, symbol_code, version.id)
         except KISAPIError as e:
             result.error = f"market data error: {e.msg1}"
-            logger.error("strategy_version_id=%s signal generation failed: %s", version.id, e.msg1)
+            result.error_category = classify_kis_error(e)
+            logger.error(
+                "strategy_version_id=%s signal generation failed (%s): %s",
+                version.id, result.error_category, e.msg1,
+            )
             return result
 
         if log is None:
@@ -111,6 +124,17 @@ class StrategyRunnerService:
     async def _attempt_auto_trade(
         self, version: StrategyVersion, params: dict, log: SignalLog, result: StrategyRunResult
     ) -> None:
+        if log.trade_attempt_status != TradeAttemptStatus.NOT_ATTEMPTED:
+            result.error = (
+                f"이미 주문이 시도된 신호입니다 (signal_id={log.id}, "
+                f"status={log.trade_attempt_status.value}). 중복 주문을 방지합니다."
+            )
+            logger.info(
+                "strategy_version_id=%s signal_id=%s: 주문 시도 중복 방지 (status=%s)",
+                version.id, log.id, log.trade_attempt_status.value,
+            )
+            return
+
         account_id = params.get("account_id")
         if account_id is None:
             result.error = "auto_trade_enabled=true 이지만 parameters.account_id가 설정되지 않았습니다."
@@ -143,7 +167,12 @@ class StrategyRunnerService:
             )
         except KISAPIError as e:
             result.error = f"order error: {e.msg1}"
-            logger.error("strategy_version_id=%s auto-trade order failed: %s", version.id, e.msg1)
+            result.error_category = classify_kis_error(e)
+            logger.error(
+                "strategy_version_id=%s auto-trade order failed (%s): %s",
+                version.id, result.error_category, e.msg1,
+            )
+            await self._mark_trade_attempt(log, TradeAttemptStatus.ERROR)
             return
 
         result.trade_approved = placement.approved
@@ -152,9 +181,22 @@ class StrategyRunnerService:
             logger.info(
                 "auto-trade approved: strategy_version_id=%s trade_id=%s", version.id, placement.trade.id
             )
+            await self._mark_trade_attempt(log, TradeAttemptStatus.APPROVED, trade_id=placement.trade.id)
         else:
             result.rejection_reason = placement.reason
             logger.info(
                 "auto-trade rejected: strategy_version_id=%s rule=%s reason=%s",
                 version.id, placement.rule_name, placement.reason,
             )
+            await self._mark_trade_attempt(log, TradeAttemptStatus.REJECTED)
+
+    async def _mark_trade_attempt(
+        self, log: SignalLog, status: TradeAttemptStatus, trade_id: int | None = None
+    ) -> None:
+        await self._signal_log_repo.update(
+            log,
+            trade_attempt_status=status,
+            trade_attempted_at=datetime.now(KST),
+            trade_id=trade_id,
+        )
+        await self._session.commit()

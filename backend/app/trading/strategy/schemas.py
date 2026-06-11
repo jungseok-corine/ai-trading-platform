@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.domain.models.enums import StrategyVersionStatus, TradeSide
+from app.domain.models.enums import SchedulerRunStatus, StrategyVersionStatus, TradeSide
 
 
 class SignalGenerateRequest(BaseModel):
@@ -24,6 +24,7 @@ class StrategyRunResultRead(BaseModel):
     trade_id: int | None = None
     rejection_reason: str | None = None
     error: str | None = None
+    error_category: str | None = None
 
 
 class EngineStatusResponse(BaseModel):
@@ -34,6 +35,8 @@ class EngineStatusResponse(BaseModel):
     active_strategy_count: int
     order_sync_last_run_at: datetime | None
     order_sync_last_error: str | None
+    recent_run_has_failure: bool
+    auto_trade_enabled_count: int
 
 
 class OrderSyncResultRead(BaseModel):
@@ -125,3 +128,17 @@ class StrategyVersionRead(BaseModel):
     mdd: Decimal | None
     created_at: datetime
     updated_at: datetime
+
+
+class SchedulerRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_id: str
+    status: SchedulerRunStatus
+    started_at: datetime
+    finished_at: datetime | None
+    duration_ms: int | None
+    error_message: str | None
+    summary: dict | None
+    created_at: datetime

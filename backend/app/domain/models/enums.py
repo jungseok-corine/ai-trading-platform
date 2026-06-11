@@ -36,3 +36,16 @@ class PositionEventType(str, enum.Enum):
     SELL_FILL = "sell_fill"
     SYNC = "sync"
     ADJUSTMENT = "adjustment"
+
+
+class SchedulerRunStatus(str, enum.Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class TradeAttemptStatus(str, enum.Enum):
+    NOT_ATTEMPTED = "not_attempted"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    ERROR = "error"

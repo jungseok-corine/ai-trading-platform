@@ -10,6 +10,22 @@ export interface EngineStatus {
   active_strategy_count: number;
   order_sync_last_run_at: string | null;
   order_sync_last_error: string | null;
+  recent_run_has_failure: boolean;
+  auto_trade_enabled_count: number;
+}
+
+export type SchedulerRunStatus = "success" | "failed" | "skipped";
+
+export interface SchedulerRun {
+  id: number;
+  job_id: string;
+  status: SchedulerRunStatus;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  summary: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface OrderSyncResult {
@@ -29,6 +45,7 @@ export interface StrategyRunResult {
   trade_id: number | null;
   rejection_reason: string | null;
   error: string | null;
+  error_category: string | null;
 }
 
 export interface Position {

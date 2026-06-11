@@ -4,6 +4,7 @@ import type {
   OrderSyncResult,
   Position,
   RiskConfig,
+  SchedulerRun,
   SignalLog,
   Strategy,
   StrategyRunResult,
@@ -29,6 +30,11 @@ export async function runOnce(): Promise<StrategyRunResult[]> {
 
 export async function syncOrders(): Promise<OrderSyncResult> {
   const { data } = await apiClient.post<OrderSyncResult>("/engine/sync-orders");
+  return data;
+}
+
+export async function getSchedulerRuns(limit = 20): Promise<SchedulerRun[]> {
+  const { data } = await apiClient.get<SchedulerRun[]>("/engine/runs", { params: { limit } });
   return data;
 }
 

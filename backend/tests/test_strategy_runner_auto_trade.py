@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.account import Account
-from app.domain.models.enums import AccountType, OrderStatus, StrategyVersionStatus
+from app.domain.models.enums import AccountType, OrderStatus, StrategyVersionStatus, TradeAttemptStatus
 from app.domain.models.risk import RiskConfig, RiskEvent
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
@@ -14,9 +14,10 @@ from app.domain.models.trade import Trade
 from app.services.market_data_service import MarketDataService
 from app.services.risk_service import RiskService
 from app.services.signal_service import SignalService
-from app.services.strategy_runner_service import StrategyRunnerService
+from app.services.strategy_runner_service import StrategyRunnerService, StrategyRunResult
 from app.services.trade_service import TradeService
 from app.trading.broker.base import BrokerClient
+from app.trading.broker.error_classifier import KIS_ERROR_UNKNOWN
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.schemas import (
     AccountBalance,
@@ -203,6 +204,11 @@ async def test_auto_trade_enabled_approved_calls_trade_service(db_session: Async
     assert len(trades) == 1
     assert trades[0].id == result.trade_id
 
+    log = (await db_session.execute(select(SignalLog))).scalars().one()
+    assert log.trade_attempt_status == TradeAttemptStatus.APPROVED
+    assert log.trade_id == result.trade_id
+    assert log.trade_attempted_at is not None
+
 
 async def test_auto_trade_enabled_without_account_id_returns_error(db_session: AsyncSession) -> None:
     await _create_strategy_version(db_session, _params(auto_trade_enabled=True))
@@ -273,6 +279,45 @@ async def test_auto_trade_kis_order_error_is_captured_as_error(db_session: Async
     assert result.trade_attempted is True
     assert result.trade_approved is None
     assert result.error is not None
+    assert result.error_category == KIS_ERROR_UNKNOWN
 
     trades = (await db_session.execute(select(Trade))).scalars().all()
     assert trades == []
+
+    log = (await db_session.execute(select(SignalLog))).scalars().one()
+    assert log.trade_attempt_status == TradeAttemptStatus.ERROR
+
+
+async def test_duplicate_trade_attempt_is_not_repeated(db_session: AsyncSession) -> None:
+    """동일 signal_log에 대해 _attempt_auto_trade가 다시 호출되어도 추가 주문을 시도하지 않는다."""
+    account = await _create_account_with_risk_config(db_session)
+    version = await _create_strategy_version(
+        db_session, _params(auto_trade_enabled=True, account_id=account.id)
+    )
+    broker = FakeBrokerClient({"005930": _make_candles(GOLDEN_CROSS_CLOSES)})
+    runner = _runner(db_session, broker)
+
+    results = await runner.run_once()
+    assert results[0].trade_attempted is True
+    assert results[0].trade_approved is True
+
+    log = (await db_session.execute(select(SignalLog))).scalars().one()
+    assert log.trade_attempt_status == TradeAttemptStatus.APPROVED
+    assert len(broker.place_order_calls) == 1
+
+    repeat_result = StrategyRunResult(
+        strategy_version_id=version.id,
+        symbol_code="005930",
+        signal_created=True,
+        signal_id=log.id,
+        auto_trade_enabled=True,
+        trade_attempted=False,
+    )
+    await runner._attempt_auto_trade(version, version.parameters, log, repeat_result)
+
+    assert repeat_result.trade_attempted is False
+    assert repeat_result.error is not None
+    assert len(broker.place_order_calls) == 1
+
+    trades = (await db_session.execute(select(Trade))).scalars().all()
+    assert len(trades) == 1

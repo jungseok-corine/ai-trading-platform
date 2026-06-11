@@ -16,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
 from app.domain.models._types import pg_enum
-from app.domain.models.enums import TradeSide
+from app.domain.models.enums import TradeAttemptStatus, TradeSide
 
 
 class SignalLog(Base):
@@ -47,6 +47,13 @@ class SignalLog(Base):
     long_ma: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     quantity: Mapped[int | None] = mapped_column(Integer)
+    trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id", ondelete="SET NULL"))
+    trade_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trade_attempt_status: Mapped[TradeAttemptStatus] = mapped_column(
+        pg_enum(TradeAttemptStatus, "trade_attempt_status"),
+        nullable=False,
+        default=TradeAttemptStatus.NOT_ATTEMPTED,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

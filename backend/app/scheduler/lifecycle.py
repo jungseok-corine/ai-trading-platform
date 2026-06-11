@@ -5,12 +5,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 
 from app.core.config import get_settings
-from app.scheduler.jobs import order_sync_job, run_strategy_job
+from app.scheduler.jobs import ORDER_SYNC_JOB_ID, STRATEGY_RUNNER_JOB_ID, order_sync_job, run_strategy_job
 
 logger = logging.getLogger(__name__)
-
-STRATEGY_RUNNER_JOB_ID = "strategy_runner"
-ORDER_SYNC_JOB_ID = "order_sync"
 
 
 def start_scheduler(app: FastAPI) -> AsyncIOScheduler:

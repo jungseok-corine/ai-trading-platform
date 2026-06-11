@@ -65,6 +65,12 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
             assert "last_error" in status_data
             assert "order_sync_last_run_at" in status_data
             assert "order_sync_last_error" in status_data
+            assert "recent_run_has_failure" in status_data
+            assert "auto_trade_enabled_count" in status_data
+
+            runs_resp = client.get("/api/v1/engine/runs")
+            assert runs_resp.status_code == 200
+            assert isinstance(runs_resp.json(), list)
 
             run_resp = client.post("/api/v1/engine/run-once")
             assert run_resp.status_code == 200
