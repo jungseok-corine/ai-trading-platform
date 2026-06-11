@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.account import Account
 from app.domain.models.enums import AccountType, OrderStatus, TradeSide
 from app.domain.models.trade import Trade
+from app.domain.repositories.position import PositionRepository
+from app.domain.repositories.position_event import PositionEventRepository
 from app.services.order_sync_service import OrderSyncService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.exceptions import KISAPIError
@@ -228,6 +230,129 @@ async def test_no_matching_execution_leaves_trade_untouched(db_session: AsyncSes
     assert result.updated == 0
     await db_session.refresh(trade)
     assert trade.order_status == OrderStatus.PENDING
+
+
+async def test_buy_fill_applies_to_position(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    trade = await _create_trade(db_session, account.id, side=TradeSide.BUY)
+
+    broker = FakeBrokerClient(
+        executions=[
+            OrderExecution(
+                broker_order_id="0000000001",
+                total_quantity=10,
+                filled_quantity=10,
+                filled_price=Decimal("69900"),
+                cancelled=False,
+                raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+            )
+        ]
+    )
+
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+    assert result.errors == []
+
+    await db_session.refresh(trade)
+    assert trade.position_applied_quantity == 10
+
+    position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    assert position.quantity == 10
+    assert position.avg_entry_price == Decimal("69900")
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    assert len(events) == 1
+    assert events[0].trade_id == trade.id
+    assert events[0].quantity_delta == 10
+
+
+async def test_duplicate_sync_does_not_double_apply_position(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    trade = await _create_trade(db_session, account.id, side=TradeSide.BUY)
+
+    execution = OrderExecution(
+        broker_order_id="0000000001",
+        total_quantity=10,
+        filled_quantity=10,
+        filled_price=Decimal("69900"),
+        cancelled=False,
+        raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+    )
+    broker = FakeBrokerClient(executions=[execution])
+
+    service = OrderSyncService(db_session, broker)
+    await service.sync_pending_orders()
+
+    await db_session.refresh(trade)
+    # 첫 동기화 후 trade는 FILLED이지만, list_pending_or_partial은 더 이상 반환하지 않으므로
+    # 동일 trade를 다시 직접 동기화 대상으로 만들어 중복 호출을 시뮬레이션한다.
+    trade.order_status = OrderStatus.PARTIAL
+    await db_session.flush()
+
+    await service.sync_pending_orders()
+
+    position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    assert position.quantity == 10
+    assert position.avg_entry_price == Decimal("69900")
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    assert len(events) == 1
+
+
+async def test_only_new_partial_increment_is_applied(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    trade = await _create_trade(db_session, account.id, side=TradeSide.BUY)
+
+    service = OrderSyncService(
+        db_session,
+        FakeBrokerClient(
+            executions=[
+                OrderExecution(
+                    broker_order_id="0000000001",
+                    total_quantity=10,
+                    filled_quantity=4,
+                    filled_price=Decimal("70000"),
+                    cancelled=False,
+                    raw={"odno": "0000000001", "tot_ccld_qty": "4"},
+                )
+            ]
+        ),
+    )
+    await service.sync_pending_orders()
+
+    await db_session.refresh(trade)
+    assert trade.position_applied_quantity == 4
+
+    service2 = OrderSyncService(
+        db_session,
+        FakeBrokerClient(
+            executions=[
+                OrderExecution(
+                    broker_order_id="0000000001",
+                    total_quantity=10,
+                    filled_quantity=10,
+                    filled_price=Decimal("70500"),
+                    cancelled=False,
+                    raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+                )
+            ]
+        ),
+    )
+    await service2.sync_pending_orders()
+
+    await db_session.refresh(trade)
+    assert trade.position_applied_quantity == 10
+
+    position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    assert position.quantity == 10
+    # avg = (70000*4 + 70500*6) / 10
+    assert position.avg_entry_price == Decimal("70300")
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    assert len(events) == 2
+    assert {e.quantity_delta for e in events} == {4, 6}
 
 
 async def test_broker_error_does_not_raise(db_session: AsyncSession) -> None:

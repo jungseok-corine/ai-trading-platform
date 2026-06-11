@@ -29,3 +29,10 @@ class OrderStatus(str, enum.Enum):
 class RiskEventResult(str, enum.Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class PositionEventType(str, enum.Enum):
+    BUY_FILL = "buy_fill"
+    SELL_FILL = "sell_fill"
+    SYNC = "sync"
+    ADJUSTMENT = "adjustment"

@@ -41,6 +41,7 @@ class TradeRead(BaseModel):
     order_status: OrderStatus
     broker_order_id: str | None
     partial_fill: dict | None
+    position_applied_quantity: int
     commission: Decimal | None
     tax: Decimal | None
     slippage: Decimal | None

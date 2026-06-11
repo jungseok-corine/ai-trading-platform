@@ -43,6 +43,7 @@ class Trade(Base):
     )
     broker_order_id: Mapped[str | None] = mapped_column(String(50))
     partial_fill: Mapped[dict | None] = mapped_column(JSONB)
+    position_applied_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     tax: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
