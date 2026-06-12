@@ -29,6 +29,9 @@ export interface SchedulerRunSummary {
   trades_attempted?: number;
   checked?: number;
   updated?: number;
+  matched?: number;
+  unmatched?: number;
+  unmatched_order_ids?: string[];
   errors?: SchedulerRunErrorEntry[];
 }
 
@@ -47,6 +50,9 @@ export interface SchedulerRun {
 export interface OrderSyncResult {
   checked: number;
   updated: number;
+  matched: number;
+  unmatched: number;
+  unmatched_order_ids: string[];
   errors: string[];
 }
 
@@ -75,6 +81,23 @@ export interface Position {
   unrealized_pnl: string;
   last_price: string | null;
   updated_at: string;
+}
+
+export interface PortfolioSummary {
+  account_id: number;
+  position_count: number;
+  total_quantity: number;
+  total_cost_amount: string;
+  total_eval_amount: string;
+  total_unrealized_pnl: string;
+  total_unrealized_pnl_pct: string;
+  total_realized_pnl: string;
+  total_pnl: string;
+}
+
+export interface RefreshPricesResult {
+  updated: number;
+  positions: Position[];
 }
 
 export interface Trade {

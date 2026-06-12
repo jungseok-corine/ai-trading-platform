@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { getRiskConfig, setEmergencyStop } from "../api/client";
+import { useSettings } from "../i18n/SettingsContext";
 
 const ACCOUNT_ID_STORAGE_KEY = "riskControls.accountId";
 
@@ -16,6 +17,7 @@ function loadStoredAccountId(): string {
 }
 
 export default function RiskControls() {
+  const { t } = useSettings();
   const [accountIdInput, setAccountIdInput] = useState<string>(loadStoredAccountId);
   const queryClient = useQueryClient();
 
@@ -49,9 +51,9 @@ export default function RiskControls() {
 
   return (
     <div className="card">
-      <h2>Risk Controls</h2>
+      <h2>{t.risk.title}</h2>
       <div className="risk-controls-form">
-        <label htmlFor="risk-account-id">Account ID</label>
+        <label htmlFor="risk-account-id">{t.risk.accountId}</label>
         <input
           id="risk-account-id"
           type="text"
@@ -66,41 +68,41 @@ export default function RiskControls() {
         />
       </div>
 
-      {!isValidAccountId && <p className="muted">account_id를 입력하세요.</p>}
-      {accountId !== null && isLoading && <p className="muted">불러오는 중...</p>}
+      {!isValidAccountId && <p className="muted">{t.risk.accountIdPlaceholder}</p>}
+      {accountId !== null && isLoading && <p className="muted">{t.common.loading}</p>}
       {accountId !== null && isError && isNotFound && (
-        <p className="muted">해당 account_id({accountId})의 risk_config가 없습니다.</p>
+        <p className="muted">{t.risk.notFound(accountId)}</p>
       )}
       {accountId !== null && isError && !isNotFound && (
-        <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>
+        <p className="value error">{(error as Error)?.message ?? t.common.loadError}</p>
       )}
 
       {data && (
         <div className="status-grid">
           <div className="status-item">
-            <span className="label">Emergency Stop</span>
+            <span className="label">{t.risk.emergencyStop}</span>
             <span className={`pill ${data.emergency_stop ? "on" : "off"}`}>
               {data.emergency_stop ? "ON" : "OFF"}
             </span>
           </div>
           <div className="status-item">
-            <span className="label">Max Daily Loss Amount</span>
+            <span className="label">{t.risk.maxDailyLossAmount}</span>
             <span className="value">{data.max_daily_loss_amount}</span>
           </div>
           <div className="status-item">
-            <span className="label">Max Position Size</span>
+            <span className="label">{t.risk.maxPositionSize}</span>
             <span className="value">{data.max_position_size}</span>
           </div>
           <div className="status-item">
-            <span className="label">Max Open Positions</span>
+            <span className="label">{t.risk.maxOpenPositions}</span>
             <span className="value">{data.max_open_positions}</span>
           </div>
           <div className="status-item">
-            <span className="label">Max Trades Per Day</span>
+            <span className="label">{t.risk.maxTradesPerDay}</span>
             <span className="value">{data.max_trades_per_day}</span>
           </div>
           <div className="status-item">
-            <span className="label">Consecutive Loss Limit</span>
+            <span className="label">{t.risk.consecutiveLossLimit}</span>
             <span className="value">{data.consecutive_loss_limit}</span>
           </div>
         </div>
@@ -112,19 +114,19 @@ export default function RiskControls() {
           disabled={!data || emergencyStopMutation.isPending || data?.emergency_stop === true}
           onClick={() => emergencyStopMutation.mutate(true)}
         >
-          Emergency Stop ON
+          {t.risk.emergencyStopOn}
         </button>
         <button
           className="primary"
           disabled={!data || emergencyStopMutation.isPending || data?.emergency_stop === false}
           onClick={() => emergencyStopMutation.mutate(false)}
         >
-          Emergency Stop OFF
+          {t.risk.emergencyStopOff}
         </button>
       </div>
       {emergencyStopMutation.isError && (
         <p className="action-result value error">
-          {(emergencyStopMutation.error as Error)?.message ?? "변경 실패"}
+          {(emergencyStopMutation.error as Error)?.message ?? t.risk.changeFailed}
         </p>
       )}
     </div>

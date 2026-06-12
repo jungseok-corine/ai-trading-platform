@@ -7,6 +7,16 @@ from app.domain.models.enums import AccountType, PositionEventType, TradeSide
 from app.domain.repositories.position import PositionRepository
 from app.domain.repositories.position_event import PositionEventRepository
 from app.services.position_service import PositionService
+from app.trading.broker.base import BrokerClient
+from app.trading.broker.schemas import (
+    AccountBalance,
+    AccountSummary,
+    MinuteCandle,
+    OrderExecution,
+    OrderRequest,
+    OrderResult,
+    PriceQuote,
+)
 
 
 async def _create_account(session: AsyncSession) -> Account:
@@ -14,6 +24,50 @@ async def _create_account(session: AsyncSession) -> Account:
     session.add(account)
     await session.flush()
     return account
+
+
+class FakePriceBrokerClient(BrokerClient):
+    """심볼별로 고정된 현재가를 반환하는 시세 조회 테스트용 브로커."""
+
+    def __init__(self, prices: dict[str, Decimal]) -> None:
+        self._prices = prices
+        self.requested_symbols: list[str] = []
+
+    async def get_current_price(self, symbol_code: str) -> PriceQuote:
+        self.requested_symbols.append(symbol_code)
+        price = self._prices[symbol_code]
+        return PriceQuote(
+            symbol_code=symbol_code,
+            current_price=price,
+            change=Decimal("0"),
+            change_rate=Decimal("0"),
+            open_price=price,
+            high_price=price,
+            low_price=price,
+            volume=0,
+        )
+
+    async def get_minute_candles(
+        self, symbol_code: str, target_time: str | None = None, include_past_data: bool = True
+    ) -> list[MinuteCandle]:
+        raise NotImplementedError
+
+    async def get_account_balance(self) -> AccountBalance:
+        return AccountBalance(
+            holdings=[],
+            summary=AccountSummary(
+                total_deposit=Decimal("0"),
+                total_purchase_amount=Decimal("0"),
+                total_evaluation_amount=Decimal("0"),
+                total_profit_loss_amount=Decimal("0"),
+            ),
+        )
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        raise NotImplementedError
+
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        return []
 
 
 async def test_first_buy_fill_creates_position(db_session: AsyncSession) -> None:
@@ -232,3 +286,56 @@ async def test_update_last_price_for_unknown_position_returns_none(db_session: A
     position = await service.update_last_price(account.id, "005930", Decimal("80000"))
 
     assert position is None
+
+
+async def test_refresh_all_prices_updates_held_positions_and_skips_zero_quantity(
+    db_session: AsyncSession,
+) -> None:
+    account = await _create_account(db_session)
+
+    # quantity != 0 인 포지션
+    no_broker_service = PositionService(db_session)
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=10,
+        price=Decimal("70000"),
+    )
+
+    # 완전 매도되어 quantity == 0 인 포지션
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="000660",
+        side=TradeSide.BUY,
+        quantity=5,
+        price=Decimal("100000"),
+    )
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="000660",
+        side=TradeSide.SELL,
+        quantity=5,
+        price=Decimal("110000"),
+    )
+
+    broker = FakePriceBrokerClient({"005930": Decimal("80000"), "000660": Decimal("999999")})
+    service = PositionService(db_session, broker)
+
+    updated = await service.refresh_all_prices(account.id)
+
+    assert [p.symbol_code for p in updated] == ["005930"]
+    assert broker.requested_symbols == ["005930"]
+
+    repo = PositionRepository(db_session)
+    samsung = await repo.get_by_account_symbol(account.id, "005930")
+    assert samsung is not None
+    assert samsung.last_price == Decimal("80000")
+    assert samsung.unrealized_pnl == (Decimal("80000") - Decimal("70000")) * 10
+
+    closed = await repo.get_by_account_symbol(account.id, "000660")
+    assert closed is not None
+    assert closed.quantity == 0
+    # quantity == 0 포지션은 시세 조회 대상이 아니므로 last_price가 변경되지 않는다
+    assert closed.last_price == Decimal("110000")
+    assert closed.unrealized_pnl == Decimal("0")

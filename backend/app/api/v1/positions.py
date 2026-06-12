@@ -5,9 +5,15 @@ from app.api.deps import get_broker_client
 from app.db.session import get_db
 from app.domain.repositories.position import PositionRepository
 from app.domain.repositories.position_event import PositionEventRepository
+from app.services.portfolio_service import PortfolioService
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
-from app.trading.position.schemas import PositionEventRead, PositionRead
+from app.trading.position.schemas import (
+    PortfolioSummaryRead,
+    PositionEventRead,
+    PositionRead,
+    RefreshPricesResultRead,
+)
 
 router = APIRouter(tags=["positions"])
 
@@ -26,6 +32,23 @@ async def list_positions(
 ) -> list[PositionRead]:
     repo = PositionRepository(session)
     return await repo.list_by_account(account_id=account_id)
+
+
+@router.post("/positions/refresh-prices", response_model=RefreshPricesResultRead)
+async def refresh_all_position_prices(
+    account_id: int,
+    service: PositionService = Depends(get_position_service),
+) -> RefreshPricesResultRead:
+    positions = await service.refresh_all_prices(account_id)
+    return RefreshPricesResultRead(updated=len(positions), positions=list(positions))
+
+
+@router.get("/portfolio/summary", response_model=PortfolioSummaryRead)
+async def get_portfolio_summary(
+    account_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> PortfolioSummaryRead:
+    return await PortfolioService(session).get_summary(account_id)
 
 
 @router.post("/positions/{position_id}/refresh-price", response_model=PositionRead)

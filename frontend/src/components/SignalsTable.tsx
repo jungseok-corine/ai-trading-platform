@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSignals } from "../api/client";
+import { useSettings } from "../i18n/SettingsContext";
 
 export default function SignalsTable() {
+  const { t, formatDateTime } = useSettings();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["signals"],
     queryFn: getSignals,
@@ -9,26 +11,23 @@ export default function SignalsTable() {
 
   return (
     <div className="card">
-      <h2>Signals</h2>
-      <p className="section-description">
-        전략이 생성한 매수/매도 신호입니다. 실제 주문이 실행됐다는 뜻은 아니며, auto_trade_enabled=false인
-        전략은 신호만 기록되고 자동 주문은 실행되지 않습니다.
-      </p>
-      {isLoading && <p className="muted">불러오는 중...</p>}
-      {isError && <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>}
-      {data && data.length === 0 && <p className="muted">생성된 시그널이 없습니다.</p>}
+      <h2>{t.signals.title}</h2>
+      <p className="section-description">{t.signals.description}</p>
+      {isLoading && <p className="muted">{t.common.loading}</p>}
+      {isError && <p className="value error">{(error as Error)?.message ?? t.common.loadError}</p>}
+      {data && data.length === 0 && <p className="muted">{t.signals.empty}</p>}
       {data && data.length > 0 && (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Symbol</th>
-                <th>Type</th>
-                <th>Short MA</th>
-                <th>Long MA</th>
-                <th>Reason</th>
-                <th>Generated At</th>
+                <th>{t.signals.colId}</th>
+                <th>{t.signals.colSymbol}</th>
+                <th>{t.signals.colType}</th>
+                <th>{t.signals.colShortMa}</th>
+                <th>{t.signals.colLongMa}</th>
+                <th>{t.signals.colReason}</th>
+                <th>{t.signals.colGeneratedAt}</th>
               </tr>
             </thead>
             <tbody>
@@ -36,11 +35,15 @@ export default function SignalsTable() {
                 <tr key={signal.id}>
                   <td>{signal.id}</td>
                   <td>{signal.symbol_code}</td>
-                  <td>{signal.signal_type}</td>
+                  <td>
+                    <span className={`badge side-${signal.signal_type}`}>
+                      {signal.signal_type === "buy" ? t.common.buy : t.common.sell}
+                    </span>
+                  </td>
                   <td>{signal.short_ma ?? "-"}</td>
                   <td>{signal.long_ma ?? "-"}</td>
                   <td>{signal.reason ?? "-"}</td>
-                  <td>{signal.generated_at}</td>
+                  <td>{formatDateTime(signal.generated_at)}</td>
                 </tr>
               ))}
             </tbody>

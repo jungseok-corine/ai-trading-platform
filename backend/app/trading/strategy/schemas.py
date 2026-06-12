@@ -42,6 +42,9 @@ class EngineStatusResponse(BaseModel):
 class OrderSyncResultRead(BaseModel):
     checked: int
     updated: int
+    matched: int
+    unmatched: int
+    unmatched_order_ids: list[str]
     errors: list[str]
 
 

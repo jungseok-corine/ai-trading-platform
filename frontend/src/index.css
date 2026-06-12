@@ -174,10 +174,31 @@ th {
 
 .top-nav {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 16px 24px 0;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.settings-bar {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  align-items: center;
+  font-size: 13px;
+  color: #57606a;
+}
+
+.settings-bar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.settings-bar select {
+  font-size: 13px;
+  padding: 2px 4px;
 }
 
 .form-row {
@@ -321,4 +342,29 @@ tr.selected {
 .badge.neutral {
   background: #eaeef2;
   color: #57606a;
+}
+
+.badge.side-buy {
+  background: #ffebe9;
+  color: #cf222e;
+}
+
+.badge.side-sell {
+  background: #ddf4ff;
+  color: #0969da;
+}
+
+.auto-refresh-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #444;
+}
+
+.auto-refresh-select select {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+  font-size: 13px;
 }

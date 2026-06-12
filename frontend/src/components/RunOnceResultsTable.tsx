@@ -1,4 +1,5 @@
 import type { StrategyRunResult } from "../types";
+import { useSettings } from "../i18n/SettingsContext";
 
 function describeResult(result: StrategyRunResult): string {
   if (!result.signal_created) {
@@ -20,8 +21,10 @@ function describeResult(result: StrategyRunResult): string {
 }
 
 export default function RunOnceResultsTable({ results }: { results: StrategyRunResult[] }) {
+  const { t } = useSettings();
+
   if (results.length === 0) {
-    return <p className="muted">실행할 활성 전략이 없습니다.</p>;
+    return <p className="muted">{t.runOnce.empty}</p>;
   }
 
   return (
@@ -29,11 +32,11 @@ export default function RunOnceResultsTable({ results }: { results: StrategyRunR
       <table>
         <thead>
           <tr>
-            <th>Strategy Version</th>
-            <th>Symbol</th>
-            <th>Signal</th>
-            <th>Auto Trade</th>
-            <th>결과</th>
+            <th>{t.runOnce.colStrategyVersion}</th>
+            <th>{t.runOnce.colSymbol}</th>
+            <th>{t.runOnce.colSignal}</th>
+            <th>{t.runOnce.colAutoTrade}</th>
+            <th>{t.runOnce.colResult}</th>
           </tr>
         </thead>
         <tbody>

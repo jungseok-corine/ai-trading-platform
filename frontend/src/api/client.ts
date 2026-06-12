@@ -2,7 +2,9 @@ import axios from "axios";
 import type {
   EngineStatus,
   OrderSyncResult,
+  PortfolioSummary,
   Position,
+  RefreshPricesResult,
   RiskConfig,
   SchedulerRun,
   SignalLog,
@@ -48,8 +50,24 @@ export async function getTrades(): Promise<Trade[]> {
   return data;
 }
 
-export async function getPositions(): Promise<Position[]> {
-  const { data } = await apiClient.get<Position[]>("/positions");
+export async function getPositions(accountId?: number): Promise<Position[]> {
+  const { data } = await apiClient.get<Position[]>("/positions", {
+    params: accountId !== undefined ? { account_id: accountId } : undefined,
+  });
+  return data;
+}
+
+export async function getPortfolioSummary(accountId: number): Promise<PortfolioSummary> {
+  const { data } = await apiClient.get<PortfolioSummary>("/portfolio/summary", {
+    params: { account_id: accountId },
+  });
+  return data;
+}
+
+export async function refreshAllPrices(accountId: number): Promise<RefreshPricesResult> {
+  const { data } = await apiClient.post<RefreshPricesResult>("/positions/refresh-prices", null, {
+    params: { account_id: accountId },
+  });
   return data;
 }
 

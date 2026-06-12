@@ -1,11 +1,14 @@
 import { useState } from "react";
 import DashboardPage from "./pages/DashboardPage";
 import StrategiesPage from "./pages/StrategiesPage";
+import { SettingsProvider, useSettings } from "./i18n/SettingsContext";
+import SettingsBar from "./i18n/SettingsBar";
 
 type Tab = "dashboard" | "strategies";
 
-function App() {
+function AppContent() {
   const [tab, setTab] = useState<Tab>("dashboard");
+  const { t } = useSettings();
 
   return (
     <div>
@@ -14,18 +17,27 @@ function App() {
           className={tab === "dashboard" ? "primary" : undefined}
           onClick={() => setTab("dashboard")}
         >
-          Dashboard
+          {t.nav.dashboard}
         </button>
         <button
           className={tab === "strategies" ? "primary" : undefined}
           onClick={() => setTab("strategies")}
         >
-          Strategies
+          {t.nav.strategies}
         </button>
+        <SettingsBar />
       </nav>
       {tab === "dashboard" && <DashboardPage />}
       {tab === "strategies" && <StrategiesPage />}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <SettingsProvider>
+      <AppContent />
+    </SettingsProvider>
   );
 }
 

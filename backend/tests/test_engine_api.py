@@ -82,7 +82,14 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
             sync_resp = client.post("/api/v1/engine/sync-orders")
             assert sync_resp.status_code == 200
             sync_data = sync_resp.json()
-            assert sync_data == {"checked": 0, "updated": 0, "errors": []}
+            assert sync_data == {
+                "checked": 0,
+                "updated": 0,
+                "matched": 0,
+                "unmatched": 0,
+                "unmatched_order_ids": [],
+                "errors": [],
+            }
 
             status_resp_after_sync = client.get("/api/v1/engine/status")
             sync_status_data = status_resp_after_sync.json()

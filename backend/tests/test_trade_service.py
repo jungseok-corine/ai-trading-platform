@@ -170,3 +170,34 @@ async def test_get_and_list_trades(db_session: AsyncSession, order_request_facto
     trades = await service.list_trades(account_id=account.id, limit=100, offset=0)
     assert len(trades) == 1
     assert trades[0].id == result.trade.id
+
+
+async def test_list_trades_orders_by_created_at_desc(db_session: AsyncSession) -> None:
+    account = await _create_account_with_risk_config(db_session)
+    broker = FakeBrokerClient()
+    service = TradeService(db_session, broker, RiskService(db_session, broker))
+
+    older = Trade(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=1,
+        order_status=OrderStatus.PENDING,
+        created_at=datetime(2026, 6, 1, 9, 0, tzinfo=KST),
+    )
+    newer = Trade(
+        account_id=account.id,
+        symbol_code="000660",
+        side=TradeSide.SELL,
+        quantity=2,
+        order_status=OrderStatus.PENDING,
+        created_at=datetime(2026, 6, 11, 9, 0, tzinfo=KST),
+    )
+    db_session.add_all([older, newer])
+    await db_session.flush()
+
+    trades_no_account = await service.list_trades(account_id=None, limit=100, offset=0)
+    assert [t.id for t in trades_no_account] == [newer.id, older.id]
+
+    trades_for_account = await service.list_trades(account_id=account.id, limit=100, offset=0)
+    assert [t.id for t in trades_for_account] == [newer.id, older.id]

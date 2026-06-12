@@ -130,7 +130,10 @@ async def order_sync_job(app: FastAPI) -> None:
         errors = [{"strategy_version_id": None, "symbol_code": None, "message": e, "category": None} for e in result.errors]
         summary = {
             "checked": result.checked,
+            "matched": result.matched,
+            "unmatched": result.unmatched,
             "updated": result.updated,
+            "unmatched_order_ids": result.unmatched_order_ids,
             "errors": errors,
         }
 

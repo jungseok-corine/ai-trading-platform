@@ -11,6 +11,7 @@ from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
+from app.trading.broker.order_id import normalize_order_id
 from app.trading.broker.schemas import OrderExecution
 from app.trading.pricing.fees import TradingCostCalculator
 
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 class OrderSyncResult:
     checked: int
     updated: int
+    matched: int = 0
+    unmatched: int = 0
+    unmatched_order_ids: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -90,14 +94,27 @@ class OrderSyncService:
             logger.warning("order sync: get_daily_executions failed: %s", exc)
             return OrderSyncResult(checked=len(trades), updated=0, errors=[str(exc)])
 
-        executions_by_id = {e.broker_order_id: e for e in executions}
+        logger.debug(
+            "order sync: fetched %d execution(s): %s",
+            len(executions),
+            [
+                {"odno": e.broker_order_id, "tot_ccld_qty": e.filled_quantity, "ord_qty": e.total_quantity}
+                for e in executions
+            ],
+        )
+
+        executions_by_id = {normalize_order_id(e.broker_order_id): e for e in executions}
 
         updated = 0
+        matched = 0
+        unmatched_order_ids: list[str] = []
         errors: list[str] = []
         for trade in trades:
-            execution = executions_by_id.get(trade.broker_order_id)
+            execution = executions_by_id.get(normalize_order_id(trade.broker_order_id))
             if execution is None:
+                unmatched_order_ids.append(trade.broker_order_id or "")
                 continue
+            matched += 1
             try:
                 updates = _build_trade_updates(trade, execution)
             except Exception as exc:  # noqa: BLE001 - 한 건의 오류가 전체 동기화를 막지 않도록
@@ -136,4 +153,11 @@ class OrderSyncService:
                 trade.pnl_amount = trade.pnl_amount - (trade.commission or Decimal("0")) - (trade.tax or Decimal("0"))
 
         await self._session.commit()
-        return OrderSyncResult(checked=len(trades), updated=updated, errors=errors)
+        return OrderSyncResult(
+            checked=len(trades),
+            updated=updated,
+            matched=matched,
+            unmatched=len(unmatched_order_ids),
+            unmatched_order_ids=unmatched_order_ids,
+            errors=errors,
+        )

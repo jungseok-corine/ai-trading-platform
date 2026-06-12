@@ -1,32 +1,42 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSchedulerRuns } from "../api/client";
 import type { SchedulerRunErrorEntry, SchedulerRunSummary } from "../types";
+import { useSettings } from "../i18n/SettingsContext";
+import type { Translations } from "../i18n/translations";
 
-const ERROR_CATEGORY_LABELS: Record<string, string> = {
-  invalid_price_tick: "주문 가격이 호가 단위에 맞지 않아 거절됨",
-  token_error: "인증 토큰 오류",
-  rate_limit_or_repeated_call: "API 호출 빈도 제한",
-  market_closed: "장 운영시간 외 요청",
-  insufficient_balance: "잔고/예수금 부족",
-  unknown: "분류되지 않은 오류",
-};
-
-function describeCategory(category: string | null): string | null {
+function describeCategory(category: string | null, t: Translations): string | null {
   if (!category) return null;
-  return ERROR_CATEGORY_LABELS[category] ?? category;
+  return t.scheduler.errorCategoryLabels[category] ?? category;
 }
 
-function SummaryCounts({ summary }: { summary: SchedulerRunSummary }) {
+function describeJob(jobId: string, t: Translations): string {
+  return t.scheduler.jobLabels[jobId] ?? jobId;
+}
+
+function describeSummaryKey(key: string, t: Translations): string {
+  return t.scheduler.summaryKeyLabels[key] ?? key;
+}
+
+function formatSummaryValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.length === 0 ? "-" : value.join(", ");
+  }
+  return String(value);
+}
+
+function SummaryCounts({ summary, t }: { summary: SchedulerRunSummary; t: Translations }) {
   const counts = Object.entries(summary).filter(([key]) => key !== "errors");
   if (counts.length === 0) return null;
   return (
     <div className="muted">
-      {counts.map(([key, value]) => `${key}: ${String(value)}`).join(", ")}
+      {counts
+        .map(([key, value]) => `${describeSummaryKey(key, t)}: ${formatSummaryValue(value)}`)
+        .join(", ")}
     </div>
   );
 }
 
-function ErrorList({ errors }: { errors: SchedulerRunErrorEntry[] }) {
+function ErrorList({ errors, t }: { errors: SchedulerRunErrorEntry[]; t: Translations }) {
   if (errors.length === 0) return null;
   return (
     <ul className="scheduler-error-list">
@@ -34,7 +44,7 @@ function ErrorList({ errors }: { errors: SchedulerRunErrorEntry[] }) {
         <li key={idx}>
           {err.symbol_code && <span className="muted">[{err.symbol_code}] </span>}
           {err.category && (
-            <span className="value error">{describeCategory(err.category)}</span>
+            <span className="value error">{describeCategory(err.category, t)}</span>
           )}
           <div className="muted">{err.message}</div>
         </li>
@@ -44,50 +54,54 @@ function ErrorList({ errors }: { errors: SchedulerRunErrorEntry[] }) {
 }
 
 export default function SchedulerRunsCard() {
+  const { t, formatDateTime } = useSettings();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["scheduler-runs"],
     queryFn: () => getSchedulerRuns(20),
   });
 
+  const statusLabel = (status: string) =>
+    (t.schedulerStatus as Record<string, string>)[status] ?? status;
+
   return (
     <div className="card">
-      <h2>Scheduler Logs</h2>
-      <p className="section-description">
-        strategy_runner/order_sync 같은 자동 작업이 언제 실행됐고 성공/실패했는지 기록합니다.
-      </p>
-      {isLoading && <p className="muted">불러오는 중...</p>}
-      {isError && <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>}
-      {data && data.length === 0 && <p className="muted">실행 기록이 없습니다.</p>}
+      <h2>{t.scheduler.title}</h2>
+      <p className="section-description">{t.scheduler.description}</p>
+      {isLoading && <p className="muted">{t.scheduler.loading}</p>}
+      {isError && <p className="value error">{(error as Error)?.message ?? t.common.loadError}</p>}
+      {data && data.length === 0 && <p className="muted">{t.scheduler.empty}</p>}
       {data && data.length > 0 && (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Job</th>
-                <th>Status</th>
-                <th>Started At</th>
-                <th>Duration (ms)</th>
-                <th>Errors</th>
-                <th>Summary</th>
+                <th>{t.scheduler.colJob}</th>
+                <th>{t.scheduler.colStatus}</th>
+                <th>{t.scheduler.colStartedAt}</th>
+                <th>{t.scheduler.colDuration}</th>
+                <th>{t.scheduler.colErrors}</th>
+                <th>{t.scheduler.colSummary}</th>
               </tr>
             </thead>
             <tbody>
               {data.map((run) => (
                 <tr key={run.id}>
-                  <td>{run.job_id}</td>
+                  <td>{describeJob(run.job_id, t)}</td>
                   <td>
-                    <span className={`value ${run.status === "failed" ? "error" : "ok"}`}>{run.status}</span>
+                    <span className={`value ${run.status === "failed" ? "error" : "ok"}`}>
+                      {statusLabel(run.status)}
+                    </span>
                   </td>
-                  <td>{run.started_at}</td>
+                  <td>{formatDateTime(run.started_at)}</td>
                   <td>{run.duration_ms ?? "-"}</td>
                   <td>
                     {run.summary?.errors && run.summary.errors.length > 0 ? (
-                      <ErrorList errors={run.summary.errors} />
+                      <ErrorList errors={run.summary.errors} t={t} />
                     ) : (
                       "-"
                     )}
                   </td>
-                  <td>{run.summary ? <SummaryCounts summary={run.summary} /> : "-"}</td>
+                  <td>{run.summary ? <SummaryCounts summary={run.summary} t={t} /> : "-"}</td>
                 </tr>
               ))}
             </tbody>

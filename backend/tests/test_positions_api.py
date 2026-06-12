@@ -116,5 +116,21 @@ async def test_positions_api_flow(db_session: AsyncSession) -> None:
             refreshed = refresh_resp.json()
             assert Decimal(refreshed["last_price"]) == Decimal("80000")
             assert Decimal(refreshed["unrealized_pnl"]) == (Decimal("80000") - Decimal("70000")) * 10
+
+            summary_resp = await client.get("/api/v1/portfolio/summary", params={"account_id": account.id})
+            assert summary_resp.status_code == 200
+            summary = summary_resp.json()
+            assert summary["account_id"] == account.id
+            assert summary["position_count"] == 1
+            assert Decimal(summary["total_quantity"]) == 10
+            assert Decimal(summary["total_unrealized_pnl"]) == (Decimal("80000") - Decimal("70000")) * 10
+
+            refresh_all_resp = await client.post(
+                "/api/v1/positions/refresh-prices", params={"account_id": account.id}
+            )
+            assert refresh_all_resp.status_code == 200
+            refresh_all = refresh_all_resp.json()
+            assert refresh_all["updated"] == 1
+            assert Decimal(refresh_all["positions"][0]["last_price"]) == Decimal("80000")
     finally:
         app.dependency_overrides.clear()

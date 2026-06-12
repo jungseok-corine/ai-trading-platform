@@ -111,4 +111,11 @@ async def sync_orders(
     result = await sync_service.sync_pending_orders()
     request.app.state.order_sync_last_error = "; ".join(result.errors) if result.errors else None
     request.app.state.order_sync_last_run_at = datetime.now(KST)
-    return OrderSyncResultRead(checked=result.checked, updated=result.updated, errors=result.errors)
+    return OrderSyncResultRead(
+        checked=result.checked,
+        updated=result.updated,
+        matched=result.matched,
+        unmatched=result.unmatched,
+        unmatched_order_ids=result.unmatched_order_ids,
+        errors=result.errors,
+    )

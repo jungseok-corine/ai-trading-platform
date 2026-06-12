@@ -1,16 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { getTrades } from "../api/client";
-import type { OrderStatus } from "../types";
-
-const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  pending: "PENDING",
-  filled: "FILLED",
-  partial: "PARTIAL",
-  cancelled: "CANCELLED",
-  rejected: "REJECTED",
-};
+import { useSettings } from "../i18n/SettingsContext";
 
 export default function TradesTable() {
+  const { t, formatDateTime } = useSettings();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["trades"],
     queryFn: getTrades,
@@ -18,28 +11,26 @@ export default function TradesTable() {
 
   return (
     <div className="card">
-      <h2>Trades</h2>
-      <p className="section-description">
-        KIS VTS로 주문이 전송되었거나 주문 기록으로 저장된 실제 거래 시도 내역입니다.
-      </p>
-      {isLoading && <p className="muted">불러오는 중...</p>}
-      {isError && <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>}
-      {data && data.length === 0 && <p className="muted">거래 내역이 없습니다.</p>}
+      <h2>{t.trades.title}</h2>
+      <p className="section-description">{t.trades.description}</p>
+      {isLoading && <p className="muted">{t.common.loading}</p>}
+      {isError && <p className="value error">{(error as Error)?.message ?? t.common.loadError}</p>}
+      {data && data.length === 0 && <p className="muted">{t.trades.empty}</p>}
       {data && data.length > 0 && (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Order Status</th>
-                <th>Broker Order</th>
-                <th>Quantity</th>
-                <th>Entry Price</th>
-                <th>Exit Price</th>
-                <th>Position Applied Qty</th>
-                <th>Created At</th>
+                <th>{t.trades.colId}</th>
+                <th>{t.trades.colSymbol}</th>
+                <th>{t.trades.colSide}</th>
+                <th>{t.trades.colOrderStatus}</th>
+                <th>{t.trades.colBrokerOrder}</th>
+                <th>{t.trades.colQuantity}</th>
+                <th>{t.trades.colEntryPrice}</th>
+                <th>{t.trades.colExitPrice}</th>
+                <th>{t.trades.colPositionAppliedQty}</th>
+                <th>{t.trades.colCreatedAt}</th>
               </tr>
             </thead>
             <tbody>
@@ -47,20 +38,24 @@ export default function TradesTable() {
                 <tr key={trade.id}>
                   <td>{trade.id}</td>
                   <td>{trade.symbol_code}</td>
-                  <td>{trade.side}</td>
+                  <td>
+                    <span className={`badge side-${trade.side}`}>
+                      {trade.side === "buy" ? t.common.buy : t.common.sell}
+                    </span>
+                  </td>
                   <td>
                     <span className={`badge order-status-${trade.order_status}`}>
-                      {ORDER_STATUS_LABEL[trade.order_status]}
+                      {t.orderStatus[trade.order_status]}
                     </span>
                   </td>
                   <td>
                     {trade.broker_order_id ? (
                       <>
-                        <span className="badge order-status-filled">KIS 주문번호 있음</span>
+                        <span className="badge order-status-filled">{t.trades.brokerOrderPresent}</span>
                         <div className="muted">{trade.broker_order_id}</div>
                       </>
                     ) : (
-                      <span className="badge neutral">주문 미전송</span>
+                      <span className="badge neutral">{t.trades.brokerOrderAbsent}</span>
                     )}
                   </td>
                   <td>
@@ -71,7 +66,7 @@ export default function TradesTable() {
                   </td>
                   <td>{trade.exit_price ?? "-"}</td>
                   <td>{trade.position_applied_quantity}</td>
-                  <td>{trade.created_at}</td>
+                  <td>{formatDateTime(trade.created_at)}</td>
                 </tr>
               ))}
             </tbody>

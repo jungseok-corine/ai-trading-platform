@@ -21,6 +21,23 @@ class PositionRead(BaseModel):
     updated_at: datetime
 
 
+class RefreshPricesResultRead(BaseModel):
+    updated: int
+    positions: list[PositionRead]
+
+
+class PortfolioSummaryRead(BaseModel):
+    account_id: int
+    position_count: int
+    total_quantity: int
+    total_cost_amount: Decimal
+    total_eval_amount: Decimal
+    total_unrealized_pnl: Decimal
+    total_unrealized_pnl_pct: Decimal
+    total_realized_pnl: Decimal
+    total_pnl: Decimal
+
+
 class PositionEventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

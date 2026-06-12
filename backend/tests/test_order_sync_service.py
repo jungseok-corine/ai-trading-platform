@@ -124,6 +124,9 @@ async def test_buy_order_fully_filled_updates_entry_and_status(db_session: Async
 
     assert result.checked == 1
     assert result.updated == 1
+    assert result.matched == 1
+    assert result.unmatched == 0
+    assert result.unmatched_order_ids == []
     assert result.errors == []
 
     await db_session.refresh(trade)
@@ -132,6 +135,58 @@ async def test_buy_order_fully_filled_updates_entry_and_status(db_session: Async
     assert trade.entry_time == recorded_at
     assert trade.slippage == Decimal("-100")
     assert trade.partial_fill == {"odno": "0000000001", "tot_ccld_qty": "10"}
+
+
+async def test_order_id_matching_ignores_leading_zero_padding_differences(db_session: AsyncSession) -> None:
+    """trades.broker_order_id와 KIS 체결조회 응답의 odno가 0 padding이 달라도 매칭되어야 한다."""
+    account = await _create_account(db_session)
+    trade = await _create_trade(db_session, account.id, side=TradeSide.BUY, broker_order_id="1")
+
+    broker = FakeBrokerClient(
+        executions=[
+            OrderExecution(
+                broker_order_id="0000000001",
+                total_quantity=10,
+                filled_quantity=10,
+                filled_price=Decimal("69900"),
+                cancelled=False,
+                raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+            )
+        ]
+    )
+
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+
+    assert result.matched == 1
+    assert result.unmatched == 0
+
+    await db_session.refresh(trade)
+    assert trade.order_status == OrderStatus.FILLED
+
+
+async def test_unmatched_order_is_reported(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    await _create_trade(db_session, account.id, broker_order_id="9999999999")
+
+    broker = FakeBrokerClient(
+        executions=[
+            OrderExecution(
+                broker_order_id="0000000001",
+                total_quantity=10,
+                filled_quantity=10,
+                filled_price=Decimal("69900"),
+                cancelled=False,
+                raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+            )
+        ]
+    )
+
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+
+    assert result.checked == 1
+    assert result.matched == 0
+    assert result.unmatched == 1
+    assert result.unmatched_order_ids == ["9999999999"]
 
 
 async def test_buy_order_partially_filled_keeps_partial_status(db_session: AsyncSession) -> None:

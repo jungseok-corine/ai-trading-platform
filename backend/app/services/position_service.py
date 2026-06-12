@@ -144,3 +144,28 @@ class PositionService:
         await self._position_repo.update(position)
         await self._session.commit()
         return position
+
+    async def refresh_all_prices(self, account_id: int) -> list[Position]:
+        """계좌의 보유수량(quantity != 0) 포지션의 현재가를 모두 갱신하고 평가손익을 재계산한다.
+
+        quantity == 0인 포지션은 평가금액 계산 대상이 아니므로 시세 조회를 생략한다.
+        """
+        if self._broker is None:
+            raise RuntimeError("broker client is required to refresh prices")
+
+        positions = await self._position_repo.list_by_account(account_id)
+        updated: list[Position] = []
+        for position in positions:
+            if position.quantity == 0:
+                continue
+            quote = await self._broker.get_current_price(position.symbol_code)
+            position.last_price = quote.current_price
+            position.unrealized_pnl = _compute_unrealized_pnl(
+                position.quantity, position.avg_entry_price, quote.current_price
+            )
+            await self._position_repo.update(position)
+            updated.append(position)
+
+        if updated:
+            await self._session.commit()
+        return updated
