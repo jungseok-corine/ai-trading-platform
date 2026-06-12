@@ -227,6 +227,23 @@ th {
   max-width: 280px;
 }
 
+.scheduler-error-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 320px;
+  font-size: 12px;
+}
+
+.scheduler-error-list li + li {
+  margin-top: 6px;
+}
+
+.scheduler-error-list .muted {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .auto-trade-toggle {
   display: flex;
   align-items: center;

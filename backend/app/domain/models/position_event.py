@@ -23,6 +23,12 @@ class PositionEvent(Base):
     quantity_delta: Mapped[int] = mapped_column(Integer, nullable=False)
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     realized_pnl_delta: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    """수수료/세금을 차감하기 전 실현손익(gross)."""
+    realized_pnl_delta_net: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    """수수료/세금을 차감한 실현손익(net). positions.realized_pnl에 누적되는 값."""
+
+    commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    tax: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
 
     before_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     after_quantity: Mapped[int] = mapped_column(Integer, nullable=False)

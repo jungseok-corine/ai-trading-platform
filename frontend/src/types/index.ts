@@ -16,6 +16,22 @@ export interface EngineStatus {
 
 export type SchedulerRunStatus = "success" | "failed" | "skipped";
 
+export interface SchedulerRunErrorEntry {
+  strategy_version_id: number | null;
+  symbol_code: string | null;
+  message: string;
+  category: string | null;
+}
+
+export interface SchedulerRunSummary {
+  versions_run?: number;
+  signals_created?: number;
+  trades_attempted?: number;
+  checked?: number;
+  updated?: number;
+  errors?: SchedulerRunErrorEntry[];
+}
+
 export interface SchedulerRun {
   id: number;
   job_id: string;
@@ -24,7 +40,7 @@ export interface SchedulerRun {
   finished_at: string | null;
   duration_ms: number | null;
   error_message: string | null;
-  summary: Record<string, unknown> | null;
+  summary: SchedulerRunSummary | null;
   created_at: string;
 }
 

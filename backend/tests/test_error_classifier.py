@@ -1,5 +1,6 @@
 from app.trading.broker.error_classifier import (
     KIS_ERROR_INSUFFICIENT_BALANCE,
+    KIS_ERROR_INVALID_PRICE_TICK,
     KIS_ERROR_MARKET_CLOSED,
     KIS_ERROR_RATE_LIMIT,
     KIS_ERROR_TOKEN,
@@ -27,6 +28,13 @@ def test_classify_market_closed_error() -> None:
 
 def test_classify_insufficient_balance_error() -> None:
     assert classify_kis_error(KISAPIError("1", "주문가능금액이 부족합니다")) == KIS_ERROR_INSUFFICIENT_BALANCE
+
+
+def test_classify_invalid_price_tick_error() -> None:
+    assert (
+        classify_kis_error(KISAPIError("1", "모의투자 주문처리가 안되었습니다(호가단위 오류)"))
+        == KIS_ERROR_INVALID_PRICE_TICK
+    )
 
 
 def test_classify_unknown_error() -> None:

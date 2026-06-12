@@ -50,6 +50,29 @@ async def test_first_buy_fill_creates_position(db_session: AsyncSession) -> None
     assert event.realized_pnl_delta is None
 
 
+async def test_buy_fill_with_commission_increases_avg_entry_price(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    service = PositionService(db_session)
+
+    position = await service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=10,
+        price=Decimal("70000"),
+        commission=Decimal("105"),
+    )
+
+    # cost_per_share = 70000 + 105/10 = 70010.5
+    assert position.avg_entry_price == Decimal("70010.5")
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    event = events[0]
+    assert event.commission == Decimal("105")
+    assert event.tax == Decimal("0")
+    assert event.realized_pnl_delta_net is None
+
+
 async def test_additional_buy_fill_updates_avg_price(db_session: AsyncSession) -> None:
     account = await _create_account(db_session)
     service = PositionService(db_session)
@@ -118,6 +141,39 @@ async def test_partial_sell_fill_decreases_quantity_and_realizes_pnl(db_session:
     assert sell_event.realized_pnl_delta == Decimal("20000")
     assert sell_event.before_avg_entry_price == Decimal("70000")
     assert sell_event.after_avg_entry_price == Decimal("70000")
+
+
+async def test_sell_fill_with_commission_and_tax_reduces_realized_pnl_net(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    service = PositionService(db_session)
+
+    await service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=10,
+        price=Decimal("70000"),
+    )
+    position = await service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.SELL,
+        quantity=4,
+        price=Decimal("75000"),
+        commission=Decimal("45"),
+        tax=Decimal("540"),
+    )
+
+    # gross realized pnl = (75000 - 70000) * 4 = 20000
+    # net realized pnl   = 20000 - 45 - 540 = 19415
+    assert position.realized_pnl == Decimal("19415")
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    sell_event = events[0]
+    assert sell_event.realized_pnl_delta == Decimal("20000")
+    assert sell_event.realized_pnl_delta_net == Decimal("19415")
+    assert sell_event.commission == Decimal("45")
+    assert sell_event.tax == Decimal("540")
 
 
 async def test_full_sell_fill_zeroes_quantity_and_resets_avg_price(db_session: AsyncSession) -> None:

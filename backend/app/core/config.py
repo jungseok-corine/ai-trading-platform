@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,20 @@ class Settings(BaseSettings):
     # 주문 체결 동기화 스케줄러 (APScheduler)
     order_sync_scheduler_enabled: bool = True
     order_sync_scheduler_interval_seconds: int = 30
+
+    # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)
+    #
+    # - trading_commission_rate: 매수/매도 공통 거래 수수료율. KIS 모의투자(VTS)는
+    #   실제로 수수료를 차감하지 않지만, 실전 온라인 위탁 수수료(약 0.015% 수준)를
+    #   보수적으로 반영해 PnL 계산에 사용한다.
+    # - trading_sell_tax_rate: 매도 시 부과되는 증권거래세(+농특세 포함) 합산율.
+    #   2024년 기준 코스피 매도 거래세는 0.18% 수준으로 단계적으로 인하되는 추세이며,
+    #   시장/기간에 따라 달라질 수 있으므로 정확한 값은 운영 시점에 재확인 후 조정한다.
+    #
+    # 두 값 모두 향후 계좌/시장별로 DB 설정(RiskConfig 등)으로 옮길 수 있도록
+    # 별도 설정 항목으로 분리해 두었다.
+    trading_commission_rate: Decimal = Decimal("0.00015")
+    trading_sell_tax_rate: Decimal = Decimal("0.0018")
 
 
 @lru_cache

@@ -36,6 +36,8 @@ class PositionService:
         side: TradeSide,
         quantity: int,
         price: Decimal,
+        commission: Decimal = Decimal("0"),
+        tax: Decimal = Decimal("0"),
         trade_id: int | None = None,
         symbol_name: str | None = None,
         raw: dict | None = None,
@@ -44,6 +46,12 @@ class PositionService:
 
         quantity는 이번에 새로 반영할 체결 수량(델타)이어야 하며, 호출자가
         중복 반영 방지를 책임진다.
+
+        commission/tax는 이번 체결분에 대한 수수료/세금(원)이다.
+        - BUY: commission을 매입 단가에 가산해 avg_entry_price(평단가)의 비용에 포함시킨다
+          (세금은 매수 시 부과되지 않는다).
+        - SELL: realized_pnl_delta(매도가 - 평단가 기준 gross 손익)에서 commission+tax를
+          차감한 realized_pnl_delta_net을 positions.realized_pnl에 누적한다.
         """
         if quantity <= 0:
             raise ValueError("quantity must be positive")
@@ -65,19 +73,22 @@ class PositionService:
         before_quantity = position.quantity
         before_avg_entry_price = position.avg_entry_price
         realized_pnl_delta: Decimal | None = None
+        realized_pnl_delta_net: Decimal | None = None
 
         if side == TradeSide.BUY:
             after_quantity = before_quantity + quantity
+            cost_per_share = price + (commission / quantity)
             after_avg_entry_price = (
-                before_avg_entry_price * before_quantity + price * quantity
+                before_avg_entry_price * before_quantity + cost_per_share * quantity
             ) / after_quantity
             event_type = PositionEventType.BUY_FILL
             quantity_delta = quantity
         else:
             after_quantity = before_quantity - quantity
             realized_pnl_delta = (price - before_avg_entry_price) * quantity
+            realized_pnl_delta_net = realized_pnl_delta - commission - tax
             after_avg_entry_price = Decimal("0") if after_quantity == 0 else before_avg_entry_price
-            position.realized_pnl = position.realized_pnl + realized_pnl_delta
+            position.realized_pnl = position.realized_pnl + realized_pnl_delta_net
             event_type = PositionEventType.SELL_FILL
             quantity_delta = -quantity
 
@@ -95,6 +106,9 @@ class PositionService:
             quantity_delta=quantity_delta,
             price=price,
             realized_pnl_delta=realized_pnl_delta,
+            realized_pnl_delta_net=realized_pnl_delta_net,
+            commission=commission,
+            tax=tax,
             before_quantity=before_quantity,
             after_quantity=after_quantity,
             before_avg_entry_price=before_avg_entry_price,

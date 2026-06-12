@@ -4,6 +4,7 @@ KIS_ERROR_TOKEN = "token_error"
 KIS_ERROR_RATE_LIMIT = "rate_limit_or_repeated_call"
 KIS_ERROR_MARKET_CLOSED = "market_closed"
 KIS_ERROR_INSUFFICIENT_BALANCE = "insufficient_balance"
+KIS_ERROR_INVALID_PRICE_TICK = "invalid_price_tick"
 KIS_ERROR_UNKNOWN = "unknown"
 
 _TOKEN_MSG_CDS = {"EGW00121", "EGW00123", "EGW00133"}
@@ -13,6 +14,7 @@ _TOKEN_KEYWORDS = ("token", "토큰")
 _RATE_LIMIT_KEYWORDS = ("초당", "거래건수", "rate limit")
 _MARKET_CLOSED_KEYWORDS = ("장운영", "거래시간", "장마감", "장종료", "시간외")
 _INSUFFICIENT_BALANCE_KEYWORDS = ("잔고", "예수금", "주문가능", "부족")
+_INVALID_PRICE_TICK_KEYWORDS = ("호가단위", "호가 단위")
 
 
 def classify_kis_error(error: KISAPIError) -> str:
@@ -36,5 +38,8 @@ def classify_kis_error(error: KISAPIError) -> str:
 
     if any(kw in msg1 for kw in _INSUFFICIENT_BALANCE_KEYWORDS):
         return KIS_ERROR_INSUFFICIENT_BALANCE
+
+    if any(kw in msg1 for kw in _INVALID_PRICE_TICK_KEYWORDS):
+        return KIS_ERROR_INVALID_PRICE_TICK
 
     return KIS_ERROR_UNKNOWN

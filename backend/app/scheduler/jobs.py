@@ -68,7 +68,16 @@ async def run_strategy_job(app: FastAPI) -> None:
 
         signals_created = sum(1 for r in results if r.signal_created)
         trades_attempted = sum(1 for r in results if r.trade_attempted)
-        errors = [r.error for r in results if r.error]
+        errors = [
+            {
+                "strategy_version_id": r.strategy_version_id,
+                "symbol_code": r.symbol_code,
+                "message": r.error,
+                "category": r.error_category,
+            }
+            for r in results
+            if r.error
+        ]
         summary = {
             "versions_run": len(results),
             "signals_created": signals_created,
@@ -84,7 +93,7 @@ async def run_strategy_job(app: FastAPI) -> None:
 
         if errors:
             status = SchedulerRunStatus.FAILED
-            error_message = "; ".join(errors)
+            error_message = "; ".join(e["message"] for e in errors)
         elif not results:
             status = SchedulerRunStatus.SKIPPED
 
@@ -93,7 +102,7 @@ async def run_strategy_job(app: FastAPI) -> None:
         logger.exception("strategy scheduler job failed")
         status = SchedulerRunStatus.FAILED
         error_message = str(exc)
-        summary = {"errors": [error_message]}
+        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
         app.state.scheduler_last_error = error_message
     finally:
         finished_at = datetime.now(KST)
@@ -118,10 +127,11 @@ async def order_sync_job(app: FastAPI) -> None:
             sync_service = OrderSyncService(session, broker)
             result = await sync_service.sync_pending_orders()
 
+        errors = [{"strategy_version_id": None, "symbol_code": None, "message": e, "category": None} for e in result.errors]
         summary = {
             "checked": result.checked,
             "updated": result.updated,
-            "errors": result.errors,
+            "errors": errors,
         }
 
         if result.updated or result.errors:
@@ -139,7 +149,7 @@ async def order_sync_job(app: FastAPI) -> None:
         logger.exception("order sync job failed")
         status = SchedulerRunStatus.FAILED
         error_message = str(exc)
-        summary = {"errors": [error_message]}
+        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
         app.state.order_sync_last_error = error_message
     finally:
         finished_at = datetime.now(KST)

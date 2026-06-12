@@ -9,6 +9,7 @@ from app.services.risk_service import RiskService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import OrderRequest, OrderType
 from app.trading.order.schemas import OrderCreateRequest
+from app.trading.pricing.tick import round_price_to_tick
 from app.trading.strategy.base import Signal
 
 logger = logging.getLogger(__name__)
@@ -77,12 +78,28 @@ class TradeService:
                 reason=risk_result.reason,
             )
 
+        adjusted_price = signal.price
+        market_condition: dict | None = None
+        if order_type == OrderType.LIMIT:
+            adjusted_price = round_price_to_tick(signal.price, signal.side)
+            if adjusted_price != signal.price:
+                logger.info(
+                    "price tick adjustment: source=%s symbol=%s side=%s original_price=%s adjusted_price=%s",
+                    reason_source, signal.symbol_code, signal.side, signal.price, adjusted_price,
+                )
+            market_condition = {
+                "price_tick_adjustment": {
+                    "original_price": str(signal.price),
+                    "adjusted_price": str(adjusted_price),
+                }
+            }
+
         order_result = await self._broker.place_order(
             OrderRequest(
                 symbol_code=signal.symbol_code,
                 side=signal.side,
                 quantity=signal.quantity,
-                price=signal.price,
+                price=adjusted_price,
                 order_type=order_type,
             )
         )
@@ -93,9 +110,10 @@ class TradeService:
             symbol_code=signal.symbol_code,
             side=signal.side,
             entry_time=order_result.ordered_at,
-            entry_price=signal.price,
+            entry_price=adjusted_price,
             quantity=signal.quantity,
             entry_reason=signal.reason,
+            market_condition=market_condition,
             order_status=order_result.order_status,
             broker_order_id=order_result.broker_order_id,
         )

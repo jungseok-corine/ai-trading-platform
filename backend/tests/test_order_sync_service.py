@@ -191,7 +191,13 @@ async def test_sell_order_filled_computes_pnl(db_session: AsyncSession) -> None:
     assert trade.order_status == OrderStatus.FILLED
     assert trade.exit_price == Decimal("71000")
     assert trade.exit_time == recorded_at
-    assert trade.pnl_amount == Decimal("10000")
+    # gross pnl = (71000 - 70000) * 10 = 10000
+    # commission = round(71000 * 10 * 0.00015) = round(106.5) = 107
+    # tax        = round(71000 * 10 * 0.0018)  = 1278
+    # net pnl    = 10000 - 107 - 1278 = 8615
+    assert trade.commission == Decimal("107")
+    assert trade.tax == Decimal("1278")
+    assert trade.pnl_amount == Decimal("8615")
     assert trade.pnl_pct.quantize(Decimal("0.0001")) == Decimal("1.4286")
 
 
@@ -258,7 +264,12 @@ async def test_buy_fill_applies_to_position(db_session: AsyncSession) -> None:
     position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
     assert position is not None
     assert position.quantity == 10
-    assert position.avg_entry_price == Decimal("69900")
+    # commission = round(69900 * 10 * 0.00015) = round(104.85) = 105
+    # cost_per_share = 69900 + 105/10 = 69910.5
+    assert position.avg_entry_price == Decimal("69910.5")
+
+    await db_session.refresh(trade)
+    assert trade.commission == Decimal("105")
 
     events = await PositionEventRepository(db_session).list_by_position(position.id)
     assert len(events) == 1
@@ -294,7 +305,9 @@ async def test_duplicate_sync_does_not_double_apply_position(db_session: AsyncSe
     position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
     assert position is not None
     assert position.quantity == 10
-    assert position.avg_entry_price == Decimal("69900")
+    # commission = round(69900 * 10 * 0.00015) = round(104.85) = 105
+    # cost_per_share = 69900 + 105/10 = 69910.5
+    assert position.avg_entry_price == Decimal("69910.5")
 
     events = await PositionEventRepository(db_session).list_by_position(position.id)
     assert len(events) == 1
@@ -347,8 +360,10 @@ async def test_only_new_partial_increment_is_applied(db_session: AsyncSession) -
     position = await PositionRepository(db_session).get_by_account_symbol(account.id, "005930")
     assert position is not None
     assert position.quantity == 10
-    # avg = (70000*4 + 70500*6) / 10
-    assert position.avg_entry_price == Decimal("70300")
+    # fill1: commission = round(70000*4*0.00015) = 42 -> cost_per_share = 70000 + 42/4 = 70010.5
+    # fill2: commission = round(70500*6*0.00015) = 63 -> cost_per_share = 70500 + 63/6 = 70510.5
+    # avg = (70010.5*4 + 70510.5*6) / 10
+    assert position.avg_entry_price == Decimal("70310.5")
 
     events = await PositionEventRepository(db_session).list_by_position(position.id)
     assert len(events) == 2

@@ -1,15 +1,18 @@
 import logging
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.domain.models.enums import OrderStatus, TradeSide
 from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import OrderExecution
+from app.trading.pricing.fees import TradingCostCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +73,11 @@ class OrderSyncService:
         self._broker = broker
         self._trade_repo = TradeRepository(session)
         self._position_service = PositionService(session)
+        settings = get_settings()
+        self._cost_calculator = TradingCostCalculator(
+            commission_rate=settings.trading_commission_rate,
+            sell_tax_rate=settings.trading_sell_tax_rate,
+        )
 
     async def sync_pending_orders(self) -> OrderSyncResult:
         trades = await self._trade_repo.list_pending_or_partial()
@@ -103,6 +111,7 @@ class OrderSyncService:
 
             new_fill_quantity = execution.filled_quantity - trade.position_applied_quantity
             if new_fill_quantity > 0 and execution.filled_price is not None:
+                fill_cost = self._cost_calculator.calculate(trade.side, execution.filled_price, new_fill_quantity)
                 try:
                     await self._position_service.apply_fill(
                         account_id=trade.account_id,
@@ -111,13 +120,20 @@ class OrderSyncService:
                         side=trade.side,
                         quantity=new_fill_quantity,
                         price=execution.filled_price,
+                        commission=fill_cost.commission,
+                        tax=fill_cost.tax,
                         trade_id=trade.id,
                         raw=execution.raw,
                     )
                     trade.position_applied_quantity = execution.filled_quantity
+                    trade.commission = (trade.commission or Decimal("0")) + fill_cost.commission
+                    trade.tax = (trade.tax or Decimal("0")) + fill_cost.tax
                 except Exception as exc:  # noqa: BLE001 - 포지션 반영 오류가 전체 동기화를 막지 않도록
                     logger.warning("order sync: failed to apply position for trade_id=%s: %s", trade.id, exc)
                     errors.append(f"trade_id={trade.id} position: {exc}")
+
+            if trade.side == TradeSide.SELL and trade.pnl_amount is not None:
+                trade.pnl_amount = trade.pnl_amount - (trade.commission or Decimal("0")) - (trade.tax or Decimal("0"))
 
         await self._session.commit()
         return OrderSyncResult(checked=len(trades), updated=updated, errors=errors)
