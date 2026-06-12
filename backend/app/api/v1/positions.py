@@ -9,6 +9,7 @@ from app.services.portfolio_service import PortfolioService
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.position.schemas import (
+    BrokerSyncResultRead,
     PortfolioSummaryRead,
     PositionEventRead,
     PositionRead,
@@ -41,6 +42,20 @@ async def refresh_all_position_prices(
 ) -> RefreshPricesResultRead:
     positions = await service.refresh_all_prices(account_id)
     return RefreshPricesResultRead(updated=len(positions), positions=list(positions))
+
+
+@router.post("/positions/sync-from-broker", response_model=BrokerSyncResultRead)
+async def sync_positions_from_broker(
+    account_id: int,
+    service: PositionService = Depends(get_position_service),
+) -> BrokerSyncResultRead:
+    result = await service.sync_from_broker_positions(account_id)
+    return BrokerSyncResultRead(
+        created=result.created,
+        updated=result.updated,
+        zeroed=result.zeroed,
+        positions=list(result.positions),
+    )
 
 
 @router.get("/portfolio/summary", response_model=PortfolioSummaryRead)

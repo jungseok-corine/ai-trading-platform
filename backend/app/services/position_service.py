@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,14 @@ def _compute_unrealized_pnl(quantity: int, avg_entry_price: Decimal, last_price:
     if quantity == 0 or last_price is None:
         return Decimal("0")
     return (last_price - avg_entry_price) * quantity
+
+
+@dataclass
+class BrokerPositionSyncResult:
+    created: int = 0
+    updated: int = 0
+    zeroed: int = 0
+    positions: list[Position] = field(default_factory=list)
 
 
 class PositionService:
@@ -144,6 +153,66 @@ class PositionService:
         await self._position_repo.update(position)
         await self._session.commit()
         return position
+
+    async def sync_from_broker_positions(self, account_id: int) -> BrokerPositionSyncResult:
+        """KIS 잔고조회 결과를 기준으로 내부 positions를 보정한다.
+
+        - KIS에는 있는데 내부에 없는 종목: 새로 생성 (realized_pnl=0부터 시작).
+        - KIS와 내부에 모두 있는 종목: quantity/avg_entry_price/last_price/symbol_name/
+          unrealized_pnl을 KIS 값으로 덮어쓴다. realized_pnl(내부 체결 기록 기준)은
+          유지한다.
+        - 내부에는 있는데 KIS에는 없는 종목(quantity != 0): KIS 기준 실제 보유가
+          없다는 뜻이므로 quantity=0, unrealized_pnl=0으로 보정한다. avg_entry_price와
+          realized_pnl은 과거 체결 이력 참고용으로 유지한다.
+        """
+        if self._broker is None:
+            raise RuntimeError("broker client is required to sync positions from broker")
+
+        holdings = await self._broker.get_account_positions()
+        holdings_by_symbol = {h.symbol_code: h for h in holdings}
+
+        existing = await self._position_repo.list_by_account(account_id)
+        existing_by_symbol = {p.symbol_code: p for p in existing}
+
+        result = BrokerPositionSyncResult()
+
+        for symbol_code, holding in holdings_by_symbol.items():
+            unrealized_pnl = _compute_unrealized_pnl(
+                holding.quantity, holding.avg_purchase_price, holding.current_price
+            )
+            position = existing_by_symbol.get(symbol_code)
+            if position is None:
+                await self._position_repo.create(
+                    account_id=account_id,
+                    symbol_code=symbol_code,
+                    symbol_name=holding.symbol_name,
+                    quantity=holding.quantity,
+                    avg_entry_price=holding.avg_purchase_price,
+                    last_price=holding.current_price,
+                    unrealized_pnl=unrealized_pnl,
+                    realized_pnl=Decimal("0"),
+                )
+                result.created += 1
+            else:
+                position.symbol_name = holding.symbol_name
+                position.quantity = holding.quantity
+                position.avg_entry_price = holding.avg_purchase_price
+                position.last_price = holding.current_price
+                position.unrealized_pnl = unrealized_pnl
+                await self._position_repo.update(position)
+                result.updated += 1
+
+        for symbol_code, position in existing_by_symbol.items():
+            if symbol_code in holdings_by_symbol or position.quantity == 0:
+                continue
+            position.quantity = 0
+            position.unrealized_pnl = Decimal("0")
+            await self._position_repo.update(position)
+            result.zeroed += 1
+
+        await self._session.commit()
+        result.positions = await self._position_repo.list_by_account(account_id)
+        return result
 
     async def refresh_all_prices(self, account_id: int) -> list[Position]:
         """계좌의 보유수량(quantity != 0) 포지션의 현재가를 모두 갱신하고 평가손익을 재계산한다.

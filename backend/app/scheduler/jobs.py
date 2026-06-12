@@ -127,7 +127,7 @@ async def order_sync_job(app: FastAPI) -> None:
             sync_service = OrderSyncService(session, broker)
             result = await sync_service.sync_pending_orders()
 
-        errors = [{"strategy_version_id": None, "symbol_code": None, "message": e, "category": None} for e in result.errors]
+        errors = [{"strategy_version_id": None, "symbol_code": None, "message": e, "category": result.error_category} for e in result.errors]
         summary = {
             "checked": result.checked,
             "matched": result.matched,
@@ -135,6 +135,8 @@ async def order_sync_job(app: FastAPI) -> None:
             "updated": result.updated,
             "unmatched_order_ids": result.unmatched_order_ids,
             "errors": errors,
+            "error_category": result.error_category,
+            "skipped_reason": result.skipped_reason,
         }
 
         if result.updated or result.errors:
@@ -146,6 +148,8 @@ async def order_sync_job(app: FastAPI) -> None:
         if result.errors:
             status = SchedulerRunStatus.FAILED
             error_message = "; ".join(result.errors)
+        elif result.skipped_reason:
+            status = SchedulerRunStatus.SKIPPED
 
         app.state.order_sync_last_error = error_message
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨

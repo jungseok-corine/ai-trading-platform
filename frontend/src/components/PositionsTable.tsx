@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPositions } from "../api/client";
 import { useSettings } from "../i18n/SettingsContext";
+import { formatAmount, formatPercent, formatPrice, formatQuantity } from "../utils/format";
 
 function multiply(a: string, b: number): number {
   return Number(a) * b;
@@ -51,19 +52,19 @@ export default function PositionsTable() {
                         ? `${position.symbol_code} (${position.symbol_name})`
                         : position.symbol_code}
                     </td>
-                    <td>{position.quantity}</td>
-                    <td>{position.avg_entry_price}</td>
-                    <td>{position.last_price ?? "-"}</td>
-                    <td>{costAmount}</td>
-                    <td>{evalAmount}</td>
+                    <td>{formatQuantity(position.quantity)}</td>
+                    <td>{formatPrice(position.avg_entry_price)}</td>
+                    <td>{position.last_price !== null ? formatPrice(position.last_price) : "-"}</td>
+                    <td>{formatAmount(costAmount)}</td>
+                    <td>{formatAmount(evalAmount)}</td>
                     <td className={unrealizedPnl >= 0 ? "value ok" : "value error"}>
-                      {position.unrealized_pnl}
+                      {formatAmount(position.unrealized_pnl)}
                     </td>
                     <td className={unrealizedPnlPct >= 0 ? "value ok" : "value error"}>
-                      {unrealizedPnlPct.toFixed(2)}%
+                      {formatPercent(unrealizedPnlPct)}
                     </td>
                     <td className={Number(position.realized_pnl) >= 0 ? "value ok" : "value error"}>
-                      {position.realized_pnl}
+                      {formatAmount(position.realized_pnl)}
                     </td>
                     <td>{formatDateTime(position.updated_at)}</td>
                   </tr>

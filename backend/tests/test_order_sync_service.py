@@ -14,6 +14,7 @@ from app.trading.broker.base import BrokerClient
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -54,6 +55,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
@@ -438,3 +442,30 @@ async def test_broker_error_does_not_raise(db_session: AsyncSession) -> None:
 
     await db_session.refresh(trade)
     assert trade.order_status == OrderStatus.PENDING
+
+
+async def test_rate_limit_error_is_classified(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    await _create_trade(db_session, account.id)
+
+    broker = FakeBrokerClient(error=KISAPIError("EGW00201", "초당 거래건수를 초과하였습니다."))
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+
+    assert result.checked == 1
+    assert result.updated == 0
+    assert len(result.errors) == 1
+    assert result.error_category == "rate_limit_or_repeated_call"
+
+
+async def test_no_pending_orders_skips_daily_executions_call(db_session: AsyncSession) -> None:
+    await _create_account(db_session)
+
+    class FailingIfCalledBrokerClient(FakeBrokerClient):
+        async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+            raise AssertionError("get_daily_executions should not be called when there are no pending orders")
+
+    result = await OrderSyncService(db_session, FailingIfCalledBrokerClient()).sync_pending_orders()
+
+    assert result.checked == 0
+    assert result.updated == 0
+    assert result.skipped_reason == "no_pending_orders"

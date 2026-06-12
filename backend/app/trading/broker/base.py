@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     MinuteCandle,
     OrderExecution,
     OrderRequest,
@@ -31,6 +32,9 @@ class BrokerClient(ABC):
 
     @abstractmethod
     async def get_account_balance(self) -> AccountBalance: ...
+
+    @abstractmethod
+    async def get_account_positions(self) -> list[AccountHolding]: ...
 
     @abstractmethod
     async def place_order(self, order: OrderRequest) -> OrderResult: ...

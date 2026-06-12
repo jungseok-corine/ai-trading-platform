@@ -7,7 +7,9 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.trading.broker.error_classifier import KIS_ERROR_RATE_LIMIT, classify_kis_error
 from app.trading.broker.exceptions import KISAPIError
+from app.trading.broker.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,8 @@ class KISClientBase:
         app_secret: str,
         http_client: httpx.AsyncClient,
         token_cache_path: str | Path,
+        rate_limit_min_interval_seconds: float = 0.5,
+        rate_limit_cooldown_seconds: float = 7.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._app_key = app_key
@@ -42,6 +46,10 @@ class KISClientBase:
         self._access_token: str | None = None
         self._token_expires_at: datetime | None = None
         self._token_lock = asyncio.Lock()
+        self._rate_limiter = RateLimiter(
+            min_interval_seconds=rate_limit_min_interval_seconds,
+            cooldown_seconds=rate_limit_cooldown_seconds,
+        )
 
     async def _get_access_token(self) -> str:
         async with self._token_lock:
@@ -63,6 +71,7 @@ class KISClientBase:
         return datetime.now(KST) < expires_at - TOKEN_REFRESH_BUFFER
 
     async def _issue_token(self) -> None:
+        await self._rate_limiter.acquire()
         response = await self._http.post(
             f"{self._base_url}/oauth2/tokenP",
             json={
@@ -74,10 +83,13 @@ class KISClientBase:
         )
         if response.status_code != 200:
             body = response.json()
-            raise KISAPIError(
+            error = KISAPIError(
                 body.get("error_code", str(response.status_code)),
                 body.get("error_description", response.text),
             )
+            if classify_kis_error(error) == KIS_ERROR_RATE_LIMIT:
+                self._rate_limiter.trigger_cooldown()
+            raise error
         data = response.json()
 
         self._access_token = data["access_token"]
@@ -124,6 +136,7 @@ class KISClientBase:
             "tr_id": tr_id,
             "custtype": "P",
         }
+        await self._rate_limiter.acquire()
         response = await self._http.request(
             method, f"{self._base_url}{path}", headers=headers, params=params, json=json_body
         )
@@ -132,6 +145,9 @@ class KISClientBase:
         data = response.json()
 
         if data.get("rt_cd") != "0":
-            raise KISAPIError(data.get("msg_cd", ""), data.get("msg1", ""))
+            error = KISAPIError(data.get("msg_cd", ""), data.get("msg1", ""))
+            if classify_kis_error(error) == KIS_ERROR_RATE_LIMIT:
+                self._rate_limiter.trigger_cooldown()
+            raise error
 
         return data

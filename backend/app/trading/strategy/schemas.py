@@ -46,6 +46,8 @@ class OrderSyncResultRead(BaseModel):
     unmatched: int
     unmatched_order_ids: list[str]
     errors: list[str]
+    error_category: str | None = None
+    skipped_reason: str | None = None
 
 
 class SignalLogRead(BaseModel):

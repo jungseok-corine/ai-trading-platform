@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTrades } from "../api/client";
+import { getSchedulerRuns, getTrades } from "../api/client";
 import { useSettings } from "../i18n/SettingsContext";
+
+const PENDING_STATUSES = new Set(["pending", "partial"]);
+
+function ageMinutesSince(isoTime: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(isoTime).getTime()) / 60000));
+}
 
 export default function TradesTable() {
   const { t, formatDateTime } = useSettings();
@@ -8,6 +14,13 @@ export default function TradesTable() {
     queryKey: ["trades"],
     queryFn: getTrades,
   });
+  const { data: schedulerRuns } = useQuery({
+    queryKey: ["scheduler-runs"],
+    queryFn: () => getSchedulerRuns(20),
+  });
+
+  const latestOrderSyncRun = schedulerRuns?.find((run) => run.job_id === "order_sync");
+  const unmatchedOrderIds = new Set(latestOrderSyncRun?.summary?.unmatched_order_ids ?? []);
 
   return (
     <div className="card">
@@ -31,6 +44,7 @@ export default function TradesTable() {
                 <th>{t.trades.colExitPrice}</th>
                 <th>{t.trades.colPositionAppliedQty}</th>
                 <th>{t.trades.colCreatedAt}</th>
+                <th>{t.trades.colAge}</th>
               </tr>
             </thead>
             <tbody>
@@ -53,6 +67,10 @@ export default function TradesTable() {
                       <>
                         <span className="badge order-status-filled">{t.trades.brokerOrderPresent}</span>
                         <div className="muted">{trade.broker_order_id}</div>
+                        {PENDING_STATUSES.has(trade.order_status) &&
+                          unmatchedOrderIds.has(trade.broker_order_id) && (
+                            <div className="value error">{t.trades.unmatchedIndicator}</div>
+                          )}
                       </>
                     ) : (
                       <span className="badge neutral">{t.trades.brokerOrderAbsent}</span>
@@ -67,6 +85,11 @@ export default function TradesTable() {
                   <td>{trade.exit_price ?? "-"}</td>
                   <td>{trade.position_applied_quantity}</td>
                   <td>{formatDateTime(trade.created_at)}</td>
+                  <td>
+                    {PENDING_STATUSES.has(trade.order_status)
+                      ? t.trades.ageMinutes(ageMinutesSince(trade.created_at))
+                      : "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>

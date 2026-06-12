@@ -18,6 +18,7 @@ from app.scheduler.jobs import ORDER_SYNC_JOB_ID, STRATEGY_RUNNER_JOB_ID, order_
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -105,6 +106,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
@@ -227,8 +231,9 @@ async def test_order_sync_job_records_success_with_no_errors(job_session_factory
             )
         assert len(runs) == 1
         run = runs[0]
-        assert run.status == SchedulerRunStatus.SUCCESS
+        assert run.status == SchedulerRunStatus.SKIPPED
         assert run.error_message is None
+        assert run.summary["skipped_reason"] == "no_pending_orders"
     finally:
         async with job_session_factory() as session:
             await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == ORDER_SYNC_JOB_ID))

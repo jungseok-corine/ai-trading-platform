@@ -11,6 +11,8 @@ from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
+from app.trading.broker.error_classifier import classify_kis_error
+from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.order_id import normalize_order_id
 from app.trading.broker.schemas import OrderExecution
 from app.trading.pricing.fees import TradingCostCalculator
@@ -26,6 +28,8 @@ class OrderSyncResult:
     unmatched: int = 0
     unmatched_order_ids: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    error_category: str | None = None
+    skipped_reason: str | None = None
 
 
 def _build_trade_updates(trade: Trade, execution: OrderExecution) -> dict[str, Any]:
@@ -86,13 +90,14 @@ class OrderSyncService:
     async def sync_pending_orders(self) -> OrderSyncResult:
         trades = await self._trade_repo.list_pending_or_partial()
         if not trades:
-            return OrderSyncResult(checked=0, updated=0)
+            return OrderSyncResult(checked=0, updated=0, skipped_reason="no_pending_orders")
 
         try:
             executions = await self._broker.get_daily_executions()
         except Exception as exc:  # noqa: BLE001 - 체결 조회 실패가 scheduler를 죽이면 안 됨
             logger.warning("order sync: get_daily_executions failed: %s", exc)
-            return OrderSyncResult(checked=len(trades), updated=0, errors=[str(exc)])
+            category = classify_kis_error(exc) if isinstance(exc, KISAPIError) else None
+            return OrderSyncResult(checked=len(trades), updated=0, errors=[str(exc)], error_category=category)
 
         logger.debug(
             "order sync: fetched %d execution(s): %s",

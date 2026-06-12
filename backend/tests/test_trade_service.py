@@ -15,6 +15,7 @@ from app.services.trade_service import TradeService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -51,6 +52,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         self.place_order_calls.append(order)

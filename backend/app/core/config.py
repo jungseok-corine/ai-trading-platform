@@ -26,13 +26,17 @@ class Settings(BaseSettings):
     kis_real_base_url: str = "https://openapi.koreainvestment.com:9443"
     kis_token_cache_path: str = ".cache/kis_token.json"
 
+    # KIS API 호출 빈도 제한 (모의투자 EGW00201 "초당 거래건수를 초과하였습니다" 완화)
+    kis_rate_limit_min_interval_seconds: float = 0.5
+    kis_rate_limit_cooldown_seconds: float = 7.0
+
     # Strategy Engine 스케줄러 (APScheduler)
     strategy_scheduler_enabled: bool = True
     strategy_scheduler_interval_seconds: int = 60
 
     # 주문 체결 동기화 스케줄러 (APScheduler)
     order_sync_scheduler_enabled: bool = True
-    order_sync_scheduler_interval_seconds: int = 30
+    order_sync_scheduler_interval_seconds: int = 60
 
     # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)
     #

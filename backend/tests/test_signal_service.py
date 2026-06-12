@@ -8,6 +8,7 @@ from app.services.signal_service import SignalService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -60,6 +61,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError

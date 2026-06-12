@@ -265,6 +265,17 @@ th {
   word-break: break-all;
 }
 
+.scheduler-error-list summary {
+  cursor: pointer;
+  color: var(--accent, #4a90d9);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.scheduler-error-raw {
+  margin-top: 4px;
+}
+
 .auto-trade-toggle {
   display: flex;
   align-items: center;

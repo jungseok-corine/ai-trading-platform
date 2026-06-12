@@ -53,7 +53,10 @@ export interface Translations {
     colSummary: string;
     jobLabels: Record<string, string>;
     summaryKeyLabels: Record<string, string>;
-    errorCategoryLabels: Record<string, string>;
+    errorCategoryLabels: Record<string, { title: string; description: string }>;
+    skippedReasonLabels: Record<string, string>;
+    showDetails: string;
+    hideDetails: string;
   };
   risk: {
     title: string;
@@ -104,8 +107,11 @@ export interface Translations {
     colExitPrice: string;
     colPositionAppliedQty: string;
     colCreatedAt: string;
+    colAge: string;
     brokerOrderPresent: string;
     brokerOrderAbsent: string;
+    ageMinutes: (n: number) => string;
+    unmatchedIndicator: string;
   };
   positions: {
     title: string;
@@ -141,6 +147,12 @@ export interface Translations {
     autoRefresh60s: string;
     disclaimer: string;
     refreshFailed: string;
+    syncFromBroker: string;
+    syncing: string;
+    syncFailed: string;
+    syncResult: (created: number, updated: number, zeroed: number) => string;
+    disclaimerHoldings: string;
+    disclaimerRealizedPnl: string;
   };
   settings: {
     language: string;
@@ -231,13 +243,36 @@ export const translations: Record<Language, Translations> = {
         unmatched_order_ids: "미매칭 주문번호",
       } as Record<string, string>,
       errorCategoryLabels: {
-        invalid_price_tick: "주문 가격이 호가 단위에 맞지 않아 거절됨",
-        token_error: "인증 토큰 오류",
-        rate_limit_or_repeated_call: "API 호출 빈도 제한",
-        market_closed: "장 운영시간 외 요청",
-        insufficient_balance: "잔고/예수금 부족",
-        unknown: "분류되지 않은 오류",
+        invalid_price_tick: {
+          title: "호가 단위 오류",
+          description: "주문 가격이 허용된 호가 단위와 맞지 않아 거절되었습니다.",
+        },
+        token_error: {
+          title: "인증 토큰 오류",
+          description: "KIS API 인증 토큰을 발급/갱신하는 중 오류가 발생했습니다.",
+        },
+        rate_limit_or_repeated_call: {
+          title: "호출 제한",
+          description: "KIS 모의투자 API 호출이 일시적으로 많아 요청이 제한되었습니다. 잠시 후 다시 시도됩니다.",
+        },
+        market_closed: {
+          title: "장 종료",
+          description: "모의투자 장 운영 시간이 아니어서 주문/조회가 제한되었습니다.",
+        },
+        insufficient_balance: {
+          title: "잔고 부족",
+          description: "주문 가능 금액 또는 보유 수량이 부족합니다.",
+        },
+        unknown: {
+          title: "API 오류",
+          description: "KIS API 요청 중 오류가 발생했습니다. 상세 로그를 확인하세요.",
+        },
+      } as Record<string, { title: string; description: string }>,
+      skippedReasonLabels: {
+        no_pending_orders: "대기 중인 주문이 없어 건너뜀",
       } as Record<string, string>,
+      showDetails: "상세 보기",
+      hideDetails: "숨기기",
     },
     risk: {
       title: "리스크 제어",
@@ -289,8 +324,11 @@ export const translations: Record<Language, Translations> = {
       colExitPrice: "청산가",
       colPositionAppliedQty: "포지션 반영 수량",
       colCreatedAt: "생성 시각",
+      colAge: "대기 시간",
       brokerOrderPresent: "KIS 주문번호 있음",
       brokerOrderAbsent: "주문 미전송",
+      ageMinutes: (n: number) => `${n}분 경과`,
+      unmatchedIndicator: "체결조회 미매칭",
     },
     positions: {
       title: "보유 포지션",
@@ -326,6 +364,13 @@ export const translations: Record<Language, Translations> = {
       autoRefresh60s: "60초",
       disclaimer: "현재 손익은 마지막 현재가 갱신 기준입니다.",
       refreshFailed: "현재가 갱신 실패",
+      syncFromBroker: "KIS 잔고 동기화",
+      syncing: "동기화 중...",
+      syncFailed: "KIS 잔고 동기화 실패",
+      syncResult: (created, updated, zeroed) =>
+        `신규 ${created}건, 갱신 ${updated}건, 0으로 정리 ${zeroed}건`,
+      disclaimerHoldings: "보유수량과 평균단가는 KIS 잔고 동기화 기준입니다.",
+      disclaimerRealizedPnl: "실현손익은 내부 체결 기록 기준이며, KIS 앱과 다를 수 있습니다.",
     },
     settings: {
       language: "언어",
@@ -413,13 +458,36 @@ export const translations: Record<Language, Translations> = {
         unmatched_order_ids: "Unmatched Order IDs",
       } as Record<string, string>,
       errorCategoryLabels: {
-        invalid_price_tick: "Order price does not match the tick size",
-        token_error: "Authentication token error",
-        rate_limit_or_repeated_call: "API rate limit exceeded",
-        market_closed: "Request outside market hours",
-        insufficient_balance: "Insufficient balance/deposit",
-        unknown: "Uncategorized error",
+        invalid_price_tick: {
+          title: "Invalid Price Tick",
+          description: "The order price does not match the allowed tick size and was rejected.",
+        },
+        token_error: {
+          title: "Auth Token Error",
+          description: "An error occurred while issuing/refreshing the KIS API auth token.",
+        },
+        rate_limit_or_repeated_call: {
+          title: "Rate Limited",
+          description: "KIS paper trading API calls were temporarily rate-limited. The request will be retried shortly.",
+        },
+        market_closed: {
+          title: "Market Closed",
+          description: "The paper trading market is not open, so orders/queries are restricted.",
+        },
+        insufficient_balance: {
+          title: "Insufficient Balance",
+          description: "Insufficient buying power or holding quantity.",
+        },
+        unknown: {
+          title: "API Error",
+          description: "An error occurred while calling the KIS API. Check the detailed logs.",
+        },
+      } as Record<string, { title: string; description: string }>,
+      skippedReasonLabels: {
+        no_pending_orders: "Skipped: no pending orders",
       } as Record<string, string>,
+      showDetails: "Show details",
+      hideDetails: "Hide",
     },
     risk: {
       title: "Risk Controls",
@@ -471,8 +539,11 @@ export const translations: Record<Language, Translations> = {
       colExitPrice: "Exit Price",
       colPositionAppliedQty: "Position Applied Qty",
       colCreatedAt: "Created At",
+      colAge: "Pending For",
       brokerOrderPresent: "Has KIS order ID",
       brokerOrderAbsent: "Not sent",
+      ageMinutes: (n: number) => `${n} min`,
+      unmatchedIndicator: "Not matched in fill check",
     },
     positions: {
       title: "Positions",
@@ -508,6 +579,13 @@ export const translations: Record<Language, Translations> = {
       autoRefresh60s: "60s",
       disclaimer: "PnL reflects prices as of the last price refresh.",
       refreshFailed: "Failed to refresh prices",
+      syncFromBroker: "Sync KIS Balance",
+      syncing: "Syncing...",
+      syncFailed: "Failed to sync KIS balance",
+      syncResult: (created, updated, zeroed) =>
+        `${created} created, ${updated} updated, ${zeroed} zeroed out`,
+      disclaimerHoldings: "Holding quantity and average entry price are based on the last KIS balance sync.",
+      disclaimerRealizedPnl: "Realized PnL is based on internal trade records and may differ from the KIS app.",
     },
     settings: {
       language: "Language",

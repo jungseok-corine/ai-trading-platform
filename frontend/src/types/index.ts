@@ -33,6 +33,8 @@ export interface SchedulerRunSummary {
   unmatched?: number;
   unmatched_order_ids?: string[];
   errors?: SchedulerRunErrorEntry[];
+  error_category?: string | null;
+  skipped_reason?: string | null;
 }
 
 export interface SchedulerRun {
@@ -54,6 +56,8 @@ export interface OrderSyncResult {
   unmatched: number;
   unmatched_order_ids: string[];
   errors: string[];
+  error_category?: string | null;
+  skipped_reason?: string | null;
 }
 
 export interface StrategyRunResult {
@@ -97,6 +101,13 @@ export interface PortfolioSummary {
 
 export interface RefreshPricesResult {
   updated: number;
+  positions: Position[];
+}
+
+export interface BrokerSyncResult {
+  created: number;
+  updated: number;
+  zeroed: number;
   positions: Position[];
 }
 

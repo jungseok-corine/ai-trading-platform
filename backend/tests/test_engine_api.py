@@ -8,6 +8,7 @@ from app.scheduler.lifecycle import ORDER_SYNC_JOB_ID, STRATEGY_RUNNER_JOB_ID
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -36,6 +37,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
@@ -89,6 +93,8 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
                 "unmatched": 0,
                 "unmatched_order_ids": [],
                 "errors": [],
+                "error_category": None,
+                "skipped_reason": "no_pending_orders",
             }
 
             status_resp_after_sync = client.get("/api/v1/engine/status")

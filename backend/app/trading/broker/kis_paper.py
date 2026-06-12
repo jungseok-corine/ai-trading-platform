@@ -147,6 +147,11 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
         )
         return AccountBalance(holdings=holdings, summary=summary)
 
+    async def get_account_positions(self) -> list[AccountHolding]:
+        """KIS 모의투자 잔고조회(inquire-balance) 응답의 보유종목 목록을 반환한다."""
+        balance = await self.get_account_balance()
+        return balance.holdings
+
     async def place_order(self, order: OrderRequest) -> OrderResult:
         if order.order_type != OrderType.LIMIT:
             raise ValueError("MVP에서는 지정가(LIMIT) 주문만 지원합니다.")

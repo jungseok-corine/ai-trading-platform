@@ -12,6 +12,7 @@ from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -49,6 +50,20 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return [
+            AccountHolding(
+                symbol_code="005930",
+                symbol_name="삼성전자",
+                quantity=3,
+                avg_purchase_price=Decimal("322916"),
+                current_price=Decimal("324500"),
+                evaluation_amount=Decimal("324500") * 3,
+                profit_loss_amount=(Decimal("324500") - Decimal("322916")) * 3,
+                profit_loss_rate=Decimal("0"),
+            )
+        ]
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
@@ -132,5 +147,18 @@ async def test_positions_api_flow(db_session: AsyncSession) -> None:
             refresh_all = refresh_all_resp.json()
             assert refresh_all["updated"] == 1
             assert Decimal(refresh_all["positions"][0]["last_price"]) == Decimal("80000")
+
+            sync_resp = await client.post(
+                "/api/v1/positions/sync-from-broker", params={"account_id": account.id}
+            )
+            assert sync_resp.status_code == 200
+            sync_result = sync_resp.json()
+            assert sync_result["created"] == 0
+            assert sync_result["updated"] == 1
+            assert sync_result["zeroed"] == 0
+            synced_position = sync_result["positions"][0]
+            assert Decimal(synced_position["quantity"]) == 3
+            assert Decimal(synced_position["avg_entry_price"]) == Decimal("322916")
+            assert Decimal(synced_position["last_price"]) == Decimal("324500")
     finally:
         app.dependency_overrides.clear()

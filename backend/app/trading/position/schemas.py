@@ -26,6 +26,13 @@ class RefreshPricesResultRead(BaseModel):
     positions: list[PositionRead]
 
 
+class BrokerSyncResultRead(BaseModel):
+    created: int
+    updated: int
+    zeroed: int
+    positions: list[PositionRead]
+
+
 class PortfolioSummaryRead(BaseModel):
     account_id: int
     position_count: int

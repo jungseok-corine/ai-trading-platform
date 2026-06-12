@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPortfolioSummary, refreshAllPrices } from "../api/client";
+import { getPortfolioSummary, refreshAllPrices, syncPositionsFromBroker } from "../api/client";
 import { useSettings } from "../i18n/SettingsContext";
+import { formatAmount, formatPercent, formatQuantity } from "../utils/format";
 
 type AutoRefreshOption = "off" | "30" | "60";
 
@@ -20,6 +21,14 @@ export default function PortfolioSummaryCard() {
     mutationFn: () => refreshAllPrices(accountId),
     onSuccess: () => {
       setLastRefreshedAt(new Date().toISOString());
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-summary", accountId] });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => syncPositionsFromBroker(accountId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", accountId] });
     },
@@ -65,38 +74,38 @@ export default function PortfolioSummaryCard() {
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalQuantity}</span>
-            <span className="value">{data.total_quantity}</span>
+            <span className="value">{formatQuantity(data.total_quantity)}</span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalCostAmount}</span>
-            <span className="value">{data.total_cost_amount}</span>
+            <span className="value">{formatAmount(data.total_cost_amount)}</span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalEvalAmount}</span>
-            <span className="value">{data.total_eval_amount}</span>
+            <span className="value">{formatAmount(data.total_eval_amount)}</span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalUnrealizedPnl}</span>
             <span className={`value ${Number(data.total_unrealized_pnl) >= 0 ? "ok" : "error"}`}>
-              {data.total_unrealized_pnl}
+              {formatAmount(data.total_unrealized_pnl)}
             </span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalUnrealizedPnlPct}</span>
             <span className={`value ${Number(data.total_unrealized_pnl_pct) >= 0 ? "ok" : "error"}`}>
-              {data.total_unrealized_pnl_pct}%
+              {formatPercent(data.total_unrealized_pnl_pct)}
             </span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalRealizedPnl}</span>
             <span className={`value ${Number(data.total_realized_pnl) >= 0 ? "ok" : "error"}`}>
-              {data.total_realized_pnl}
+              {formatAmount(data.total_realized_pnl)}
             </span>
           </div>
           <div className="status-item">
             <span className="label">{t.portfolio.totalPnl}</span>
             <span className={`value ${Number(data.total_pnl) >= 0 ? "ok" : "error"}`}>
-              {data.total_pnl}
+              {formatAmount(data.total_pnl)}
             </span>
           </div>
         </div>
@@ -109,6 +118,12 @@ export default function PortfolioSummaryCard() {
           onClick={() => refreshMutation.mutate()}
         >
           {refreshMutation.isPending ? t.portfolio.refreshing : t.portfolio.refreshPrices}
+        </button>
+        <button
+          disabled={syncMutation.isPending}
+          onClick={() => syncMutation.mutate()}
+        >
+          {syncMutation.isPending ? t.portfolio.syncing : t.portfolio.syncFromBroker}
         </button>
         <label className="auto-refresh-select">
           {t.portfolio.autoRefresh}
@@ -129,7 +144,23 @@ export default function PortfolioSummaryCard() {
           {(refreshMutation.error as Error)?.message ?? t.portfolio.refreshFailed}
         </p>
       )}
+      {syncMutation.isError && (
+        <p className="action-result value error">
+          {(syncMutation.error as Error)?.message ?? t.portfolio.syncFailed}
+        </p>
+      )}
+      {syncMutation.isSuccess && (
+        <p className="action-result muted">
+          {t.portfolio.syncResult(
+            syncMutation.data.created,
+            syncMutation.data.updated,
+            syncMutation.data.zeroed,
+          )}
+        </p>
+      )}
       <p className="section-description">{t.portfolio.disclaimer}</p>
+      <p className="section-description">{t.portfolio.disclaimerHoldings}</p>
+      <p className="section-description">{t.portfolio.disclaimerRealizedPnl}</p>
     </div>
   );
 }

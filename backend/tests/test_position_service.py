@@ -10,6 +10,7 @@ from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -24,6 +25,33 @@ async def _create_account(session: AsyncSession) -> Account:
     session.add(account)
     await session.flush()
     return account
+
+
+class FakeHoldingsBrokerClient(BrokerClient):
+    """KIS 잔고조회(get_account_positions) 테스트용 — 고정된 보유종목 목록을 반환한다."""
+
+    def __init__(self, holdings: list[AccountHolding]) -> None:
+        self._holdings = holdings
+
+    async def get_current_price(self, symbol_code: str) -> PriceQuote:
+        raise NotImplementedError
+
+    async def get_minute_candles(
+        self, symbol_code: str, target_time: str | None = None, include_past_data: bool = True
+    ) -> list[MinuteCandle]:
+        raise NotImplementedError
+
+    async def get_account_balance(self) -> AccountBalance:
+        raise NotImplementedError
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return self._holdings
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        raise NotImplementedError
+
+    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        return []
 
 
 class FakePriceBrokerClient(BrokerClient):
@@ -62,6 +90,9 @@ class FakePriceBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
@@ -339,3 +370,117 @@ async def test_refresh_all_prices_updates_held_positions_and_skips_zero_quantity
     # quantity == 0 포지션은 시세 조회 대상이 아니므로 last_price가 변경되지 않는다
     assert closed.last_price == Decimal("110000")
     assert closed.unrealized_pnl == Decimal("0")
+
+
+def _holding(
+    symbol_code: str,
+    symbol_name: str,
+    quantity: int,
+    avg_purchase_price: Decimal,
+    current_price: Decimal,
+) -> AccountHolding:
+    evaluation_amount = current_price * quantity
+    profit_loss_amount = (current_price - avg_purchase_price) * quantity
+    return AccountHolding(
+        symbol_code=symbol_code,
+        symbol_name=symbol_name,
+        quantity=quantity,
+        avg_purchase_price=avg_purchase_price,
+        current_price=current_price,
+        evaluation_amount=evaluation_amount,
+        profit_loss_amount=profit_loss_amount,
+        profit_loss_rate=Decimal("0"),
+    )
+
+
+async def test_sync_from_broker_creates_position_not_in_db(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+    broker = FakeHoldingsBrokerClient(
+        [_holding("005930", "삼성전자", 3, Decimal("322916"), Decimal("324500"))]
+    )
+    service = PositionService(db_session, broker)
+
+    result = await service.sync_from_broker_positions(account.id)
+
+    assert result.created == 1
+    assert result.updated == 0
+    assert result.zeroed == 0
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    assert position.symbol_name == "삼성전자"
+    assert position.quantity == 3
+    assert position.avg_entry_price == Decimal("322916")
+    assert position.last_price == Decimal("324500")
+    assert position.unrealized_pnl == (Decimal("324500") - Decimal("322916")) * 3
+    assert position.realized_pnl == Decimal("0")
+
+
+async def test_sync_from_broker_corrects_mismatched_existing_position(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+
+    # 내부 체결 기록 상으로는 5주를 보유하고 있다고 잘못 알고 있는 상태
+    no_broker_service = PositionService(db_session)
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        symbol_name="삼성전자",
+        side=TradeSide.BUY,
+        quantity=5,
+        price=Decimal("300000"),
+    )
+
+    # 실제 KIS 잔고는 3주, 평균단가 322916원
+    broker = FakeHoldingsBrokerClient(
+        [_holding("005930", "삼성전자", 3, Decimal("322916"), Decimal("324500"))]
+    )
+    service = PositionService(db_session, broker)
+
+    result = await service.sync_from_broker_positions(account.id)
+
+    assert result.created == 0
+    assert result.updated == 1
+    assert result.zeroed == 0
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    assert position.quantity == 3
+    assert position.avg_entry_price == Decimal("322916")
+    assert position.last_price == Decimal("324500")
+    assert position.unrealized_pnl == (Decimal("324500") - Decimal("322916")) * 3
+    # realized_pnl(내부 체결 기록 기준)은 KIS 잔고 동기화로 변경되지 않는다
+    assert position.realized_pnl == Decimal("0")
+
+
+async def test_sync_from_broker_zeroes_position_not_in_broker_holdings(db_session: AsyncSession) -> None:
+    account = await _create_account(db_session)
+
+    no_broker_service = PositionService(db_session)
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="000660",
+        symbol_name="SK하이닉스",
+        side=TradeSide.BUY,
+        quantity=2,
+        price=Decimal("100000"),
+    )
+
+    # KIS 잔고에는 000660이 없음 (전량 매도되었거나 내부 기록이 잘못된 경우)
+    broker = FakeHoldingsBrokerClient([])
+    service = PositionService(db_session, broker)
+
+    result = await service.sync_from_broker_positions(account.id)
+
+    assert result.created == 0
+    assert result.updated == 0
+    assert result.zeroed == 1
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "000660")
+    assert position is not None
+    assert position.quantity == 0
+    assert position.unrealized_pnl == Decimal("0")
+    # avg_entry_price/realized_pnl은 과거 체결 이력 참고용으로 유지
+    assert position.avg_entry_price == Decimal("100000")

@@ -118,4 +118,6 @@ async def sync_orders(
         unmatched=result.unmatched,
         unmatched_order_ids=result.unmatched_order_ids,
         errors=result.errors,
+        error_category=result.error_category,
+        skipped_reason=result.skipped_reason,
     )

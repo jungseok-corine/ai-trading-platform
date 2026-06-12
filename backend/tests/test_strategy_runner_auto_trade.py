@@ -21,6 +21,7 @@ from app.trading.broker.error_classifier import KIS_ERROR_UNKNOWN
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.schemas import (
     AccountBalance,
+    AccountHolding,
     AccountSummary,
     MinuteCandle,
     OrderExecution,
@@ -82,6 +83,9 @@ class FakeBrokerClient(BrokerClient):
                 total_profit_loss_amount=Decimal("0"),
             ),
         )
+
+    async def get_account_positions(self) -> list[AccountHolding]:
+        return []
 
     async def place_order(self, order: OrderRequest) -> OrderResult:
         if self._place_order_error is not None:

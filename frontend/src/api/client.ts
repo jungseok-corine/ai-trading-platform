@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  BrokerSyncResult,
   EngineStatus,
   OrderSyncResult,
   PortfolioSummary,
@@ -66,6 +67,13 @@ export async function getPortfolioSummary(accountId: number): Promise<PortfolioS
 
 export async function refreshAllPrices(accountId: number): Promise<RefreshPricesResult> {
   const { data } = await apiClient.post<RefreshPricesResult>("/positions/refresh-prices", null, {
+    params: { account_id: accountId },
+  });
+  return data;
+}
+
+export async function syncPositionsFromBroker(accountId: number): Promise<BrokerSyncResult> {
+  const { data } = await apiClient.post<BrokerSyncResult>("/positions/sync-from-broker", null, {
     params: { account_id: accountId },
   });
   return data;

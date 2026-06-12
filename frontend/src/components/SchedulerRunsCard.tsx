@@ -4,9 +4,9 @@ import type { SchedulerRunErrorEntry, SchedulerRunSummary } from "../types";
 import { useSettings } from "../i18n/SettingsContext";
 import type { Translations } from "../i18n/translations";
 
-function describeCategory(category: string | null, t: Translations): string | null {
+function describeCategory(category: string | null, t: Translations): { title: string; description: string } | null {
   if (!category) return null;
-  return t.scheduler.errorCategoryLabels[category] ?? category;
+  return t.scheduler.errorCategoryLabels[category] ?? { title: category, description: "" };
 }
 
 function describeJob(jobId: string, t: Translations): string {
@@ -24,14 +24,21 @@ function formatSummaryValue(value: unknown): string {
   return String(value);
 }
 
+const HIDDEN_SUMMARY_KEYS = new Set(["errors", "error_category", "skipped_reason"]);
+
 function SummaryCounts({ summary, t }: { summary: SchedulerRunSummary; t: Translations }) {
-  const counts = Object.entries(summary).filter(([key]) => key !== "errors");
-  if (counts.length === 0) return null;
+  const counts = Object.entries(summary).filter(
+    ([key, value]) => !HIDDEN_SUMMARY_KEYS.has(key) && value !== null && value !== undefined,
+  );
+  const skippedLabel = summary.skipped_reason
+    ? t.scheduler.skippedReasonLabels[summary.skipped_reason] ?? summary.skipped_reason
+    : null;
+  if (counts.length === 0 && !skippedLabel) return null;
   return (
     <div className="muted">
-      {counts
-        .map(([key, value]) => `${describeSummaryKey(key, t)}: ${formatSummaryValue(value)}`)
-        .join(", ")}
+      {skippedLabel && <div>{skippedLabel}</div>}
+      {counts.length > 0 &&
+        counts.map(([key, value]) => `${describeSummaryKey(key, t)}: ${formatSummaryValue(value)}`).join(", ")}
     </div>
   );
 }
@@ -40,15 +47,28 @@ function ErrorList({ errors, t }: { errors: SchedulerRunErrorEntry[]; t: Transla
   if (errors.length === 0) return null;
   return (
     <ul className="scheduler-error-list">
-      {errors.map((err, idx) => (
-        <li key={idx}>
-          {err.symbol_code && <span className="muted">[{err.symbol_code}] </span>}
-          {err.category && (
-            <span className="value error">{describeCategory(err.category, t)}</span>
-          )}
-          <div className="muted">{err.message}</div>
-        </li>
-      ))}
+      {errors.map((err, idx) => {
+        const category = describeCategory(err.category, t);
+        return (
+          <li key={idx}>
+            {err.symbol_code && <span className="muted">[{err.symbol_code}] </span>}
+            {category ? (
+              <>
+                <div className="value error">{category.title}</div>
+                {category.description && <div className="muted">{category.description}</div>}
+              </>
+            ) : (
+              <div className="value error">{err.message}</div>
+            )}
+            {category && err.message && (
+              <details>
+                <summary>{t.scheduler.showDetails}</summary>
+                <div className="muted scheduler-error-raw">{err.message}</div>
+              </details>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

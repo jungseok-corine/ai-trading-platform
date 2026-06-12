@@ -23,13 +23,34 @@ function SyncOrdersResult({ result }: { result: OrderSyncResult }) {
     entries.push([t.scheduler.summaryKeyLabels.unmatched_order_ids, result.unmatched_order_ids.join(", ")]);
   }
 
+  const skippedLabel = result.skipped_reason
+    ? t.scheduler.skippedReasonLabels[result.skipped_reason] ?? result.skipped_reason
+    : null;
+  const category = result.error_category ? t.scheduler.errorCategoryLabels[result.error_category] : null;
+
   return (
     <div className="action-result">
+      {skippedLabel && <div className="muted">{skippedLabel}</div>}
       <div className="muted">{entries.map(([label, value]) => `${label}: ${value}`).join(", ")}</div>
+      {category && (
+        <div>
+          <div className="value error">{category.title}</div>
+          <div className="muted">{category.description}</div>
+        </div>
+      )}
       {result.errors.length > 0 && (
         <ul className="scheduler-error-list">
           {result.errors.map((err, i) => (
-            <li key={i}>{err}</li>
+            <li key={i}>
+              {category ? (
+                <details>
+                  <summary>{t.scheduler.showDetails}</summary>
+                  <div className="muted scheduler-error-raw">{err}</div>
+                </details>
+              ) : (
+                err
+              )}
+            </li>
           ))}
         </ul>
       )}
