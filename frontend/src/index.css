@@ -257,3 +257,51 @@ tr.selected {
   color: #4d3800;
   font-size: 13px;
 }
+
+.section-description {
+  margin-top: -4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #57606a;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.badge.order-status-pending {
+  background: #fff8c5;
+  color: #9a6700;
+}
+
+.badge.order-status-filled {
+  background: #dafbe1;
+  color: #1a7f37;
+}
+
+.badge.order-status-partial {
+  background: #ddf4ff;
+  color: #0969da;
+}
+
+.badge.order-status-cancelled {
+  background: #eaeef2;
+  color: #57606a;
+}
+
+.badge.order-status-rejected {
+  background: #ffebe9;
+  color: #cf222e;
+}
+
+.badge.neutral {
+  background: #eaeef2;
+  color: #57606a;
+}

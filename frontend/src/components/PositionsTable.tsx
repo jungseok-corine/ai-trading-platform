@@ -10,6 +10,7 @@ export default function PositionsTable() {
   return (
     <div className="card">
       <h2>Positions</h2>
+      <p className="section-description">체결 동기화 후 반영된 현재 보유 포지션과 손익입니다.</p>
       {isLoading && <p className="muted">불러오는 중...</p>}
       {isError && <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>}
       {data && data.length === 0 && <p className="muted">보유 포지션이 없습니다.</p>}

@@ -10,6 +10,9 @@ export default function SchedulerRunsCard() {
   return (
     <div className="card">
       <h2>Scheduler Logs</h2>
+      <p className="section-description">
+        strategy_runner/order_sync 같은 자동 작업이 언제 실행됐고 성공/실패했는지 기록합니다.
+      </p>
       {isLoading && <p className="muted">불러오는 중...</p>}
       {isError && <p className="value error">{(error as Error)?.message ?? "조회 실패"}</p>}
       {data && data.length === 0 && <p className="muted">실행 기록이 없습니다.</p>}

@@ -165,12 +165,43 @@ backend/
 
 ## 테스트 실행
 
+### dev DB와 test DB
+
+- **dev DB (`trading_platform`)**: 로컬 개발/수동 테스트용 DB. 실제로 만든 전략/계좌/거래/스케줄러 로그 등이 쌓여 있다.
+- **test DB (`trading_platform_test`)**: pytest 전용 DB. dev DB와 완전히 분리되어 있으며, dev DB의 데이터를 절대 읽거나 쓰지 않는다.
+
+`tests/conftest.py`가 pytest 시작 시 자동으로:
+
+1. `DATABASE_URL`을 `TEST_DATABASE_URL`(미설정 시 `postgresql+asyncpg://trading:trading@localhost:5432/trading_platform_test`)로 덮어쓴다.
+2. `trading_platform_test` DB가 없으면 생성한다.
+3. `alembic upgrade head`로 스키마를 최신화한다.
+4. 각 테스트는 트랜잭션(세이브포인트) 안에서 실행되고 종료 시 롤백되어, 테스트 간 격리되고 test DB에 데이터를 남기지 않는다.
+
+dev DB(`trading_platform`)가 가리키는 `trading_platform` 이름은 안전장치로 막혀 있다 — `TEST_DATABASE_URL`을 dev DB로 설정하면 conftest가 즉시 에러를 낸다.
+
+### 실행 방법
+
 ```bash
+# 1. 의존성 설치
 pip install -e ".[dev]"
+
+# 2. PostgreSQL 컨테이너 실행 (처음 실행이면 trading_platform_test도 자동 생성됨)
+docker compose up -d
+
+# 2-1. 이미 떠 있던(데이터 볼륨이 있는) 컨테이너라면 test DB를 한 번 생성해준다
+./scripts/create-test-db.sh
+
+# 3. 테스트 실행 (test DB 자동 생성 + 마이그레이션 + 격리는 conftest가 처리)
 pytest
 ```
 
-`tests/test_risk_rules.py`는 DB 없이 RiskManager/RiskRule 판정 로직만 검증하고, `tests/test_risk_service.py`는 실제 PostgreSQL에 대해 risk_events 기록까지 검증한다 (각 테스트는 트랜잭션 롤백으로 격리되어 DB에 흔적을 남기지 않음). PostgreSQL이 실행 중이어야 한다 (`docker compose up -d`).
+필요하면 test DB 위치를 직접 지정할 수 있다:
+
+```bash
+TEST_DATABASE_URL=postgresql+asyncpg://trading:trading@localhost:5432/my_test_db pytest
+```
+
+`tests/test_risk_rules.py`는 DB 없이 RiskManager/RiskRule 판정 로직만 검증하고, `tests/test_risk_service.py`는 실제 PostgreSQL(test DB)에 대해 risk_events 기록까지 검증한다 (각 테스트는 트랜잭션 롤백으로 격리되어 DB에 흔적을 남기지 않음). PostgreSQL이 실행 중이어야 한다 (`docker compose up -d`).
 
 ## KIS 계정 연결 전 준비사항
 

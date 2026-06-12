@@ -103,6 +103,10 @@ export default function StrategyVersionParametersFields({
           onChange={(next) => update("auto_trade_enabled", next)}
         />
       </div>
+      <p className="section-description">
+        auto_trade_enabled가 OFF이면 신호(Signal)만 생성되어 기록되고, 실제 KIS 주문은 실행되지 않습니다.
+        ON으로 설정하면 RiskManager 검증을 통과한 신호에 한해 자동으로 주문이 전송됩니다.
+      </p>
     </div>
   );
 }

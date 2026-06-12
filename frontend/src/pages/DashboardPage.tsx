@@ -6,6 +6,7 @@ import PositionsTable from "../components/PositionsTable";
 import TradesTable from "../components/TradesTable";
 import SignalsTable from "../components/SignalsTable";
 import RiskControls from "../components/RiskControls";
+import RunOnceResultsTable from "../components/RunOnceResultsTable";
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
@@ -63,7 +64,9 @@ export default function DashboardPage() {
         </div>
 
         {runOnceMutation.isSuccess && (
-          <pre className="action-result">{JSON.stringify(runOnceMutation.data, null, 2)}</pre>
+          <div className="action-result">
+            <RunOnceResultsTable results={runOnceMutation.data} />
+          </div>
         )}
         {runOnceMutation.isError && (
           <p className="action-result value error">{(runOnceMutation.error as Error)?.message}</p>
