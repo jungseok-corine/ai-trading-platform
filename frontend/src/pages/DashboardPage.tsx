@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { runOnce, syncOrders } from "../api/client";
 import EngineStatusCard from "../components/EngineStatusCard";
+import SchedulerSettingsCard from "../components/SchedulerSettingsCard";
 import SchedulerRunsCard from "../components/SchedulerRunsCard";
 import PortfolioSummaryCard from "../components/PortfolioSummaryCard";
 import PositionsTable from "../components/PositionsTable";
@@ -9,7 +10,36 @@ import SignalsTable from "../components/SignalsTable";
 import RiskControls from "../components/RiskControls";
 import RunOnceResultsTable from "../components/RunOnceResultsTable";
 import { useSettings } from "../i18n/SettingsContext";
+import type { Translations } from "../i18n/translations";
 import type { OrderSyncResult } from "../types";
+import { formatPrice, formatQuantity } from "../utils/format";
+
+function UnmatchedExecutions({ result, t }: { result: OrderSyncResult; t: Translations }) {
+  if (result.unmatched_order_ids.length === 0 || result.executions.length === 0) return null;
+  return (
+    <details>
+      <summary>{t.scheduler.executionsTitle}</summary>
+      <table className="executions-table">
+        <thead>
+          <tr>
+            <th>{t.scheduler.executionOrderId}</th>
+            <th>{t.scheduler.executionFilledQuantity}</th>
+            <th>{t.scheduler.executionFilledPrice}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.executions.map((e, i) => (
+            <tr key={i}>
+              <td>{e.order_id}</td>
+              <td>{formatQuantity(e.filled_quantity)}</td>
+              <td>{formatPrice(e.filled_price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
 
 function SyncOrdersResult({ result }: { result: OrderSyncResult }) {
   const { t } = useSettings();
@@ -54,6 +84,7 @@ function SyncOrdersResult({ result }: { result: OrderSyncResult }) {
           ))}
         </ul>
       )}
+      <UnmatchedExecutions result={result} t={t} />
     </div>
   );
 }
@@ -92,6 +123,7 @@ export default function DashboardPage() {
       <h1>{t.dashboard.title}</h1>
 
       <EngineStatusCard />
+      <SchedulerSettingsCard />
       <SchedulerRunsCard />
 
       <div className="card">

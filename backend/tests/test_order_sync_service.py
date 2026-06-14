@@ -191,6 +191,10 @@ async def test_unmatched_order_is_reported(db_session: AsyncSession) -> None:
     assert result.matched == 0
     assert result.unmatched == 1
     assert result.unmatched_order_ids == ["9999999999"]
+    # 매칭 실패 시에도 KIS 체결조회 응답을 축약한 executions summary로 디버깅할 수 있어야 한다
+    assert result.executions == [
+        {"order_id": "0000000001", "filled_quantity": 10, "filled_price": 69900.0}
+    ]
 
 
 async def test_buy_order_partially_filled_keeps_partial_status(db_session: AsyncSession) -> None:

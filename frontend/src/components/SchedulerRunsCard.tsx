@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSchedulerRuns } from "../api/client";
-import type { SchedulerRunErrorEntry, SchedulerRunSummary } from "../types";
+import type { OrderSyncExecutionSummary, SchedulerRunErrorEntry, SchedulerRunSummary } from "../types";
 import { useSettings } from "../i18n/SettingsContext";
 import type { Translations } from "../i18n/translations";
+import { formatPrice, formatQuantity } from "../utils/format";
 
 function describeCategory(category: string | null, t: Translations): { title: string; description: string } | null {
   if (!category) return null;
@@ -24,7 +25,34 @@ function formatSummaryValue(value: unknown): string {
   return String(value);
 }
 
-const HIDDEN_SUMMARY_KEYS = new Set(["errors", "error_category", "skipped_reason"]);
+const HIDDEN_SUMMARY_KEYS = new Set(["errors", "error_category", "skipped_reason", "executions"]);
+
+function ExecutionsList({ executions, t }: { executions: OrderSyncExecutionSummary[]; t: Translations }) {
+  if (executions.length === 0) return null;
+  return (
+    <details>
+      <summary>{t.scheduler.executionsTitle}</summary>
+      <table className="executions-table">
+        <thead>
+          <tr>
+            <th>{t.scheduler.executionOrderId}</th>
+            <th>{t.scheduler.executionFilledQuantity}</th>
+            <th>{t.scheduler.executionFilledPrice}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {executions.map((e, i) => (
+            <tr key={i}>
+              <td>{e.order_id}</td>
+              <td>{formatQuantity(e.filled_quantity)}</td>
+              <td>{formatPrice(e.filled_price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
 
 function SummaryCounts({ summary, t }: { summary: SchedulerRunSummary; t: Translations }) {
   const counts = Object.entries(summary).filter(
@@ -121,7 +149,12 @@ export default function SchedulerRunsCard() {
                       "-"
                     )}
                   </td>
-                  <td>{run.summary ? <SummaryCounts summary={run.summary} t={t} /> : "-"}</td>
+                  <td>
+                    {run.summary ? <SummaryCounts summary={run.summary} t={t} /> : "-"}
+                    {run.summary?.unmatched_order_ids && run.summary.unmatched_order_ids.length > 0 && (
+                      <ExecutionsList executions={run.summary.executions ?? []} t={t} />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

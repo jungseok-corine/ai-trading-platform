@@ -98,12 +98,14 @@ async def run_strategy_job(app: FastAPI) -> None:
             status = SchedulerRunStatus.SKIPPED
 
         app.state.scheduler_last_error = error_message
+        app.state.scheduler_last_error_category = errors[0]["category"] if errors else None
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
         logger.exception("strategy scheduler job failed")
         status = SchedulerRunStatus.FAILED
         error_message = str(exc)
         summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
         app.state.scheduler_last_error = error_message
+        app.state.scheduler_last_error_category = None
     finally:
         finished_at = datetime.now(KST)
         app.state.scheduler_last_run_at = finished_at
@@ -134,6 +136,7 @@ async def order_sync_job(app: FastAPI) -> None:
             "unmatched": result.unmatched,
             "updated": result.updated,
             "unmatched_order_ids": result.unmatched_order_ids,
+            "executions": result.executions,
             "errors": errors,
             "error_category": result.error_category,
             "skipped_reason": result.skipped_reason,
@@ -152,12 +155,14 @@ async def order_sync_job(app: FastAPI) -> None:
             status = SchedulerRunStatus.SKIPPED
 
         app.state.order_sync_last_error = error_message
+        app.state.order_sync_last_error_category = result.error_category
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
         logger.exception("order sync job failed")
         status = SchedulerRunStatus.FAILED
         error_message = str(exc)
         summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
         app.state.order_sync_last_error = error_message
+        app.state.order_sync_last_error_category = None
     finally:
         finished_at = datetime.now(KST)
         app.state.order_sync_last_run_at = finished_at

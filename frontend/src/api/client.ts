@@ -8,6 +8,8 @@ import type {
   RefreshPricesResult,
   RiskConfig,
   SchedulerRun,
+  SchedulerSettings,
+  SchedulerSettingsUpdateRequest,
   SignalLog,
   Strategy,
   StrategyRunResult,
@@ -15,6 +17,13 @@ import type {
   StrategyVersionCreateRequest,
   StrategyVersionUpdateRequest,
   Trade,
+  Watchlist,
+  WatchlistBulkStrategyCreateRequest,
+  WatchlistBulkStrategyCreateResponse,
+  WatchlistCreateRequest,
+  WatchlistSymbol,
+  WatchlistSymbolCreateRequest,
+  WatchlistSymbolUpdateRequest,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -38,6 +47,18 @@ export async function syncOrders(): Promise<OrderSyncResult> {
 
 export async function getSchedulerRuns(limit = 20): Promise<SchedulerRun[]> {
   const { data } = await apiClient.get<SchedulerRun[]>("/engine/runs", { params: { limit } });
+  return data;
+}
+
+export async function getSchedulerSettings(): Promise<SchedulerSettings> {
+  const { data } = await apiClient.get<SchedulerSettings>("/engine/scheduler-settings");
+  return data;
+}
+
+export async function updateSchedulerSettings(
+  payload: SchedulerSettingsUpdateRequest,
+): Promise<SchedulerSettings> {
+  const { data } = await apiClient.patch<SchedulerSettings>("/engine/scheduler-settings", payload);
   return data;
 }
 
@@ -112,6 +133,56 @@ export async function updateStrategyVersion(
 ): Promise<StrategyVersion> {
   const { data } = await apiClient.patch<StrategyVersion>(
     `/strategies/${strategyId}/versions/${versionId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function getWatchlists(): Promise<Watchlist[]> {
+  const { data } = await apiClient.get<Watchlist[]>("/watchlists");
+  return data;
+}
+
+export async function createWatchlist(payload: WatchlistCreateRequest): Promise<Watchlist> {
+  const { data } = await apiClient.post<Watchlist>("/watchlists", payload);
+  return data;
+}
+
+export async function getWatchlistSymbols(watchlistId: number): Promise<WatchlistSymbol[]> {
+  const { data } = await apiClient.get<WatchlistSymbol[]>(`/watchlists/${watchlistId}/symbols`);
+  return data;
+}
+
+export async function addWatchlistSymbol(
+  watchlistId: number,
+  payload: WatchlistSymbolCreateRequest,
+): Promise<WatchlistSymbol> {
+  const { data } = await apiClient.post<WatchlistSymbol>(`/watchlists/${watchlistId}/symbols`, payload);
+  return data;
+}
+
+export async function updateWatchlistSymbol(
+  watchlistId: number,
+  symbolId: number,
+  payload: WatchlistSymbolUpdateRequest,
+): Promise<WatchlistSymbol> {
+  const { data } = await apiClient.patch<WatchlistSymbol>(
+    `/watchlists/${watchlistId}/symbols/${symbolId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteWatchlistSymbol(watchlistId: number, symbolId: number): Promise<void> {
+  await apiClient.delete(`/watchlists/${watchlistId}/symbols/${symbolId}`);
+}
+
+export async function createStrategyVersionsFromWatchlist(
+  watchlistId: number,
+  payload: WatchlistBulkStrategyCreateRequest,
+): Promise<WatchlistBulkStrategyCreateResponse> {
+  const { data } = await apiClient.post<WatchlistBulkStrategyCreateResponse>(
+    `/watchlists/${watchlistId}/create-strategy-versions`,
     payload,
   );
   return data;

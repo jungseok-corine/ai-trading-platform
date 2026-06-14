@@ -276,6 +276,22 @@ th {
   margin-top: 4px;
 }
 
+.executions-table {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.executions-table th,
+.executions-table td {
+  padding: 2px 8px;
+  text-align: right;
+}
+
+.executions-table th:first-child,
+.executions-table td:first-child {
+  text-align: left;
+}
+
 .auto-trade-toggle {
   display: flex;
   align-items: center;
@@ -305,6 +321,12 @@ tr.selected {
   border-color: #d4a72c;
   color: #4d3800;
   font-size: 13px;
+}
+
+.warning-banner-strong {
+  background: #ffebe9;
+  border-color: #cf222e;
+  color: #82071e;
 }
 
 .section-description {

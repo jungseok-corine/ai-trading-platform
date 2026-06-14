@@ -27,6 +27,7 @@ class OrderSyncResult:
     matched: int = 0
     unmatched: int = 0
     unmatched_order_ids: list[str] = field(default_factory=list)
+    executions: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     error_category: str | None = None
     skipped_reason: str | None = None
@@ -109,6 +110,14 @@ class OrderSyncService:
         )
 
         executions_by_id = {normalize_order_id(e.broker_order_id): e for e in executions}
+        executions_summary = [
+            {
+                "order_id": e.broker_order_id,
+                "filled_quantity": e.filled_quantity,
+                "filled_price": float(e.filled_price) if e.filled_price is not None else None,
+            }
+            for e in executions
+        ]
 
         updated = 0
         matched = 0
@@ -164,5 +173,6 @@ class OrderSyncService:
             matched=matched,
             unmatched=len(unmatched_order_ids),
             unmatched_order_ids=unmatched_order_ids,
+            executions=executions_summary,
             errors=errors,
         )

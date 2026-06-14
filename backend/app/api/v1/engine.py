@@ -1,16 +1,18 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_broker_client
 from app.db.session import get_db
 from app.domain.repositories.strategy import StrategyVersionRepository
+from app.scheduler.lifecycle import reschedule_jobs
 from app.services.market_data_service import MarketDataService
 from app.services.order_sync_service import OrderSyncService
 from app.services.risk_service import RiskService
 from app.services.scheduler_run_service import SchedulerRunService
+from app.services.scheduler_settings_service import InvalidSchedulerIntervalError, SchedulerSettingsService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
@@ -19,6 +21,8 @@ from app.trading.strategy.schemas import (
     EngineStatusResponse,
     OrderSyncResultRead,
     SchedulerRunRead,
+    SchedulerSettingsRead,
+    SchedulerSettingsUpdateRequest,
     StrategyRunResultRead,
 )
 
@@ -62,12 +66,49 @@ async def get_engine_status(
         registered_jobs=registered_jobs,
         last_run_at=getattr(request.app.state, "scheduler_last_run_at", None),
         last_error=getattr(request.app.state, "scheduler_last_error", None),
+        last_error_category=getattr(request.app.state, "scheduler_last_error_category", None),
         active_strategy_count=len(active_versions),
         order_sync_last_run_at=getattr(request.app.state, "order_sync_last_run_at", None),
         order_sync_last_error=getattr(request.app.state, "order_sync_last_error", None),
+        order_sync_last_error_category=getattr(request.app.state, "order_sync_last_error_category", None),
         recent_run_has_failure=recent_run_has_failure,
         auto_trade_enabled_count=auto_trade_enabled_count,
     )
+
+
+@router.get("/scheduler-settings", response_model=SchedulerSettingsRead)
+async def get_scheduler_settings(
+    session: AsyncSession = Depends(get_db),
+) -> SchedulerSettingsRead:
+    """strategy_runner/order_sync 스케줄러 주기 설정을 조회한다."""
+    settings = await SchedulerSettingsService(session).get_settings()
+    return SchedulerSettingsRead.model_validate(settings)
+
+
+@router.patch("/scheduler-settings", response_model=SchedulerSettingsRead)
+async def update_scheduler_settings(
+    request: Request,
+    payload: SchedulerSettingsUpdateRequest,
+    session: AsyncSession = Depends(get_db),
+) -> SchedulerSettingsRead:
+    """strategy_runner/order_sync 스케줄러 주기를 변경하고, 실행 중인 job을 즉시 재스케줄한다.
+
+    KIS 모의투자 API 호출 제한을 고려해 두 주기 모두 최소 60초로 강제된다.
+    """
+    try:
+        settings = await SchedulerSettingsService(session).update_settings(
+            strategy_scheduler_interval_seconds=payload.strategy_scheduler_interval_seconds,
+            order_sync_scheduler_interval_seconds=payload.order_sync_scheduler_interval_seconds,
+        )
+    except InvalidSchedulerIntervalError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    reschedule_jobs(
+        request.app,
+        strategy_scheduler_interval_seconds=payload.strategy_scheduler_interval_seconds,
+        order_sync_scheduler_interval_seconds=payload.order_sync_scheduler_interval_seconds,
+    )
+    return SchedulerSettingsRead.model_validate(settings)
 
 
 @router.post("/run-once", response_model=list[StrategyRunResultRead])
@@ -82,9 +123,12 @@ async def run_once(
     """
     try:
         results = await runner.run_once()
-        request.app.state.scheduler_last_error = None
+        errors = [r for r in results if r.error]
+        request.app.state.scheduler_last_error = "; ".join(r.error for r in errors) if errors else None
+        request.app.state.scheduler_last_error_category = errors[0].error_category if errors else None
     except Exception as e:
         request.app.state.scheduler_last_error = str(e)
+        request.app.state.scheduler_last_error_category = None
         request.app.state.scheduler_last_run_at = datetime.now(KST)
         raise
 
@@ -110,6 +154,7 @@ async def sync_orders(
     """pending/partial 주문의 체결 상태를 즉시 1회 동기화한다 (테스트/수동 실행용)."""
     result = await sync_service.sync_pending_orders()
     request.app.state.order_sync_last_error = "; ".join(result.errors) if result.errors else None
+    request.app.state.order_sync_last_error_category = result.error_category
     request.app.state.order_sync_last_run_at = datetime.now(KST)
     return OrderSyncResultRead(
         checked=result.checked,
@@ -117,6 +162,7 @@ async def sync_orders(
         matched=result.matched,
         unmatched=result.unmatched,
         unmatched_order_ids=result.unmatched_order_ids,
+        executions=result.executions,
         errors=result.errors,
         error_category=result.error_category,
         skipped_reason=result.skipped_reason,

@@ -32,11 +32,19 @@ class EngineStatusResponse(BaseModel):
     registered_jobs: list[str]
     last_run_at: datetime | None
     last_error: str | None
+    last_error_category: str | None = None
     active_strategy_count: int
     order_sync_last_run_at: datetime | None
     order_sync_last_error: str | None
+    order_sync_last_error_category: str | None = None
     recent_run_has_failure: bool
     auto_trade_enabled_count: int
+
+
+class OrderSyncExecutionSummary(BaseModel):
+    order_id: str
+    filled_quantity: int
+    filled_price: float | None = None
 
 
 class OrderSyncResultRead(BaseModel):
@@ -45,6 +53,7 @@ class OrderSyncResultRead(BaseModel):
     matched: int
     unmatched: int
     unmatched_order_ids: list[str]
+    executions: list[OrderSyncExecutionSummary] = []
     errors: list[str]
     error_category: str | None = None
     skipped_reason: str | None = None
@@ -135,6 +144,19 @@ class StrategyVersionRead(BaseModel):
     updated_at: datetime
 
 
+class SchedulerSettingsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    strategy_scheduler_interval_seconds: int
+    order_sync_scheduler_interval_seconds: int
+    updated_at: datetime
+
+
+class SchedulerSettingsUpdateRequest(BaseModel):
+    strategy_scheduler_interval_seconds: int | None = None
+    order_sync_scheduler_interval_seconds: int | None = None
+
+
 class SchedulerRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -147,3 +169,83 @@ class SchedulerRunRead(BaseModel):
     error_message: str | None
     summary: dict | None
     created_at: datetime
+
+
+class WatchlistCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    enabled: bool = True
+
+
+class WatchlistRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: str | None
+    enabled: bool
+    symbol_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatchlistSymbolCreateRequest(BaseModel):
+    symbol_code: str
+    symbol_name: str | None = None
+    enabled: bool = True
+    note: str | None = None
+
+
+class WatchlistSymbolUpdateRequest(BaseModel):
+    symbol_name: str | None = None
+    enabled: bool | None = None
+    note: str | None = None
+
+
+class WatchlistSymbolRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    watchlist_id: int
+    symbol_code: str
+    symbol_name: str | None
+    enabled: bool
+    note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatchlistBulkStrategyCreateRequest(BaseModel):
+    """Watchlist에 등록된 활성 종목들에 대해 strategy_version을 일괄 생성하기 위한 요청.
+
+    안전장치: bulk 생성에서는 auto_trade_enabled=true를 허용하지 않는다.
+    자동매매는 생성 후 개별 전략 버전 화면에서 하나씩 켜야 한다.
+    """
+
+    strategy_id: int
+    short_window: int = 5
+    long_window: int = 20
+    timeframe: str = "5m"
+    quantity: int = 1
+    account_id: int | None = None
+    status: StrategyVersionStatus = StrategyVersionStatus.TESTING
+    auto_trade_enabled: bool = False
+
+    @model_validator(mode="after")
+    def _validate_auto_trade_disabled(self) -> "WatchlistBulkStrategyCreateRequest":
+        if self.auto_trade_enabled:
+            raise ValueError("Watchlist 기반 bulk 생성에서는 auto_trade_enabled=true를 허용하지 않습니다.")
+        return self
+
+
+class WatchlistBulkStrategyCreateItem(BaseModel):
+    symbol_code: str
+    symbol_name: str | None
+    created: bool
+    strategy_version_id: int | None
+    reason: str | None
+
+
+class WatchlistBulkStrategyCreateResponse(BaseModel):
+    strategy_id: int
+    items: list[WatchlistBulkStrategyCreateItem]

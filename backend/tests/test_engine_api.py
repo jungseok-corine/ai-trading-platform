@@ -71,6 +71,8 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
             assert "order_sync_last_error" in status_data
             assert "recent_run_has_failure" in status_data
             assert "auto_trade_enabled_count" in status_data
+            assert status_data["last_error_category"] is None
+            assert status_data["order_sync_last_error_category"] is None
 
             runs_resp = client.get("/api/v1/engine/runs")
             assert runs_resp.status_code == 200
@@ -92,6 +94,7 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
                 "matched": 0,
                 "unmatched": 0,
                 "unmatched_order_ids": [],
+                "executions": [],
                 "errors": [],
                 "error_category": None,
                 "skipped_reason": "no_pending_orders",
@@ -104,5 +107,57 @@ async def test_engine_status_and_run_once_and_lifespan() -> None:
 
         # lifespan 종료 시 scheduler가 정상적으로 shutdown 되어야 한다
         assert scheduler.running is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+async def test_scheduler_settings_get_and_update() -> None:
+    app.dependency_overrides[get_broker_client] = lambda: FakeBrokerClient()
+
+    try:
+        with TestClient(app) as client:
+            get_resp = client.get("/api/v1/engine/scheduler-settings")
+            assert get_resp.status_code == 200
+            original = get_resp.json()
+            assert original["strategy_scheduler_interval_seconds"] >= 60
+            assert original["order_sync_scheduler_interval_seconds"] >= 60
+
+            try:
+                # 최소값(60초) 미만은 거부되어야 한다
+                invalid_resp = client.patch(
+                    "/api/v1/engine/scheduler-settings",
+                    json={"strategy_scheduler_interval_seconds": 30},
+                )
+                assert invalid_resp.status_code == 400
+
+                # 정상 변경은 반영되고, scheduler job이 재스케줄되어야 한다
+                update_resp = client.patch(
+                    "/api/v1/engine/scheduler-settings",
+                    json={"strategy_scheduler_interval_seconds": 120, "order_sync_scheduler_interval_seconds": 90},
+                )
+                assert update_resp.status_code == 200
+                updated = update_resp.json()
+                assert updated["strategy_scheduler_interval_seconds"] == 120
+                assert updated["order_sync_scheduler_interval_seconds"] == 90
+
+                scheduler = app.state.scheduler
+                strategy_job = scheduler.get_job(STRATEGY_RUNNER_JOB_ID)
+                order_sync_job = scheduler.get_job(ORDER_SYNC_JOB_ID)
+                assert strategy_job.trigger.interval.total_seconds() == 120
+                assert order_sync_job.trigger.interval.total_seconds() == 90
+
+                # 새로고침(재조회) 후에도 변경 값이 유지되어야 한다
+                get_resp_after = client.get("/api/v1/engine/scheduler-settings")
+                assert get_resp_after.json()["strategy_scheduler_interval_seconds"] == 120
+                assert get_resp_after.json()["order_sync_scheduler_interval_seconds"] == 90
+            finally:
+                # 테스트 DB에 영구 반영되므로 원래 값으로 복원한다
+                client.patch(
+                    "/api/v1/engine/scheduler-settings",
+                    json={
+                        "strategy_scheduler_interval_seconds": original["strategy_scheduler_interval_seconds"],
+                        "order_sync_scheduler_interval_seconds": original["order_sync_scheduler_interval_seconds"],
+                    },
+                )
     finally:
         app.dependency_overrides.clear()

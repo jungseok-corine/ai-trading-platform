@@ -7,9 +7,11 @@ export interface EngineStatus {
   registered_jobs: string[];
   last_run_at: string | null;
   last_error: string | null;
+  last_error_category: string | null;
   active_strategy_count: number;
   order_sync_last_run_at: string | null;
   order_sync_last_error: string | null;
+  order_sync_last_error_category: string | null;
   recent_run_has_failure: boolean;
   auto_trade_enabled_count: number;
 }
@@ -32,6 +34,7 @@ export interface SchedulerRunSummary {
   matched?: number;
   unmatched?: number;
   unmatched_order_ids?: string[];
+  executions?: OrderSyncExecutionSummary[];
   errors?: SchedulerRunErrorEntry[];
   error_category?: string | null;
   skipped_reason?: string | null;
@@ -49,12 +52,30 @@ export interface SchedulerRun {
   created_at: string;
 }
 
+export interface SchedulerSettings {
+  strategy_scheduler_interval_seconds: number;
+  order_sync_scheduler_interval_seconds: number;
+  updated_at: string;
+}
+
+export interface SchedulerSettingsUpdateRequest {
+  strategy_scheduler_interval_seconds?: number;
+  order_sync_scheduler_interval_seconds?: number;
+}
+
+export interface OrderSyncExecutionSummary {
+  order_id: string;
+  filled_quantity: number;
+  filled_price: number | null;
+}
+
 export interface OrderSyncResult {
   checked: number;
   updated: number;
   matched: number;
   unmatched: number;
   unmatched_order_ids: string[];
+  executions: OrderSyncExecutionSummary[];
   errors: string[];
   error_category?: string | null;
   skipped_reason?: string | null;
@@ -213,6 +234,70 @@ export interface StrategyVersionUpdateRequest {
   parameters?: StrategyVersionParameters;
   change_description?: string | null;
   status?: StrategyVersionStatus;
+}
+
+export interface Watchlist {
+  id: number;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  symbol_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WatchlistCreateRequest {
+  name: string;
+  description?: string | null;
+  enabled?: boolean;
+}
+
+export interface WatchlistSymbol {
+  id: number;
+  watchlist_id: number;
+  symbol_code: string;
+  symbol_name: string | null;
+  enabled: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WatchlistSymbolCreateRequest {
+  symbol_code: string;
+  symbol_name?: string | null;
+  enabled?: boolean;
+  note?: string | null;
+}
+
+export interface WatchlistSymbolUpdateRequest {
+  symbol_name?: string | null;
+  enabled?: boolean;
+  note?: string | null;
+}
+
+export interface WatchlistBulkStrategyCreateRequest {
+  strategy_id: number;
+  short_window?: number;
+  long_window?: number;
+  timeframe?: string;
+  quantity?: number;
+  account_id?: number | null;
+  status?: StrategyVersionStatus;
+  auto_trade_enabled?: boolean;
+}
+
+export interface WatchlistBulkStrategyCreateItem {
+  symbol_code: string;
+  symbol_name: string | null;
+  created: boolean;
+  strategy_version_id: number | null;
+  reason: string | null;
+}
+
+export interface WatchlistBulkStrategyCreateResponse {
+  strategy_id: number;
+  items: WatchlistBulkStrategyCreateItem[];
 }
 
 export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {

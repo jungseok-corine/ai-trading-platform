@@ -4,6 +4,7 @@ export interface Translations {
   nav: {
     dashboard: string;
     strategies: string;
+    watchlists: string;
   };
   common: {
     loading: string;
@@ -38,7 +39,9 @@ export interface Translations {
     orderSyncErrorPrefix: string;
     recentFailureWarning: string;
     multipleActiveWarning: (n: number) => string;
+    manyActiveStrategiesWarning: (n: number) => string;
     autoTradeWarning: (n: number) => string;
+    autoTradeStrongWarning: (n: number) => string;
   };
   scheduler: {
     title: string;
@@ -57,6 +60,24 @@ export interface Translations {
     skippedReasonLabels: Record<string, string>;
     showDetails: string;
     hideDetails: string;
+    executionsTitle: string;
+    executionOrderId: string;
+    executionFilledQuantity: string;
+    executionFilledPrice: string;
+  };
+  schedulerSettings: {
+    title: string;
+    description: string;
+    strategyInterval: string;
+    orderSyncInterval: string;
+    unitSeconds: string;
+    minIntervalHint: string;
+    save: string;
+    saving: string;
+    saveSuccess: string;
+    saveFailed: string;
+    invalidInterval: (min: number) => string;
+    updatedAt: string;
   };
   risk: {
     title: string;
@@ -154,6 +175,54 @@ export interface Translations {
     disclaimerHoldings: string;
     disclaimerRealizedPnl: string;
   };
+  watchlists: {
+    title: string;
+    description: string;
+    empty: string;
+    colId: string;
+    colName: string;
+    colDescription: string;
+    colEnabled: string;
+    colSymbolCount: string;
+    enabledYes: string;
+    enabledNo: string;
+    createTitle: string;
+    name: string;
+    namePlaceholder: string;
+    create: string;
+    createFailed: string;
+    selectWatchlistPrompt: string;
+    symbolsTitle: string;
+    symbolsEmpty: string;
+    colSymbolCode: string;
+    colSymbolName: string;
+    colNote: string;
+    colActions: string;
+    addSymbolTitle: string;
+    symbolCode: string;
+    symbolCodePlaceholder: string;
+    symbolName: string;
+    note: string;
+    addSymbol: string;
+    addSymbolFailed: string;
+    duplicateSymbol: string;
+    enable: string;
+    disable: string;
+    delete: string;
+    deleteFailed: string;
+    bulkCreateTitle: string;
+    bulkCreateDescription: string;
+    selectStrategy: string;
+    selectStrategyPlaceholder: string;
+    bulkCreate: string;
+    bulkCreateFailed: string;
+    bulkCreateAutoTradeBlocked: string;
+    bulkResultTitle: string;
+    bulkResultCreated: string;
+    bulkResultSkipped: string;
+    bulkResultReason: Record<string, string>;
+    autoTradeBulkDisabledHint: string;
+  };
   settings: {
     language: string;
     languageKo: string;
@@ -170,6 +239,7 @@ export const translations: Record<Language, Translations> = {
     nav: {
       dashboard: "대시보드",
       strategies: "전략 관리",
+      watchlists: "관심종목",
     },
     common: {
       loading: "불러오는 중...",
@@ -214,8 +284,12 @@ export const translations: Record<Language, Translations> = {
       orderSyncErrorPrefix: "주문 동기화 오류",
       recentFailureWarning: "최근 scheduler 실행 기록 중 실패한 작업이 있습니다.",
       multipleActiveWarning: (n: number) => `활성 전략이 ${n}개 동시에 실행 중입니다.`,
+      manyActiveStrategiesWarning: (n: number) =>
+        `활성(active/testing) 전략 버전이 ${n}개입니다. 종목이 늘어날수록 스케줄러 부하와 KIS API 호출량이 증가하니 확인하세요.`,
       autoTradeWarning: (n: number) =>
         `자동매매(auto_trade_enabled)가 활성화된 전략이 ${n}개 있습니다.`,
+      autoTradeStrongWarning: (n: number) =>
+        `자동매매(auto_trade_enabled)가 활성화된 전략이 ${n}개입니다. 동시에 여러 종목이 자동주문될 수 있으니 반드시 확인하세요.`,
     },
     scheduler: {
       title: "자동 실행 로그",
@@ -273,6 +347,24 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, string>,
       showDetails: "상세 보기",
       hideDetails: "숨기기",
+      executionsTitle: "KIS 체결 내역",
+      executionOrderId: "주문번호",
+      executionFilledQuantity: "체결수량",
+      executionFilledPrice: "체결가",
+    },
+    schedulerSettings: {
+      title: "스케줄러 주기 설정",
+      description: "전략 실행 작업과 주문 체결 동기화 작업의 실행 주기를 설정합니다.",
+      strategyInterval: "전략 실행 주기",
+      orderSyncInterval: "주문 동기화 주기",
+      unitSeconds: "초",
+      minIntervalHint: "KIS 모의투자 API 호출 제한을 고려해 60초 이상 권장",
+      save: "저장",
+      saving: "저장 중...",
+      saveSuccess: "저장되었습니다.",
+      saveFailed: "저장 실패",
+      invalidInterval: (min: number) => `${min}초 이상으로 설정해야 합니다.`,
+      updatedAt: "마지막 변경 시각",
     },
     risk: {
       title: "리스크 제어",
@@ -372,6 +464,57 @@ export const translations: Record<Language, Translations> = {
       disclaimerHoldings: "보유수량과 평균단가는 KIS 잔고 동기화 기준입니다.",
       disclaimerRealizedPnl: "실현손익은 내부 체결 기록 기준이며, KIS 앱과 다를 수 있습니다.",
     },
+    watchlists: {
+      title: "관심종목 목록",
+      description: "여러 종목을 묶어 관리하고, 한 번에 전략 버전을 생성할 수 있습니다.",
+      empty: "생성된 관심종목 목록이 없습니다.",
+      colId: "ID",
+      colName: "이름",
+      colDescription: "설명",
+      colEnabled: "활성",
+      colSymbolCount: "종목 수",
+      enabledYes: "활성",
+      enabledNo: "비활성",
+      createTitle: "새 관심종목 목록 생성",
+      name: "이름",
+      namePlaceholder: "예: 코스피 대형주",
+      create: "생성",
+      createFailed: "생성 실패",
+      selectWatchlistPrompt: "관심종목 목록을 선택하세요.",
+      symbolsTitle: "종목 목록",
+      symbolsEmpty: "등록된 종목이 없습니다.",
+      colSymbolCode: "종목코드",
+      colSymbolName: "종목명",
+      colNote: "메모",
+      colActions: "작업",
+      addSymbolTitle: "종목 추가",
+      symbolCode: "종목코드",
+      symbolCodePlaceholder: "예: 005930",
+      symbolName: "종목명",
+      note: "메모",
+      addSymbol: "추가",
+      addSymbolFailed: "추가 실패",
+      duplicateSymbol: "이미 등록된 종목코드입니다.",
+      enable: "활성화",
+      disable: "비활성화",
+      delete: "삭제",
+      deleteFailed: "삭제 실패",
+      bulkCreateTitle: "전략 버전 일괄 생성",
+      bulkCreateDescription:
+        "활성화된 종목마다 선택한 전략에 strategy_version을 하나씩 생성합니다. auto_trade_enabled는 항상 false로 생성되며, 자동매매는 생성 후 개별 전략 버전 화면에서 하나씩 켜야 합니다.",
+      selectStrategy: "전략 선택",
+      selectStrategyPlaceholder: "전략을 선택하세요",
+      bulkCreate: "전략 버전 생성",
+      bulkCreateFailed: "생성 실패",
+      bulkCreateAutoTradeBlocked: "bulk 생성에서는 auto_trade_enabled=true를 사용할 수 없습니다.",
+      bulkResultTitle: "생성 결과",
+      bulkResultCreated: "생성됨",
+      bulkResultSkipped: "건너뜀",
+      bulkResultReason: {
+        duplicate_symbol_version_exists: "동일 종목의 strategy_version이 이미 존재함",
+      } as Record<string, string>,
+      autoTradeBulkDisabledHint: "자동매매는 이 화면에서 켤 수 없습니다. 전략 관리 화면에서 개별적으로 설정하세요.",
+    },
     settings: {
       language: "언어",
       languageKo: "한국어",
@@ -386,6 +529,7 @@ export const translations: Record<Language, Translations> = {
     nav: {
       dashboard: "Dashboard",
       strategies: "Strategies",
+      watchlists: "Watchlists",
     },
     common: {
       loading: "Loading...",
@@ -430,7 +574,11 @@ export const translations: Record<Language, Translations> = {
       orderSyncErrorPrefix: "Order sync error",
       recentFailureWarning: "Some recent scheduler runs have failed.",
       multipleActiveWarning: (n: number) => `${n} active strategies are running at the same time.`,
+      manyActiveStrategiesWarning: (n: number) =>
+        `There are ${n} active/testing strategy versions. As the number of symbols grows, scheduler load and KIS API call volume increase - please review.`,
       autoTradeWarning: (n: number) => `${n} strategies have auto_trade_enabled.`,
+      autoTradeStrongWarning: (n: number) =>
+        `${n} strategies have auto_trade_enabled. Multiple symbols may be auto-traded at the same time - please review carefully.`,
     },
     scheduler: {
       title: "Scheduler Logs",
@@ -488,6 +636,24 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, string>,
       showDetails: "Show details",
       hideDetails: "Hide",
+      executionsTitle: "KIS Execution History",
+      executionOrderId: "Order ID",
+      executionFilledQuantity: "Filled Qty",
+      executionFilledPrice: "Filled Price",
+    },
+    schedulerSettings: {
+      title: "Scheduler Interval Settings",
+      description: "Configure how often the strategy runner and order sync jobs run.",
+      strategyInterval: "Strategy Runner Interval",
+      orderSyncInterval: "Order Sync Interval",
+      unitSeconds: "sec",
+      minIntervalHint: "60 seconds or more is recommended due to KIS paper trading API rate limits",
+      save: "Save",
+      saving: "Saving...",
+      saveSuccess: "Saved.",
+      saveFailed: "Save failed",
+      invalidInterval: (min: number) => `Must be ${min} seconds or more.`,
+      updatedAt: "Last Updated",
     },
     risk: {
       title: "Risk Controls",
@@ -586,6 +752,57 @@ export const translations: Record<Language, Translations> = {
         `${created} created, ${updated} updated, ${zeroed} zeroed out`,
       disclaimerHoldings: "Holding quantity and average entry price are based on the last KIS balance sync.",
       disclaimerRealizedPnl: "Realized PnL is based on internal trade records and may differ from the KIS app.",
+    },
+    watchlists: {
+      title: "Watchlists",
+      description: "Group multiple symbols and create strategy versions for all of them at once.",
+      empty: "No watchlists created yet.",
+      colId: "ID",
+      colName: "Name",
+      colDescription: "Description",
+      colEnabled: "Enabled",
+      colSymbolCount: "Symbols",
+      enabledYes: "Enabled",
+      enabledNo: "Disabled",
+      createTitle: "Create Watchlist",
+      name: "Name",
+      namePlaceholder: "e.g. KOSPI Large Caps",
+      create: "Create",
+      createFailed: "Failed to create",
+      selectWatchlistPrompt: "Select a watchlist.",
+      symbolsTitle: "Symbols",
+      symbolsEmpty: "No symbols registered.",
+      colSymbolCode: "Symbol Code",
+      colSymbolName: "Symbol Name",
+      colNote: "Note",
+      colActions: "Actions",
+      addSymbolTitle: "Add Symbol",
+      symbolCode: "Symbol Code",
+      symbolCodePlaceholder: "e.g. 005930",
+      symbolName: "Symbol Name",
+      note: "Note",
+      addSymbol: "Add",
+      addSymbolFailed: "Failed to add",
+      duplicateSymbol: "This symbol code is already registered.",
+      enable: "Enable",
+      disable: "Disable",
+      delete: "Delete",
+      deleteFailed: "Failed to delete",
+      bulkCreateTitle: "Bulk Create Strategy Versions",
+      bulkCreateDescription:
+        "Creates one strategy_version per enabled symbol for the selected strategy. auto_trade_enabled is always created as false; enable auto trading individually afterwards on the strategy version screen.",
+      selectStrategy: "Strategy",
+      selectStrategyPlaceholder: "Select a strategy",
+      bulkCreate: "Create Strategy Versions",
+      bulkCreateFailed: "Failed to create",
+      bulkCreateAutoTradeBlocked: "Bulk creation does not allow auto_trade_enabled=true.",
+      bulkResultTitle: "Result",
+      bulkResultCreated: "Created",
+      bulkResultSkipped: "Skipped",
+      bulkResultReason: {
+        duplicate_symbol_version_exists: "A strategy_version for this symbol already exists",
+      } as Record<string, string>,
+      autoTradeBulkDisabledHint: "Auto trading cannot be enabled here. Set it individually on the Strategies page.",
     },
     settings: {
       language: "Language",
