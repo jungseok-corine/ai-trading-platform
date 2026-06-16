@@ -181,9 +181,14 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             ordered_at=datetime.now(KST),
         )
 
-    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
-        if target_date is None:
-            target_date = datetime.now(KST).strftime("%Y%m%d")
+    async def get_daily_executions(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> list[OrderExecution]:
+        today = datetime.now(KST).strftime("%Y%m%d")
+        if start_date is None:
+            start_date = today
+        if end_date is None:
+            end_date = today
 
         data = await self._request(
             "GET",
@@ -192,8 +197,8 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             params={
                 "CANO": self._cano,
                 "ACNT_PRDT_CD": self._acnt_prdt_cd,
-                "INQR_STRT_DT": target_date,
-                "INQR_END_DT": target_date,
+                "INQR_STRT_DT": start_date,
+                "INQR_END_DT": end_date,
                 "SLL_BUY_DVSN_CD": "00",
                 "INQR_DVSN": "00",
                 "PDNO": "",

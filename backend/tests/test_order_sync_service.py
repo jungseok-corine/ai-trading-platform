@@ -62,7 +62,9 @@ class FakeBrokerClient(BrokerClient):
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
 
-    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+    async def get_daily_executions(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> list[OrderExecution]:
         if self._error is not None:
             raise self._error
         return self._executions
@@ -76,13 +78,16 @@ async def _create_account(session: AsyncSession) -> Account:
 
 
 async def _create_trade(session: AsyncSession, account_id: int, **overrides) -> Trade:
+    from datetime import date as _date
+
+    today = _date.today()
     defaults = dict(
         account_id=account_id,
         symbol_code="005930",
         side=TradeSide.BUY,
         quantity=10,
         entry_price=Decimal("70000"),
-        entry_time=datetime(2026, 6, 11, 9, 0, tzinfo=KST),
+        entry_time=datetime(today.year, today.month, today.day, 9, 0, tzinfo=KST),
         order_status=OrderStatus.PENDING,
         broker_order_id="0000000001",
     )
@@ -465,7 +470,9 @@ async def test_no_pending_orders_skips_daily_executions_call(db_session: AsyncSe
     await _create_account(db_session)
 
     class FailingIfCalledBrokerClient(FakeBrokerClient):
-        async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+        async def get_daily_executions(
+            self, start_date: str | None = None, end_date: str | None = None
+        ) -> list[OrderExecution]:
             raise AssertionError("get_daily_executions should not be called when there are no pending orders")
 
     result = await OrderSyncService(db_session, FailingIfCalledBrokerClient()).sync_pending_orders()
@@ -473,3 +480,103 @@ async def test_no_pending_orders_skips_daily_executions_call(db_session: AsyncSe
     assert result.checked == 0
     assert result.updated == 0
     assert result.skipped_reason == "no_pending_orders"
+
+
+async def test_stale_pending_order_is_auto_cancelled(db_session: AsyncSession) -> None:
+    """전날 이전 주문(KIS VTS 자동취소 대상)은 broker 조회 없이 CANCELLED로 처리된다."""
+    from datetime import date, timedelta
+
+    account = await _create_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    trade = await _create_trade(
+        db_session,
+        account.id,
+        entry_time=datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST),
+    )
+
+    class FailingIfCalledBrokerClient(FakeBrokerClient):
+        async def get_daily_executions(
+            self, start_date: str | None = None, end_date: str | None = None
+        ) -> list[OrderExecution]:
+            raise AssertionError("get_daily_executions should not be called when all orders are stale")
+
+    result = await OrderSyncService(db_session, FailingIfCalledBrokerClient()).sync_pending_orders()
+
+    assert result.checked == 1
+    assert result.stale_cancelled == 1
+    assert result.updated == 1
+    assert result.skipped_reason == "no_active_orders"
+
+    await db_session.refresh(trade)
+    assert trade.order_status == OrderStatus.CANCELLED
+    assert trade.partial_fill is not None
+    assert trade.partial_fill["stale_reason"] == "auto_cancelled_after_market_close"
+
+
+async def test_stale_orders_excluded_from_broker_query_active_orders_matched(db_session: AsyncSession) -> None:
+    """stale 주문은 CANCELLED 처리하고, 당일 주문은 정상 체결 조회한다."""
+    from datetime import date, timedelta
+
+    account = await _create_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    stale_trade = await _create_trade(
+        db_session,
+        account.id,
+        broker_order_id="0000000099",
+        entry_time=datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST),
+    )
+    active_trade = await _create_trade(
+        db_session,
+        account.id,
+        broker_order_id="0000000001",
+    )
+
+    broker = FakeBrokerClient(
+        executions=[
+            OrderExecution(
+                broker_order_id="0000000001",
+                total_quantity=10,
+                filled_quantity=10,
+                filled_price=Decimal("70000"),
+                cancelled=False,
+                raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+            )
+        ]
+    )
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+
+    assert result.checked == 2
+    assert result.stale_cancelled == 1
+    assert result.matched == 1
+    assert result.unmatched == 0
+
+    await db_session.refresh(stale_trade)
+    assert stale_trade.order_status == OrderStatus.CANCELLED
+
+    await db_session.refresh(active_trade)
+    assert active_trade.order_status == OrderStatus.FILLED
+
+
+async def test_date_range_passed_to_broker_covers_earliest_active_trade(db_session: AsyncSession) -> None:
+    """get_daily_executions에 전달되는 start_date가 가장 오래된 active 주문의 날짜다."""
+    from datetime import date, timedelta
+
+    recorded_calls: list[tuple[str | None, str | None]] = []
+
+    class RecordingBrokerClient(FakeBrokerClient):
+        async def get_daily_executions(
+            self, start_date: str | None = None, end_date: str | None = None
+        ) -> list[OrderExecution]:
+            recorded_calls.append((start_date, end_date))
+            return []
+
+    account = await _create_account(db_session)
+    today = date.today()
+    await _create_trade(db_session, account.id, broker_order_id="0000000001")
+
+    await OrderSyncService(db_session, RecordingBrokerClient()).sync_pending_orders()
+
+    assert len(recorded_calls) == 1
+    start, end = recorded_calls[0]
+    assert start == today.strftime("%Y%m%d")
+    assert end == today.strftime("%Y%m%d")

@@ -1,7 +1,9 @@
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,12 +14,12 @@ from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.error_classifier import classify_exception, exc_message
-
 from app.trading.broker.order_id import normalize_order_id
 from app.trading.broker.schemas import OrderExecution
 from app.trading.pricing.fees import TradingCostCalculator
 
 logger = logging.getLogger(__name__)
+_KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass
@@ -26,11 +28,25 @@ class OrderSyncResult:
     updated: int
     matched: int = 0
     unmatched: int = 0
+    stale_cancelled: int = 0
     unmatched_order_ids: list[str] = field(default_factory=list)
     executions: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     error_category: str | None = None
     skipped_reason: str | None = None
+
+
+def _is_stale(trade: Trade) -> bool:
+    """entry_time이 오늘 KST 날짜 이전인 주문을 stale로 판단한다.
+
+    KIS VTS는 지정가 주문을 당일 15:30 KST에 자동 취소하므로, 전날 이전
+    주문은 이미 시장에서 취소된 것으로 간주한다.
+    """
+    if trade.entry_time is None:
+        return False
+    today_kst = datetime.now(_KST).date()
+    entry_date = trade.entry_time.astimezone(_KST).date()
+    return entry_date < today_kst
 
 
 def _build_trade_updates(trade: Trade, execution: OrderExecution) -> dict[str, Any]:
@@ -93,13 +109,44 @@ class OrderSyncService:
         if not trades:
             return OrderSyncResult(checked=0, updated=0, skipped_reason="no_pending_orders")
 
-        try:
-            executions = await self._broker.get_daily_executions()
-        except Exception as exc:  # noqa: BLE001 - 체결 조회 실패가 scheduler를 죽이면 안 됨
-            logger.warning("order sync: get_daily_executions failed: %s", exc)
+        stale_trades = [t for t in trades if _is_stale(t)]
+        active_trades = [t for t in trades if not _is_stale(t)]
+
+        for trade in stale_trades:
+            trade.order_status = OrderStatus.CANCELLED
+            trade.partial_fill = {
+                "stale_reason": "auto_cancelled_after_market_close",
+                "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
+            }
+            logger.info(
+                "order sync: stale pending auto-cancelled trade_id=%s entry_time=%s",
+                trade.id,
+                trade.entry_time,
+            )
+
+        if not active_trades:
+            await self._session.commit()
             return OrderSyncResult(
                 checked=len(trades),
-                updated=0,
+                updated=len(stale_trades),
+                stale_cancelled=len(stale_trades),
+                skipped_reason="no_active_orders",
+            )
+
+        today_kst = datetime.now(_KST).date()
+        min_date = min(t.entry_time.astimezone(_KST).date() for t in active_trades)
+        start_date = min_date.strftime("%Y%m%d")
+        end_date = today_kst.strftime("%Y%m%d")
+
+        try:
+            executions = await self._broker.get_daily_executions(start_date=start_date, end_date=end_date)
+        except Exception as exc:  # noqa: BLE001 - 체결 조회 실패가 scheduler를 죽이면 안 됨
+            logger.warning("order sync: get_daily_executions failed: %s", exc)
+            await self._session.commit()
+            return OrderSyncResult(
+                checked=len(trades),
+                updated=len(stale_trades),
+                stale_cancelled=len(stale_trades),
                 errors=[exc_message(exc)],
                 error_category=classify_exception(exc),
             )
@@ -123,11 +170,11 @@ class OrderSyncService:
             for e in executions
         ]
 
-        updated = 0
+        updated = len(stale_trades)
         matched = 0
         unmatched_order_ids: list[str] = []
         errors: list[str] = []
-        for trade in trades:
+        for trade in active_trades:
             execution = executions_by_id.get(normalize_order_id(trade.broker_order_id))
             if execution is None:
                 unmatched_order_ids.append(trade.broker_order_id or "")
@@ -176,6 +223,7 @@ class OrderSyncService:
             updated=updated,
             matched=matched,
             unmatched=len(unmatched_order_ids),
+            stale_cancelled=len(stale_trades),
             unmatched_order_ids=unmatched_order_ids,
             executions=executions_summary,
             errors=errors,

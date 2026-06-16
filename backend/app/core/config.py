@@ -1,6 +1,8 @@
+import re
 from decimal import Decimal
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +27,15 @@ class Settings(BaseSettings):
     kis_paper_base_url: str = "https://openapivts.koreainvestment.com:29443"
     kis_real_base_url: str = "https://openapi.koreainvestment.com:9443"
     kis_token_cache_path: str = ".cache/kis_token.json"
+
+    @field_validator("kis_account_no")
+    @classmethod
+    def validate_kis_account_no(cls, v: str) -> str:
+        if v and not re.match(r"^\d{8}-\d{2}$", v):
+            raise ValueError(
+                f"kis_account_no must match NNNNNNNN-NN format (e.g. 50192525-01), got: {v!r}"
+            )
+        return v
 
     # KIS API 호출 빈도 제한 (모의투자 EGW00201 "초당 거래건수를 초과하였습니다" 완화)
     kis_rate_limit_min_interval_seconds: float = 0.5
