@@ -13,6 +13,7 @@ from app.services.scheduler_run_service import SchedulerRunService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
+from app.trading.broker.error_classifier import classify_exception, exc_message
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,11 @@ async def run_strategy_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
         logger.exception("strategy scheduler job failed")
         status = SchedulerRunStatus.FAILED
-        error_message = str(exc)
-        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
+        error_message = exc_message(exc)
+        error_category = classify_exception(exc)
+        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": error_category}]}
         app.state.scheduler_last_error = error_message
-        app.state.scheduler_last_error_category = None
+        app.state.scheduler_last_error_category = error_category
     finally:
         finished_at = datetime.now(KST)
         app.state.scheduler_last_run_at = finished_at
@@ -159,10 +161,11 @@ async def order_sync_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
         logger.exception("order sync job failed")
         status = SchedulerRunStatus.FAILED
-        error_message = str(exc)
-        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": None}]}
+        error_message = exc_message(exc)
+        error_category = classify_exception(exc)
+        summary = {"errors": [{"strategy_version_id": None, "symbol_code": None, "message": error_message, "category": error_category}]}
         app.state.order_sync_last_error = error_message
-        app.state.order_sync_last_error_category = None
+        app.state.order_sync_last_error_category = error_category
     finally:
         finished_at = datetime.now(KST)
         app.state.order_sync_last_run_at = finished_at

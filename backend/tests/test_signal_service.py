@@ -103,3 +103,24 @@ async def test_generate_and_log_signal_returns_none_without_cross(db_session: As
 
     assert log is None
     assert await service.list_signals() == []
+
+
+async def test_list_signals_returns_newest_first(db_session: AsyncSession) -> None:
+    """list_signals는 generated_at DESC, id DESC 순으로 반환한다."""
+    # 골든 크로스 두 번: 두 번째 시그널이 나중에 생성됨
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient(_make_candles(closes))
+    service = SignalService(db_session, MarketDataService(broker))
+
+    log1 = await service.generate_and_log_signal(MovingAverageCrossStrategy(), "005930")
+    assert log1 is not None
+
+    # candle_ts가 달라야 중복 방지 로직을 우회하므로 다른 종목으로 두 번째 신호 생성
+    log2 = await service.generate_and_log_signal(MovingAverageCrossStrategy(), "000660")
+    assert log2 is not None
+
+    logs = await service.list_signals()
+    assert len(logs) == 2
+    # 나중에 생성된 log2가 첫 번째여야 한다
+    assert logs[0].id == log2.id
+    assert logs[1].id == log1.id

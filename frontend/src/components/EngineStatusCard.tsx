@@ -15,9 +15,9 @@ function ErrorValue({ error, category, t }: { error: string | null; category: st
   return (
     <div>
       <span className="value error">{title}</span>
-      {description && <div className="muted">{description}</div>}
       <details>
         <summary>{t.scheduler.showDetails}</summary>
+        {description && <div className="muted">{description}</div>}
         <div className="muted scheduler-error-raw">{error}</div>
       </details>
     </div>

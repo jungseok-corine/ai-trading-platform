@@ -1,3 +1,5 @@
+import httpx
+
 from app.trading.broker.exceptions import KISAPIError
 
 KIS_ERROR_TOKEN = "token_error"
@@ -6,6 +8,9 @@ KIS_ERROR_MARKET_CLOSED = "market_closed"
 KIS_ERROR_INSUFFICIENT_BALANCE = "insufficient_balance"
 KIS_ERROR_INVALID_PRICE_TICK = "invalid_price_tick"
 KIS_ERROR_UNKNOWN = "unknown"
+KIS_ERROR_CONNECTION_TIMEOUT = "connection_timeout"
+KIS_ERROR_SERVER_DISCONNECT = "server_disconnect"
+KIS_ERROR_NETWORK = "network_error"
 
 _TOKEN_MSG_CDS = {"EGW00121", "EGW00123", "EGW00133"}
 _RATE_LIMIT_MSG_CDS = {"EGW00201"}
@@ -43,3 +48,21 @@ def classify_kis_error(error: KISAPIError) -> str:
         return KIS_ERROR_INVALID_PRICE_TICK
 
     return KIS_ERROR_UNKNOWN
+
+
+def classify_exception(exc: Exception) -> str:
+    """KISAPIError 포함 모든 예외를 카테고리로 분류한다."""
+    if isinstance(exc, KISAPIError):
+        return classify_kis_error(exc)
+    if isinstance(exc, httpx.ReadTimeout | httpx.ConnectTimeout | httpx.PoolTimeout):
+        return KIS_ERROR_CONNECTION_TIMEOUT
+    if isinstance(exc, httpx.RemoteProtocolError):
+        return KIS_ERROR_SERVER_DISCONNECT
+    if isinstance(exc, httpx.HTTPError):
+        return KIS_ERROR_NETWORK
+    return KIS_ERROR_UNKNOWN
+
+
+def exc_message(exc: Exception) -> str:
+    """예외의 문자열 표현을 반환한다. 빈 문자열이면 예외 클래스명을 fallback으로 사용한다."""
+    return str(exc) or type(exc).__name__

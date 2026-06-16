@@ -341,6 +341,18 @@ export const translations: Record<Language, Translations> = {
           title: "API 오류",
           description: "KIS API 요청 중 오류가 발생했습니다. 상세 로그를 확인하세요.",
         },
+        connection_timeout: {
+          title: "연결 타임아웃",
+          description: "KIS API 서버 응답 대기 중 시간이 초과되었습니다. 네트워크 또는 KIS 서버 상태를 확인하세요.",
+        },
+        server_disconnect: {
+          title: "서버 연결 끊김",
+          description: "KIS API 서버가 응답 없이 연결을 종료했습니다. 잠시 후 자동으로 재시도됩니다.",
+        },
+        network_error: {
+          title: "네트워크 오류",
+          description: "KIS API 서버와의 통신 중 네트워크 오류가 발생했습니다.",
+        },
       } as Record<string, { title: string; description: string }>,
       skippedReasonLabels: {
         no_pending_orders: "대기 중인 주문이 없어 건너뜀",
@@ -629,6 +641,18 @@ export const translations: Record<Language, Translations> = {
         unknown: {
           title: "API Error",
           description: "An error occurred while calling the KIS API. Check the detailed logs.",
+        },
+        connection_timeout: {
+          title: "Connection Timeout",
+          description: "Timed out waiting for a response from the KIS API server. Check your network or KIS server status.",
+        },
+        server_disconnect: {
+          title: "Server Disconnected",
+          description: "The KIS API server closed the connection without sending a response. Will retry automatically.",
+        },
+        network_error: {
+          title: "Network Error",
+          description: "A network error occurred while communicating with the KIS API server.",
         },
       } as Record<string, { title: string; description: string }>,
       skippedReasonLabels: {

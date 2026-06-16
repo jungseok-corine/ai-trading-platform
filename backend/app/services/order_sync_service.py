@@ -11,8 +11,8 @@ from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
-from app.trading.broker.error_classifier import classify_kis_error
-from app.trading.broker.exceptions import KISAPIError
+from app.trading.broker.error_classifier import classify_exception, exc_message
+
 from app.trading.broker.order_id import normalize_order_id
 from app.trading.broker.schemas import OrderExecution
 from app.trading.pricing.fees import TradingCostCalculator
@@ -97,8 +97,12 @@ class OrderSyncService:
             executions = await self._broker.get_daily_executions()
         except Exception as exc:  # noqa: BLE001 - 체결 조회 실패가 scheduler를 죽이면 안 됨
             logger.warning("order sync: get_daily_executions failed: %s", exc)
-            category = classify_kis_error(exc) if isinstance(exc, KISAPIError) else None
-            return OrderSyncResult(checked=len(trades), updated=0, errors=[str(exc)], error_category=category)
+            return OrderSyncResult(
+                checked=len(trades),
+                updated=0,
+                errors=[exc_message(exc)],
+                error_category=classify_exception(exc),
+            )
 
         logger.debug(
             "order sync: fetched %d execution(s): %s",

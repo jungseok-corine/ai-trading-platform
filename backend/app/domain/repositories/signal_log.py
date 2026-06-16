@@ -10,6 +10,15 @@ from app.domain.repositories.base import BaseRepository
 class SignalLogRepository(BaseRepository[SignalLog]):
     model = SignalLog
 
+    async def list(self, limit: int = 100, offset: int = 0) -> list[SignalLog]:
+        result = await self.session.execute(
+            select(SignalLog)
+            .order_by(SignalLog.generated_at.desc(), SignalLog.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
     async def exists_for_candle(
         self,
         strategy_version_id: int | None,

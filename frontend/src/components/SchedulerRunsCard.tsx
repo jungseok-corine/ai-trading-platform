@@ -77,21 +77,16 @@ function ErrorList({ errors, t }: { errors: SchedulerRunErrorEntry[]; t: Transla
     <ul className="scheduler-error-list">
       {errors.map((err, idx) => {
         const category = describeCategory(err.category, t);
+        const hasDetail = !!(category?.description || err.message);
         return (
           <li key={idx}>
             {err.symbol_code && <span className="muted">[{err.symbol_code}] </span>}
-            {category ? (
-              <>
-                <div className="value error">{category.title}</div>
-                {category.description && <div className="muted">{category.description}</div>}
-              </>
-            ) : (
-              <div className="value error">{err.message}</div>
-            )}
-            {category && err.message && (
+            <span className="value error">{category ? category.title : (err.message || "-")}</span>
+            {hasDetail && (
               <details>
                 <summary>{t.scheduler.showDetails}</summary>
-                <div className="muted scheduler-error-raw">{err.message}</div>
+                {category?.description && <div className="muted">{category.description}</div>}
+                {err.message && <div className="muted scheduler-error-raw">{err.message}</div>}
               </details>
             )}
           </li>
