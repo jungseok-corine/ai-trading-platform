@@ -137,6 +137,8 @@ async def order_sync_job(app: FastAPI) -> None:
             "matched": result.matched,
             "unmatched": result.unmatched,
             "updated": result.updated,
+            "stale_cancelled": result.stale_cancelled,
+            "stale_pending_requires_review": result.stale_pending_requires_review,
             "unmatched_order_ids": result.unmatched_order_ids,
             "executions": result.executions,
             "errors": errors,

@@ -5,10 +5,12 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.domain.models.enums import OrderStatus, TradeSide
+from app.domain.models.account import Account
+from app.domain.models.enums import AccountType, OrderStatus, TradeSide
 from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.position_service import PositionService
@@ -29,6 +31,7 @@ class OrderSyncResult:
     matched: int = 0
     unmatched: int = 0
     stale_cancelled: int = 0
+    stale_pending_requires_review: int = 0
     unmatched_order_ids: list[str] = field(default_factory=list)
     executions: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -91,6 +94,15 @@ class OrderSyncService:
 
     TradeService(주문 실행)와는 책임을 분리하며, 체결 조회 실패가 자동매매
     scheduler 전체에 영향을 주지 않도록 예외를 흡수한다.
+
+    Stale pending 정책 (account_type별 분기):
+    - PAPER 계좌: KIS VTS 당일 15:30 자동취소 정책에 따라 전날 이전 주문을
+      자동으로 CANCELLED 처리한다. 모의투자이므로 실제 손실 위험 없음.
+    - LIVE 계좌: 자동 CANCELLED 금지. 체결됐지만 조회 실패한 경우 DB만
+      CANCELLED가 되어 실제 포지션과 불일치할 위험이 있다. partial_fill에
+      stale_warning을 기록하고 사용자 수동 확인을 요청한다.
+      TODO: TTTC8036R (실전) / VTTC8036R (모의) 미체결조회 API를 연동하면
+            stale 판단 정확도를 높일 수 있다.
     """
 
     def __init__(self, session: AsyncSession, broker: BrokerClient) -> None:
@@ -104,37 +116,76 @@ class OrderSyncService:
             sell_tax_rate=settings.trading_sell_tax_rate,
         )
 
+    async def _get_account_type_map(self, account_ids: set[int]) -> dict[int, AccountType]:
+        rows = (
+            await self._session.execute(select(Account).where(Account.id.in_(account_ids)))
+        ).scalars().all()
+        return {a.id: a.account_type for a in rows}
+
     async def sync_pending_orders(self) -> OrderSyncResult:
         trades = await self._trade_repo.list_pending_or_partial()
         if not trades:
             return OrderSyncResult(checked=0, updated=0, skipped_reason="no_pending_orders")
 
-        stale_trades = [t for t in trades if _is_stale(t)]
-        active_trades = [t for t in trades if not _is_stale(t)]
+        account_type_by_id = await self._get_account_type_map({t.account_id for t in trades})
 
-        for trade in stale_trades:
-            trade.order_status = OrderStatus.CANCELLED
-            trade.partial_fill = {
-                "stale_reason": "auto_cancelled_after_market_close",
-                "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
-            }
-            logger.info(
-                "order sync: stale pending auto-cancelled trade_id=%s entry_time=%s",
-                trade.id,
-                trade.entry_time,
-            )
+        stale_cancelled = 0
+        stale_pending_requires_review = 0
+        paper_stale_ids: set[int] = set()
 
-        if not active_trades:
+        for trade in trades:
+            if not _is_stale(trade):
+                continue
+            # 계좌 유형을 알 수 없으면 실전(LIVE)으로 보수적 처리한다
+            account_type = account_type_by_id.get(trade.account_id, AccountType.LIVE)
+            if account_type == AccountType.PAPER:
+                trade.order_status = OrderStatus.CANCELLED
+                trade.partial_fill = {
+                    "stale_reason": "auto_cancelled_after_market_close",
+                    "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
+                }
+                paper_stale_ids.add(trade.id)
+                stale_cancelled += 1
+                logger.info(
+                    "order sync: PAPER stale pending auto-cancelled trade_id=%s entry_time=%s",
+                    trade.id,
+                    trade.entry_time,
+                )
+            else:
+                # LIVE 계좌: 상태 유지, stale_warning 기록
+                # KIS 체결조회 결과로 매칭되면 이 warning은 execution.raw로 덮어쓰여진다.
+                # TODO: TTTC8036R 미체결조회 API 연동 후 여기서 직접 확인 가능
+                trade.partial_fill = {
+                    **(trade.partial_fill or {}),
+                    "stale_warning": {
+                        "detected_at": datetime.now(_KST).isoformat(),
+                        "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
+                        "message": "Unresolved order past market close — manual review required.",
+                    },
+                }
+                stale_pending_requires_review += 1
+                logger.warning(
+                    "order sync: LIVE account stale pending trade_id=%s entry_time=%s — manual review required",
+                    trade.id,
+                    trade.entry_time,
+                )
+
+        # LIVE stale 주문은 KIS 체결조회에서 해소될 수 있으므로 쿼리 풀에 포함한다.
+        # PAPER stale은 자동 취소했으므로 제외한다.
+        query_trades = [t for t in trades if t.id not in paper_stale_ids]
+
+        if not query_trades:
             await self._session.commit()
             return OrderSyncResult(
                 checked=len(trades),
-                updated=len(stale_trades),
-                stale_cancelled=len(stale_trades),
+                updated=stale_cancelled,
+                stale_cancelled=stale_cancelled,
+                stale_pending_requires_review=stale_pending_requires_review,
                 skipped_reason="no_active_orders",
             )
 
         today_kst = datetime.now(_KST).date()
-        min_date = min(t.entry_time.astimezone(_KST).date() for t in active_trades)
+        min_date = min(t.entry_time.astimezone(_KST).date() for t in query_trades)
         start_date = min_date.strftime("%Y%m%d")
         end_date = today_kst.strftime("%Y%m%d")
 
@@ -145,8 +196,9 @@ class OrderSyncService:
             await self._session.commit()
             return OrderSyncResult(
                 checked=len(trades),
-                updated=len(stale_trades),
-                stale_cancelled=len(stale_trades),
+                updated=stale_cancelled,
+                stale_cancelled=stale_cancelled,
+                stale_pending_requires_review=stale_pending_requires_review,
                 errors=[exc_message(exc)],
                 error_category=classify_exception(exc),
             )
@@ -170,11 +222,11 @@ class OrderSyncService:
             for e in executions
         ]
 
-        updated = len(stale_trades)
+        updated = stale_cancelled
         matched = 0
         unmatched_order_ids: list[str] = []
         errors: list[str] = []
-        for trade in active_trades:
+        for trade in query_trades:
             execution = executions_by_id.get(normalize_order_id(trade.broker_order_id))
             if execution is None:
                 unmatched_order_ids.append(trade.broker_order_id or "")
@@ -223,7 +275,8 @@ class OrderSyncService:
             updated=updated,
             matched=matched,
             unmatched=len(unmatched_order_ids),
-            stale_cancelled=len(stale_trades),
+            stale_cancelled=stale_cancelled,
+            stale_pending_requires_review=stale_pending_requires_review,
             unmatched_order_ids=unmatched_order_ids,
             executions=executions_summary,
             errors=errors,

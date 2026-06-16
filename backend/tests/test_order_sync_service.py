@@ -77,6 +77,13 @@ async def _create_account(session: AsyncSession) -> Account:
     return account
 
 
+async def _create_live_account(session: AsyncSession) -> Account:
+    account = Account(account_type=AccountType.LIVE, broker_account_no="11111111-01")
+    session.add(account)
+    await session.flush()
+    return account
+
+
 async def _create_trade(session: AsyncSession, account_id: int, **overrides) -> Trade:
     from datetime import date as _date
 
@@ -580,3 +587,127 @@ async def test_date_range_passed_to_broker_covers_earliest_active_trade(db_sessi
     start, end = recorded_calls[0]
     assert start == today.strftime("%Y%m%d")
     assert end == today.strftime("%Y%m%d")
+
+
+async def test_stale_pending_live_account_is_not_cancelled(db_session: AsyncSession) -> None:
+    """LIVE 계좌의 stale pending 주문은 자동 CANCELLED 되지 않고 PENDING 상태를 유지한다.
+
+    실전 계좌에서는 체결됐지만 조회 실패한 경우 DB만 CANCELLED가 되면 실제 포지션과
+    불일치가 발생할 수 있으므로 자동 취소가 금지된다.
+    """
+    from datetime import date, timedelta
+
+    account = await _create_live_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    trade = await _create_trade(
+        db_session,
+        account.id,
+        entry_time=datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST),
+    )
+
+    result = await OrderSyncService(db_session, FakeBrokerClient(executions=[])).sync_pending_orders()
+
+    assert result.stale_pending_requires_review == 1
+    assert result.stale_cancelled == 0
+
+    await db_session.refresh(trade)
+    assert trade.order_status == OrderStatus.PENDING
+
+
+async def test_stale_pending_live_account_records_stale_warning(db_session: AsyncSession) -> None:
+    """LIVE 계좌의 stale pending 주문에는 partial_fill.stale_warning이 기록된다."""
+    from datetime import date, timedelta
+
+    account = await _create_live_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    trade = await _create_trade(
+        db_session,
+        account.id,
+        entry_time=datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST),
+    )
+
+    await OrderSyncService(db_session, FakeBrokerClient(executions=[])).sync_pending_orders()
+
+    await db_session.refresh(trade)
+    assert trade.partial_fill is not None
+    warning = trade.partial_fill.get("stale_warning")
+    assert warning is not None
+    assert "entry_time" in warning
+    assert "detected_at" in warning
+    assert "message" in warning
+
+
+async def test_stale_pending_live_account_can_be_matched_by_kis(db_session: AsyncSession) -> None:
+    """LIVE 계좌의 stale 주문은 KIS 체결조회에서 매칭되면 정상적으로 FILLED 처리된다.
+
+    stale_warning이 설정됐더라도 KIS 응답이 있으면 그것을 우선한다.
+    stale_pending_requires_review는 감지 시점 카운트이며, KIS 해소 여부는 matched로 확인.
+    """
+    from datetime import date, timedelta
+
+    account = await _create_live_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    trade = await _create_trade(
+        db_session,
+        account.id,
+        broker_order_id="0000000001",
+        entry_time=datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST),
+    )
+
+    broker = FakeBrokerClient(
+        executions=[
+            OrderExecution(
+                broker_order_id="0000000001",
+                total_quantity=10,
+                filled_quantity=10,
+                filled_price=Decimal("70000"),
+                cancelled=False,
+                raw={"odno": "0000000001", "tot_ccld_qty": "10"},
+            )
+        ]
+    )
+    result = await OrderSyncService(db_session, broker).sync_pending_orders()
+
+    assert result.stale_pending_requires_review == 1
+    assert result.matched == 1
+    assert result.stale_cancelled == 0
+
+    await db_session.refresh(trade)
+    assert trade.order_status == OrderStatus.FILLED
+
+
+async def test_mixed_paper_stale_cancelled_live_stale_warned(db_session: AsyncSession) -> None:
+    """PAPER stale은 자동 CANCELLED, LIVE stale은 warning 기록 — 계좌 유형별 분기 확인."""
+    from datetime import date, timedelta
+
+    paper_account = await _create_account(db_session)
+    live_account = await _create_live_account(db_session)
+    yesterday = date.today() - timedelta(days=1)
+    stale_entry = datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST)
+
+    paper_trade = await _create_trade(
+        db_session,
+        paper_account.id,
+        broker_order_id="0000000001",
+        entry_time=stale_entry,
+    )
+    live_trade = await _create_trade(
+        db_session,
+        live_account.id,
+        broker_order_id="0000000002",
+        entry_time=stale_entry,
+    )
+
+    result = await OrderSyncService(db_session, FakeBrokerClient(executions=[])).sync_pending_orders()
+
+    assert result.checked == 2
+    assert result.stale_cancelled == 1
+    assert result.stale_pending_requires_review == 1
+
+    await db_session.refresh(paper_trade)
+    assert paper_trade.order_status == OrderStatus.CANCELLED
+    assert paper_trade.partial_fill["stale_reason"] == "auto_cancelled_after_market_close"
+
+    await db_session.refresh(live_trade)
+    assert live_trade.order_status == OrderStatus.PENDING
+    assert "stale_warning" in live_trade.partial_fill
