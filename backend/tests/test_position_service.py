@@ -484,3 +484,169 @@ async def test_sync_from_broker_zeroes_position_not_in_broker_holdings(db_sessio
     assert position.unrealized_pnl == Decimal("0")
     # avg_entry_price/realized_pnl은 과거 체결 이력 참고용으로 유지
     assert position.avg_entry_price == Decimal("100000")
+
+
+# ── sync_from_broker position_events 테스트 ──────────────────────────────────
+
+async def test_sync_from_broker_create_records_sync_position_event(db_session: AsyncSession) -> None:
+    """broker에서 처음 발견된 종목을 positions에 생성할 때 SYNC 이벤트가 기록된다."""
+    account = await _create_account(db_session)
+    broker = FakeHoldingsBrokerClient(
+        [_holding("005930", "삼성전자", 3, Decimal("322916"), Decimal("324500"))]
+    )
+    service = PositionService(db_session, broker)
+
+    await service.sync_from_broker_positions(account.id)
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "005930")
+    assert position is not None
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    assert len(events) == 1
+    event = events[0]
+    assert event.event_type == PositionEventType.SYNC
+    assert event.quantity_delta == 3
+    assert event.before_quantity == 0
+    assert event.after_quantity == 3
+    assert event.before_avg_entry_price == Decimal("0")
+    assert event.after_avg_entry_price == Decimal("322916")
+    assert event.raw == {"source": "broker_sync"}
+    assert event.trade_id is None
+
+
+async def test_sync_from_broker_update_records_sync_position_event(db_session: AsyncSession) -> None:
+    """기존 포지션을 broker 값으로 보정할 때 SYNC 이벤트가 기록된다."""
+    account = await _create_account(db_session)
+
+    no_broker_service = PositionService(db_session)
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        symbol_name="삼성전자",
+        side=TradeSide.BUY,
+        quantity=5,
+        price=Decimal("300000"),
+    )
+
+    broker = FakeHoldingsBrokerClient(
+        [_holding("005930", "삼성전자", 3, Decimal("322916"), Decimal("324500"))]
+    )
+    service = PositionService(db_session, broker)
+
+    await service.sync_from_broker_positions(account.id)
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "005930")
+    assert position is not None
+
+    # apply_fill이 BUY_FILL, sync_from_broker가 SYNC 순으로 기록됨
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    sync_events = [e for e in events if e.event_type == PositionEventType.SYNC]
+    assert len(sync_events) == 1
+    event = sync_events[0]
+    assert event.quantity_delta == 3 - 5  # 5→3, delta=-2
+    assert event.before_quantity == 5
+    assert event.after_quantity == 3
+    assert event.before_avg_entry_price == Decimal("300000")
+    assert event.after_avg_entry_price == Decimal("322916")
+    assert event.raw == {"source": "broker_sync"}
+
+
+async def test_sync_from_broker_zero_records_sync_position_event(db_session: AsyncSession) -> None:
+    """broker 잔고에 없어서 quantity=0으로 보정할 때 SYNC 이벤트가 기록된다."""
+    account = await _create_account(db_session)
+
+    no_broker_service = PositionService(db_session)
+    await no_broker_service.apply_fill(
+        account_id=account.id,
+        symbol_code="000660",
+        symbol_name="SK하이닉스",
+        side=TradeSide.BUY,
+        quantity=2,
+        price=Decimal("100000"),
+    )
+
+    broker = FakeHoldingsBrokerClient([])
+    service = PositionService(db_session, broker)
+
+    await service.sync_from_broker_positions(account.id)
+
+    repo = PositionRepository(db_session)
+    position = await repo.get_by_account_symbol(account.id, "000660")
+    assert position is not None
+
+    events = await PositionEventRepository(db_session).list_by_position(position.id)
+    sync_events = [e for e in events if e.event_type == PositionEventType.SYNC]
+    assert len(sync_events) == 1
+    event = sync_events[0]
+    assert event.quantity_delta == -2
+    assert event.before_quantity == 2
+    assert event.after_quantity == 0
+    assert event.before_avg_entry_price == Decimal("100000")
+    assert event.raw == {"source": "broker_sync"}
+
+
+# ── position_mismatch 진단 테스트 ─────────────────────────────────────────────
+
+async def test_diagnose_position_mismatch_no_mismatch(db_session: AsyncSession) -> None:
+    """apply_fill로만 변경된 포지션은 불일치가 없다."""
+    account = await _create_account(db_session)
+    service = PositionService(db_session)
+
+    await service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=10,
+        price=Decimal("70000"),
+    )
+
+    mismatches = await service.diagnose_position_mismatch(account.id)
+    assert mismatches == []
+
+
+async def test_diagnose_position_mismatch_detects_direct_modification(db_session: AsyncSession) -> None:
+    """position_events 없이 positions.quantity가 직접 변경된 경우 불일치가 탐지된다."""
+    from app.domain.repositories.position import PositionRepository as _PR
+
+    account = await _create_account(db_session)
+    service = PositionService(db_session)
+
+    await service.apply_fill(
+        account_id=account.id,
+        symbol_code="005930",
+        side=TradeSide.BUY,
+        quantity=10,
+        price=Decimal("70000"),
+    )
+
+    # position_event 없이 직접 quantity 수정 (운영 데이터 불일치 시뮬레이션)
+    repo = _PR(db_session)
+    position = await repo.get_by_account_symbol(account.id, "005930")
+    assert position is not None
+    position.quantity = 12  # 10→12, 이벤트 없음
+    await repo.update(position)
+    await db_session.commit()
+
+    mismatches = await service.diagnose_position_mismatch(account.id)
+    assert len(mismatches) == 1
+    mismatch = mismatches[0]
+    assert mismatch.symbol_code == "005930"
+    assert mismatch.position_quantity == 12
+    assert mismatch.event_quantity_sum == 10
+    assert mismatch.discrepancy == 2
+
+
+async def test_diagnose_position_mismatch_after_broker_sync_no_mismatch(db_session: AsyncSession) -> None:
+    """sync_from_broker 이후에는 SYNC 이벤트가 기록되므로 불일치가 없다."""
+    account = await _create_account(db_session)
+    broker = FakeHoldingsBrokerClient(
+        [_holding("005930", "삼성전자", 2, Decimal("71000"), Decimal("72000"))]
+    )
+    service = PositionService(db_session, broker)
+
+    await service.sync_from_broker_positions(account.id)
+
+    mismatches = await service.diagnose_position_mismatch(account.id)
+    assert mismatches == []

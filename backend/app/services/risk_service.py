@@ -82,8 +82,8 @@ class RiskService:
             signal_snapshot=_jsonable(signal),
             context_snapshot=_jsonable(context),
             result=RiskEventResult.APPROVED if result.approved else RiskEventResult.REJECTED,
-            rule_name=result.rule_name,
-            reason=result.reason,
+            rule_name=result.rule_name if result.rule_name is not None else "all_rules_passed",
+            reason=result.reason if result.reason is not None else "Order passed all risk checks",
         )
         await self._session.commit()
         return result

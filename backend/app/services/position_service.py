@@ -10,6 +10,16 @@ from app.domain.repositories.position_event import PositionEventRepository
 from app.trading.broker.base import BrokerClient
 
 
+@dataclass
+class PositionMismatch:
+    position_id: int
+    symbol_code: str
+    account_id: int
+    position_quantity: int
+    event_quantity_sum: int
+    discrepancy: int
+
+
 def _compute_unrealized_pnl(quantity: int, avg_entry_price: Decimal, last_price: Decimal | None) -> Decimal:
     if quantity == 0 or last_price is None:
         return Decimal("0")
@@ -182,7 +192,7 @@ class PositionService:
             )
             position = existing_by_symbol.get(symbol_code)
             if position is None:
-                await self._position_repo.create(
+                new_position = await self._position_repo.create(
                     account_id=account_id,
                     symbol_code=symbol_code,
                     symbol_name=holding.symbol_name,
@@ -192,27 +202,102 @@ class PositionService:
                     unrealized_pnl=unrealized_pnl,
                     realized_pnl=Decimal("0"),
                 )
+                await self._position_event_repo.create(
+                    position_id=new_position.id,
+                    trade_id=None,
+                    event_type=PositionEventType.SYNC,
+                    quantity_delta=holding.quantity,
+                    price=holding.current_price,
+                    realized_pnl_delta=None,
+                    realized_pnl_delta_net=None,
+                    commission=None,
+                    tax=None,
+                    before_quantity=0,
+                    after_quantity=holding.quantity,
+                    before_avg_entry_price=Decimal("0"),
+                    after_avg_entry_price=holding.avg_purchase_price,
+                    raw={"source": "broker_sync"},
+                )
                 result.created += 1
             else:
+                before_quantity = position.quantity
+                before_avg_entry_price = position.avg_entry_price
                 position.symbol_name = holding.symbol_name
                 position.quantity = holding.quantity
                 position.avg_entry_price = holding.avg_purchase_price
                 position.last_price = holding.current_price
                 position.unrealized_pnl = unrealized_pnl
                 await self._position_repo.update(position)
+                await self._position_event_repo.create(
+                    position_id=position.id,
+                    trade_id=None,
+                    event_type=PositionEventType.SYNC,
+                    quantity_delta=holding.quantity - before_quantity,
+                    price=holding.current_price,
+                    realized_pnl_delta=None,
+                    realized_pnl_delta_net=None,
+                    commission=None,
+                    tax=None,
+                    before_quantity=before_quantity,
+                    after_quantity=holding.quantity,
+                    before_avg_entry_price=before_avg_entry_price,
+                    after_avg_entry_price=holding.avg_purchase_price,
+                    raw={"source": "broker_sync"},
+                )
                 result.updated += 1
 
         for symbol_code, position in existing_by_symbol.items():
             if symbol_code in holdings_by_symbol or position.quantity == 0:
                 continue
+            before_quantity = position.quantity
             position.quantity = 0
             position.unrealized_pnl = Decimal("0")
             await self._position_repo.update(position)
+            await self._position_event_repo.create(
+                position_id=position.id,
+                trade_id=None,
+                event_type=PositionEventType.SYNC,
+                quantity_delta=-before_quantity,
+                price=position.last_price,
+                realized_pnl_delta=None,
+                realized_pnl_delta_net=None,
+                commission=None,
+                tax=None,
+                before_quantity=before_quantity,
+                after_quantity=0,
+                before_avg_entry_price=position.avg_entry_price,
+                after_avg_entry_price=position.avg_entry_price,
+                raw={"source": "broker_sync"},
+            )
             result.zeroed += 1
 
         await self._session.commit()
         result.positions = await self._position_repo.list_by_account(account_id)
         return result
+
+    async def diagnose_position_mismatch(self, account_id: int) -> list[PositionMismatch]:
+        """positions.quantity와 position_events.quantity_delta 합산을 비교해 불일치를 탐지한다.
+
+        position_events 기록 없이 positions이 직접 수정된 경우(예: 과거 broker sync)를 감지한다.
+        반환 목록이 비어 있으면 position_events로 현재 수량이 완전히 설명된다.
+        """
+        positions = await self._position_repo.list_by_account(account_id)
+        mismatches: list[PositionMismatch] = []
+        for position in positions:
+            events = await self._position_event_repo.list_by_position(position.id, limit=10000)
+            event_sum = sum(e.quantity_delta for e in events)
+            if position.quantity != event_sum:
+                mismatches.append(
+                    PositionMismatch(
+                        position_id=position.id,
+                        symbol_code=position.symbol_code,
+                        account_id=account_id,
+                        position_quantity=position.quantity,
+                        event_quantity_sum=event_sum,
+                        discrepancy=position.quantity - event_sum,
+                    )
+                )
+        return mismatches
 
     async def refresh_all_prices(self, account_id: int) -> list[Position]:
         """계좌의 보유수량(quantity != 0) 포지션의 현재가를 모두 갱신하고 평가손익을 재계산한다.

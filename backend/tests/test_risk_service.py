@@ -105,6 +105,29 @@ async def test_approved_signal_records_risk_event(db_session: AsyncSession, sign
     assert events[0].context_snapshot["account_balance"] == 10000000.0
 
 
+async def test_approved_signal_risk_event_has_non_null_rule_name_and_reason(
+    db_session: AsyncSession, signal: Signal
+) -> None:
+    """approved 케이스에서 risk_events.rule_name / reason이 NULL이 아니어야 한다."""
+    account = await _create_account_with_risk_config(db_session)
+    service = RiskService(db_session, FakeBrokerClient())
+
+    await service.validate_signal(account.id, signal)
+
+    events = (
+        (await db_session.execute(select(RiskEvent).where(RiskEvent.account_id == account.id)))
+        .scalars()
+        .all()
+    )
+    assert len(events) == 1
+    event = events[0]
+    assert event.result == RiskEventResult.APPROVED
+    assert event.rule_name is not None, "approved 이벤트의 rule_name이 NULL입니다"
+    assert event.rule_name != "", "approved 이벤트의 rule_name이 빈 문자열입니다"
+    assert event.reason is not None, "approved 이벤트의 reason이 NULL입니다"
+    assert event.reason != "", "approved 이벤트의 reason이 빈 문자열입니다"
+
+
 async def test_rejected_signal_records_risk_event(db_session: AsyncSession, signal: Signal) -> None:
     account = await _create_account_with_risk_config(db_session, emergency_stop=True)
     service = RiskService(db_session, FakeBrokerClient())
