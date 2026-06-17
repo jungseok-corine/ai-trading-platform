@@ -456,6 +456,9 @@ class AnalysisPromptInputSummary(BaseModel):
     analyzed_signals: int
     symbols: list[str]
     timeframes: list[str]
+    max_prompt_length: int
+    included_recent_signals_count: int
+    included_symbols_count: int
 
 
 class StrategyAnalysisPromptRead(BaseModel):
@@ -465,6 +468,8 @@ class StrategyAnalysisPromptRead(BaseModel):
     strategy_version_id: int
     prompt_type: str
     prompt: str
+    prompt_length: int
+    truncated: bool
     input_summary: AnalysisPromptInputSummary
     warnings: list[str]
 

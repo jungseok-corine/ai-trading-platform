@@ -1,4 +1,4 @@
-"""Phase C-2.1: Analysis Prompt Builder.
+"""Phase C-2.1 / C-2.1.1: Analysis Prompt Builder + Prompt Length Guard.
 
 StrategyAnalysisInputRead payload를 LLM 분석용 prompt로 변환한다.
 실제 LLM API 호출 없음 — prompt preview 생성만 수행한다.
@@ -8,10 +8,13 @@ StrategyAnalysisInputRead payload를 LLM 분석용 prompt로 변환한다.
   - prompt_type 구조를 열어두어 future extension 지원
   - 현재 구현: overview / risk / improvement
   - 데이터 부족 시에도 prompt 생성 (warnings 섹션에 명시)
+  - parameters JSONB가 클 경우 안전하게 축약
+  - prompt 전체 길이 상한 적용 (CRITICAL INSTRUCTIONS 보호)
   - LLM API 호출 절대 없음
 """
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +38,12 @@ from app.trading.strategy.schemas import (
 SUPPORTED_PROMPT_TYPES: frozenset[str] = frozenset({"overview", "risk", "improvement"})
 
 _MAX_SYMBOLS_IN_PROMPT = 10
-_MAX_RECENT_SIGNALS_IN_PROMPT = 10  # 20개 → 10개로 압축
+_MAX_RECENT_SIGNALS_IN_PROMPT = 10     # 20개 → 10개로 압축
+_MAX_PARAMS_STR_LEN = 500              # parameters JSONB 문자열 상한
+_MAX_PROMPT_CHARS = 20_000             # prompt 전체 길이 상한
+
+_TRUNCATION_SUFFIX = "\n\n[... prompt truncated to fit maximum length ...]"
+_WARNING_TRUNCATED = "Prompt was truncated to fit the maximum length."
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +58,74 @@ class UnsupportedPromptTypeError(ValueError):
             f"supported: {', '.join(sorted(SUPPORTED_PROMPT_TYPES))}"
         )
         self.prompt_type = prompt_type
+
+
+# ---------------------------------------------------------------------------
+# parameter compression
+# ---------------------------------------------------------------------------
+
+
+def _compress_params(params: dict, max_len: int = _MAX_PARAMS_STR_LEN) -> str:
+    """parameters dict를 prompt 삽입용 문자열로 변환한다.
+
+    전체 JSON 직렬화 결과가 max_len을 초과하면 앞부분만 유지하고
+    잘렸다는 표시(" ... [truncated]")를 명확히 남긴다.
+    """
+    full_str = json.dumps(params, ensure_ascii=False, default=str)
+    if len(full_str) <= max_len:
+        return full_str
+    suffix = " ... [truncated]"
+    return full_str[: max_len - len(suffix)] + suffix
+
+
+# ---------------------------------------------------------------------------
+# prompt length guard
+# ---------------------------------------------------------------------------
+
+
+def _find_safe_cut_position(prompt: str) -> int:
+    """CRITICAL INSTRUCTIONS 블록이 끝나는 위치를 반환한다.
+
+    CRITICAL INSTRUCTIONS 이후 첫 번째 '=== ' 섹션 헤더 직전을 보호 구간으로 삼는다.
+    블록을 찾지 못하면 0을 반환해 어디서든 자를 수 있게 한다.
+    """
+    ci_pos = prompt.find("CRITICAL INSTRUCTIONS")
+    if ci_pos == -1:
+        return 0
+    after_ci = prompt.find("\n===", ci_pos)
+    if after_ci == -1:
+        return len(prompt)   # 전체를 보호 구간으로 설정
+    return after_ci          # 첫 번째 섹션 헤더 이전 개행 위치
+
+
+def _apply_length_guard(
+    prompt: str,
+    warnings: list[str],
+    max_chars: int = _MAX_PROMPT_CHARS,
+) -> tuple[str, bool]:
+    """prompt 길이가 max_chars를 초과하면 안전하게 잘라낸다.
+
+    CRITICAL INSTRUCTIONS 블록은 잘리지 않도록 보장한다.
+    반환값: (최종 prompt, truncated: bool)
+    """
+    if len(prompt) <= max_chars:
+        return prompt, False
+
+    safe_pos = _find_safe_cut_position(prompt)
+
+    # max_chars가 CRITICAL INSTRUCTIONS 끝보다 작으면 자를 수 없음
+    if max_chars <= safe_pos:
+        warnings.append(
+            f"Prompt length ({len(prompt)} chars) exceeds maximum ({max_chars} chars). "
+            "CRITICAL INSTRUCTIONS is preserved; truncation was not applied."
+        )
+        return prompt, False
+
+    # suffix 공간을 확보한 위치에서 자름; safe_pos보다 앞으로 가지 않음
+    cut_at = max(safe_pos, max_chars - len(_TRUNCATION_SUFFIX))
+    truncated_prompt = prompt[:cut_at] + _TRUNCATION_SUFFIX
+    warnings.append(_WARNING_TRUNCATED)
+    return truncated_prompt, True
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +268,7 @@ def _build_overview_prompt(payload: StrategyAnalysisInputRead) -> str:
     md = payload.market_data
     ctx = payload.analysis_context
 
-    params_str = ", ".join(f"{k}={v}" for k, v in s.parameters.items())
+    params_str = _compress_params(s.parameters)
     symbols_str = ", ".join(md.symbols) if md.symbols else "(none)"
     timeframes_str = ", ".join(md.timeframes) if md.timeframes else "(none)"
     latest_ts_str = str(md.latest_ts)[:19] if md.latest_ts else "(no data)"
@@ -280,7 +356,7 @@ def _build_risk_prompt(payload: StrategyAnalysisInputRead) -> str:
     md = payload.market_data
     ctx = payload.analysis_context
 
-    params_str = ", ".join(f"{k}={v}" for k, v in s.parameters.items())
+    params_str = _compress_params(s.parameters)
     mae_lines = []
     for h in p.by_horizon:
         mae_str = _pct(h.avg_mae_pct) if h.avg_mae_pct is not None else "N/A"
@@ -348,7 +424,7 @@ def _build_improvement_prompt(payload: StrategyAnalysisInputRead) -> str:
     p = payload.performance
     ctx = payload.analysis_context
 
-    params_str = ", ".join(f"{k}={v}" for k, v in s.parameters.items())
+    params_str = _compress_params(s.parameters)
 
     return f"""You are a quantitative strategy engineer optimizing a Korean paper trading strategy.
 
@@ -446,7 +522,7 @@ class StrategyAnalysisPromptService:
         version_id: int,
         prompt_type: str,
     ) -> StrategyAnalysisPromptRead | None:
-        """prompt를 생성한다.
+        """prompt를 생성하고 length guard를 적용한 뒤 반환한다.
 
         strategy/version을 찾을 수 없으면 None.
         unsupported prompt_type이면 UnsupportedPromptTypeError.
@@ -465,16 +541,27 @@ class StrategyAnalysisPromptService:
         else:  # "improvement"
             prompt_text = _build_improvement_prompt(payload)
 
+        warnings = _build_warnings(payload)
+        prompt_text, truncated = _apply_length_guard(prompt_text, warnings)
+
+        included_signals = min(len(payload.recent_signals), _MAX_RECENT_SIGNALS_IN_PROMPT)
+        included_symbols = min(len(payload.performance.by_symbol), _MAX_SYMBOLS_IN_PROMPT)
+
         return StrategyAnalysisPromptRead(
             strategy_id=strategy_id,
             strategy_version_id=version_id,
             prompt_type=prompt_type,
             prompt=prompt_text,
+            prompt_length=len(prompt_text),
+            truncated=truncated,
             input_summary=AnalysisPromptInputSummary(
                 total_signals=payload.performance.total_signals,
                 analyzed_signals=payload.performance.analyzed_signals,
                 symbols=payload.market_data.symbols,
                 timeframes=payload.market_data.timeframes,
+                max_prompt_length=_MAX_PROMPT_CHARS,
+                included_recent_signals_count=included_signals,
+                included_symbols_count=included_symbols,
             ),
-            warnings=_build_warnings(payload),
+            warnings=warnings,
         )
