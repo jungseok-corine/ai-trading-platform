@@ -11,6 +11,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 from app.domain.models.account import Account
 from app.domain.models.enums import AccountType, OrderStatus, SchedulerRunStatus, StrategyVersionStatus, TradeSide
+from app.domain.models.market_data import MarketData
 from app.domain.models.scheduler_run import SchedulerRun
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
@@ -173,6 +174,7 @@ async def test_run_strategy_job_records_success(job_session_factory) -> None:
         async with job_session_factory() as session:
             await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID))
             await session.execute(delete(SignalLog).where(SignalLog.strategy_version_id == version_id))
+            await session.execute(delete(MarketData))
             await session.execute(delete(Strategy).where(Strategy.id == strategy_id))
             await session.commit()
 
@@ -363,6 +365,7 @@ async def test_run_strategy_job_partial_failure_is_success(job_session_factory) 
         async with job_session_factory() as session:
             await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID))
             await session.execute(delete(SignalLog).where(SignalLog.strategy_version_id.in_([ok_version_id, fail_version_id])))
+            await session.execute(delete(MarketData))
             await session.execute(delete(StrategyVersion).where(StrategyVersion.id.in_([ok_version_id, fail_version_id])))
             await session.execute(delete(Strategy).where(Strategy.id.in_([ok_strategy_id, fail_strategy_id])))
             await session.commit()

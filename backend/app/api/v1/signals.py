@@ -17,7 +17,7 @@ def get_signal_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
 ) -> SignalService:
-    return SignalService(session, MarketDataService(broker))
+    return SignalService(session, MarketDataService(broker, session))
 
 
 @router.post("/generate", response_model=SignalLogRead | None)

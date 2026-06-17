@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import StrategyVersionStatus
+from app.domain.models.market_data import MarketData
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
 from app.services.market_data_service import MarketDataService
@@ -224,3 +225,83 @@ async def test_two_symbols_one_fails_other_succeeds(db_session: AsyncSession) ->
 
     rows = (await db_session.execute(select(SignalLog))).scalars().all()
     assert len(rows) == 1
+
+
+# ---------------------------------------------------------------------------
+# market_data 저장 통합 테스트
+# ---------------------------------------------------------------------------
+
+
+def _runner_with_db(session: AsyncSession, broker: BrokerClient) -> StrategyRunnerService:
+    """session이 주입된 MarketDataService를 사용하는 runner."""
+    return StrategyRunnerService(session, SignalService(session, MarketDataService(broker, session)))
+
+
+async def test_run_once_saves_market_data_to_db(db_session: AsyncSession) -> None:
+    """strategy runner 실행 시 KIS 분봉이 market_data 테이블에 저장된다."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    results = await _runner_with_db(db_session, broker).run_once()
+
+    assert results[0].signal_created is True
+    rows = (await db_session.execute(select(MarketData))).scalars().all()
+    assert len(rows) == 21
+    assert all(r.symbol_code == "005930" for r in rows)
+    assert all(r.timeframe == "1m" for r in rows)
+
+
+async def test_run_once_saves_market_data_even_when_no_signal(db_session: AsyncSession) -> None:
+    """신호 미생성(크로스 없음)이어도 market_data는 저장된다."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    closes = [100] * 21  # 크로스 없음
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    results = await _runner_with_db(db_session, broker).run_once()
+
+    assert results[0].signal_created is False
+    rows = (await db_session.execute(select(MarketData))).scalars().all()
+    assert len(rows) == 21
+
+
+async def test_run_twice_no_duplicate_market_data_rows(db_session: AsyncSession) -> None:
+    """같은 분봉을 두 번 조회해도 market_data에 중복 row가 생기지 않는다."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    runner = _runner_with_db(db_session, broker)
+    await runner.run_once()
+    await runner.run_once()
+
+    rows = (await db_session.execute(select(MarketData))).scalars().all()
+    assert len(rows) == 21  # 중복 없음
+
+
+class _FailingSaveMarketDataService(MarketDataService):
+    """save_candles가 항상 실패하는 MarketDataService 서브클래스."""
+
+    async def save_candles(self, symbol_code: str, timeframe: str, candles: list) -> int:
+        raise RuntimeError("intentional DB failure")
+
+
+async def test_market_data_save_failure_does_not_break_strategy_execution(
+    db_session: AsyncSession,
+) -> None:
+    """market_data 저장 실패가 전략 신호 생성을 중단시키지 않는다."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    failing_svc = _FailingSaveMarketDataService(broker, db_session)
+    runner = StrategyRunnerService(db_session, SignalService(db_session, failing_svc))
+    results = await runner.run_once()
+
+    assert len(results) == 1
+    assert results[0].signal_created is True
+    assert results[0].error is None
+
+    # 저장은 실패했으므로 market_data는 0건
+    rows = (await db_session.execute(select(MarketData))).scalars().all()
+    assert rows == []

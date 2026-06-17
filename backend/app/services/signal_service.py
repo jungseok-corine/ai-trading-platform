@@ -34,6 +34,8 @@ class SignalService:
         candles = await self._market_data_service.get_recent_candles(symbol_code)
         signal = strategy.generate_signal(symbol_code, candles, strategy_version_id)
         if signal is None:
+            # 시그널 없어도 get_recent_candles에서 flush된 market_data를 커밋한다.
+            await self._session.commit()
             return None
 
         metadata = signal.metadata or {}
@@ -42,6 +44,7 @@ class SignalService:
         if await self._signal_log_repo.exists_for_candle(
             signal.strategy_version_id, signal.symbol_code, signal.side, candle_ts
         ):
+            await self._session.commit()
             return None
 
         log = await self._signal_log_repo.create(

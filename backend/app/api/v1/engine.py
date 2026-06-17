@@ -35,7 +35,7 @@ def get_strategy_runner_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
 ) -> StrategyRunnerService:
-    signal_service = SignalService(session, MarketDataService(broker))
+    signal_service = SignalService(session, MarketDataService(broker, session))
     risk_service = RiskService(session, broker)
     trade_service = TradeService(session, broker, risk_service)
     return StrategyRunnerService(session, signal_service, trade_service)

@@ -61,7 +61,7 @@ async def run_strategy_job(app: FastAPI) -> None:
     try:
         async with async_session_factory() as session:
             broker = app.state.broker_client
-            signal_service = SignalService(session, MarketDataService(broker))
+            signal_service = SignalService(session, MarketDataService(broker, session))
             risk_service = RiskService(session, broker)
             trade_service = TradeService(session, broker, risk_service)
             runner = StrategyRunnerService(session, signal_service, trade_service)
