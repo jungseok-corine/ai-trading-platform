@@ -1,4 +1,4 @@
-"""AI Analysis Run API 스키마 (C-2.4 / C-2.5).
+"""AI Analysis Run API 스키마 (C-2.4 / C-2.5 / C-2.6).
 
 AiAnalysisRun / AiModelResponse ORM 객체를 API 응답으로 직렬화하기 위한 Pydantic 모델.
 """
@@ -15,11 +15,17 @@ class AnalysisRunCreateRequest(BaseModel):
     model: str | None = None
     secondary_provider: str | None = None
     secondary_model: str | None = None
+    enable_critique: bool = False
+    enable_synthesis: bool = False
 
     @model_validator(mode="after")
-    def _require_secondary_for_dual(self) -> "AnalysisRunCreateRequest":
+    def _validate_options(self) -> "AnalysisRunCreateRequest":
         if self.mode == "dual" and not self.secondary_provider:
             raise ValueError("secondary_provider is required when mode='dual'")
+        if self.mode != "dual" and (self.enable_critique or self.enable_synthesis):
+            raise ValueError(
+                "enable_critique and enable_synthesis require mode='dual'"
+            )
         return self
 
 

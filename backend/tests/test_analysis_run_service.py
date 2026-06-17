@@ -780,3 +780,302 @@ async def test_api_single_mode_response_includes_mode_field(db_session: AsyncSes
     body = resp.json()
     assert "mode" in body
     assert body["mode"] == "single"
+
+
+# ===========================================================================
+# C-2.6: Critique + Synthesis Workflow
+# ===========================================================================
+
+_DUAL_BASE = {
+    "prompt_type": "overview",
+    "mode": "dual",
+    "provider": "fake",
+    "secondary_provider": "fake",
+    "secondary_model": "fake-claude-1.0",
+}
+
+
+# ---------------------------------------------------------------------------
+# 30. dual + critique 성공 — responses 4개  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_critique_saves_four_responses(db_session: AsyncSession) -> None:
+    """dual + enable_critique → responses 4개 (primary/secondary analysis + 2 critiques)."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+        enable_critique=True,
+    )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.SUCCEEDED
+    assert len(run.responses) == 4
+
+
+# ---------------------------------------------------------------------------
+# 31. dual + synthesis only — responses 3개  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_synthesis_only_saves_three_responses(db_session: AsyncSession) -> None:
+    """dual + enable_synthesis (critique 없음) → responses 3개."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+        enable_synthesis=True,
+    )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.SUCCEEDED
+    assert len(run.responses) == 3
+    roles = {r.role for r in run.responses}
+    assert roles == {"primary_analysis", "secondary_analysis", "synthesis"}
+
+
+# ---------------------------------------------------------------------------
+# 32. dual + critique + synthesis — responses 5개  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_critique_synthesis_saves_five_responses(db_session: AsyncSession) -> None:
+    """dual + enable_critique + enable_synthesis → responses 5개."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+        enable_critique=True,
+        enable_synthesis=True,
+    )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.SUCCEEDED
+    assert len(run.responses) == 5
+
+
+# ---------------------------------------------------------------------------
+# 33. role 종류 테스트  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_debate_response_roles(db_session: AsyncSession) -> None:
+    """dual + critique + synthesis의 모든 role이 올바르게 저장된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+        enable_critique=True,
+        enable_synthesis=True,
+    )
+
+    assert run is not None
+    roles = {r.role for r in run.responses}
+    assert roles == {
+        "primary_analysis",
+        "secondary_analysis",
+        "primary_critique",
+        "secondary_critique",
+        "synthesis",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 34. single mode + enable_critique → 422  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_single_mode_with_critique_returns_422(db_session: AsyncSession) -> None:
+    """mode='single'에서 enable_critique=True → 422 validation error."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={
+                "prompt_type": "overview",
+                "mode": "single",
+                "provider": "fake",
+                "enable_critique": True,
+            },
+        )
+
+    assert resp.status_code == 422
+
+
+async def test_api_single_mode_with_synthesis_returns_422(db_session: AsyncSession) -> None:
+    """mode='single'에서 enable_synthesis=True → 422 validation error."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={
+                "prompt_type": "overview",
+                "mode": "single",
+                "provider": "fake",
+                "enable_synthesis": True,
+            },
+        )
+
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 35. critique 실패 → run FAILED + 기존 analysis 응답 보존  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_critique_failure_preserves_analysis_responses(db_session: AsyncSession) -> None:
+    """primary_critique 실패 시 analysis 2개 + critique 2개(성공+에러)가 저장되고 run=FAILED."""
+    from app.services.ai_analysis.schemas import AnalysisProviderResult
+
+    _ok = AnalysisProviderResult(
+        provider="fake", model="fake-1.0", content="ok",
+        prompt_tokens=5, completion_tokens=5, total_tokens=10,
+        latency_ms=42, finish_reason="stop", raw=None,
+    )
+    call_count = 0
+
+    async def _side(prompt: str, *, model=None, timeout_seconds=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 3:   # primary_critique (3rd call)
+            raise AnalysisProviderError(provider="fake", message="primary critique failed")
+        return _ok
+
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    with patch(
+        "app.services.ai_analysis.fake.FakeAnalysisProvider.analyze",
+        new_callable=AsyncMock,
+        side_effect=_side,
+    ):
+        run = await svc.create_run(
+            strat.id, ver.id, "overview", "fake",
+            mode="dual",
+            secondary_provider_name="fake",
+            secondary_model="fake-claude-1.0",
+            enable_critique=True,
+        )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.FAILED
+    assert run.error_message is not None
+    assert "primary_critique" in run.error_message
+    # call order: primary(1), secondary(2), primary_critique(3-fail), secondary_critique(4-ok)
+    assert len(run.responses) == 4
+    roles = {r.role for r in run.responses}
+    assert "primary_analysis" in roles
+    assert "secondary_analysis" in roles
+    assert "primary_critique" in roles
+    assert "secondary_critique" in roles
+    p_crit = next(r for r in run.responses if r.role == "primary_critique")
+    assert p_crit.finish_reason == "error"
+    s_crit = next(r for r in run.responses if r.role == "secondary_critique")
+    assert s_crit.content == "ok"
+
+
+# ---------------------------------------------------------------------------
+# 36. synthesis 실패 → run FAILED + analysis/critique 보존  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_synthesis_failure_preserves_analysis_and_critique(db_session: AsyncSession) -> None:
+    """synthesis 실패 시 analysis 2개 + critique 2개 + synthesis(에러) = 5개 저장, run=FAILED."""
+    from app.services.ai_analysis.schemas import AnalysisProviderResult
+
+    _ok = AnalysisProviderResult(
+        provider="fake", model="fake-1.0", content="ok",
+        prompt_tokens=5, completion_tokens=5, total_tokens=10,
+        latency_ms=42, finish_reason="stop", raw=None,
+    )
+    call_count = 0
+
+    async def _side(prompt: str, *, model=None, timeout_seconds=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 5:   # synthesis (5th call)
+            raise AnalysisProviderError(provider="fake", message="synthesis failed")
+        return _ok
+
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    with patch(
+        "app.services.ai_analysis.fake.FakeAnalysisProvider.analyze",
+        new_callable=AsyncMock,
+        side_effect=_side,
+    ):
+        run = await svc.create_run(
+            strat.id, ver.id, "overview", "fake",
+            mode="dual",
+            secondary_provider_name="fake",
+            secondary_model="fake-claude-1.0",
+            enable_critique=True,
+            enable_synthesis=True,
+        )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.FAILED
+    assert "synthesis" in (run.error_message or "")
+    assert len(run.responses) == 5
+    synth = next(r for r in run.responses if r.role == "synthesis")
+    assert synth.finish_reason == "error"
+    assert synth.error_message == "synthesis failed"
+    # analysis/critique 응답은 성공적으로 보존
+    success_roles = {r.role for r in run.responses if r.finish_reason != "error"}
+    assert success_roles == {
+        "primary_analysis", "secondary_analysis", "primary_critique", "secondary_critique"
+    }
+
+
+# ---------------------------------------------------------------------------
+# 37. API debate 전체 성공 테스트  (C-2.6)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_debate_full_returns_201_five_responses(db_session: AsyncSession) -> None:
+    """API POST with critique+synthesis → 201, responses 5개."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={
+                **_DUAL_BASE,
+                "enable_critique": True,
+                "enable_synthesis": True,
+            },
+        )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["status"] == "succeeded"
+    assert len(body["responses"]) == 5
+    roles = {r["role"] for r in body["responses"]}
+    assert roles == {
+        "primary_analysis",
+        "secondary_analysis",
+        "primary_critique",
+        "secondary_critique",
+        "synthesis",
+    }
