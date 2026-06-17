@@ -27,12 +27,15 @@ class SignalLogRepository(BaseRepository[SignalLog]):
         offset: int = 0,
         signal_type: TradeSide | None = None,
         symbol_code: str | None = None,
+        strategy_version_id: int | None = None,
     ) -> list[SignalLog]:
         stmt = select(SignalLog).order_by(SignalLog.generated_at.desc(), SignalLog.id.desc())
         if signal_type is not None:
             stmt = stmt.where(SignalLog.signal_type == signal_type)
         if symbol_code is not None:
             stmt = stmt.where(SignalLog.symbol_code == symbol_code)
+        if strategy_version_id is not None:
+            stmt = stmt.where(SignalLog.strategy_version_id == strategy_version_id)
         stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

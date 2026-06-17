@@ -29,6 +29,14 @@ class TradeRepository(BaseRepository[Trade]):
         )
         return list(result.scalars().all())
 
+    async def list_by_strategy_version(self, strategy_version_id: int) -> list[Trade]:
+        result = await self.session.execute(
+            select(Trade)
+            .where(Trade.strategy_version_id == strategy_version_id)
+            .order_by(Trade.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def list_pending_or_partial(self) -> list[Trade]:
         result = await self.session.execute(
             select(Trade).where(

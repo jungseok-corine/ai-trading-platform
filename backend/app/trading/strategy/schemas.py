@@ -324,6 +324,68 @@ class SignalOutcomeSummary(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Strategy Version Performance (Phase C-1)
+# ---------------------------------------------------------------------------
+
+
+class StrategyVersionPerformanceByHorizon(BaseModel):
+    """horizon별 신호 성과 집계."""
+
+    horizon_minutes: int
+    count: int
+    win_rate: Decimal
+    avg_return_pct: Decimal
+    avg_directional_return_pct: Decimal  # BUY/SELL 방향 조정 평균 수익률
+    avg_mfe_pct: Decimal | None  # 해당 horizon 데이터 있는 신호의 평균 MFE
+    avg_mae_pct: Decimal | None  # 해당 horizon 데이터 있는 신호의 평균 MAE
+
+
+class StrategyVersionPerformanceBySignalType(BaseModel):
+    """신호 종류(BUY/SELL)별 성과 집계."""
+
+    signal_type: TradeSide
+    signal_count: int
+    analyzed_count: int
+    win_rate_5m: Decimal | None
+    avg_directional_return_pct_5m: Decimal | None
+
+
+class StrategyVersionPerformanceBySymbol(BaseModel):
+    """종목별 성과 집계."""
+
+    symbol_code: str
+    signal_count: int
+    analyzed_count: int
+    win_rate_5m: Decimal | None
+    avg_directional_return_pct_5m: Decimal | None
+
+
+class StrategyVersionActualTradingPerformance(BaseModel):
+    """실제 체결 기반 성과. pnl_amount가 기록된 체결 건만 집계."""
+
+    trade_count: int
+    filled_count: int
+    total_pnl_amount: Decimal | None
+    win_trade_count: int | None
+    loss_trade_count: int | None
+    note: str
+
+
+class StrategyVersionPerformanceRead(BaseModel):
+    """strategy_version 단위 성과 집계 응답."""
+
+    strategy_id: int
+    strategy_version_id: int
+    total_signals: int
+    analyzed_signals: int
+    skipped_signals: int
+    by_horizon: list[StrategyVersionPerformanceByHorizon]
+    by_signal_type: list[StrategyVersionPerformanceBySignalType]
+    by_symbol: list[StrategyVersionPerformanceBySymbol]
+    actual_trading: StrategyVersionActualTradingPerformance | None
+
+
+# ---------------------------------------------------------------------------
 # Market Data
 # ---------------------------------------------------------------------------
 

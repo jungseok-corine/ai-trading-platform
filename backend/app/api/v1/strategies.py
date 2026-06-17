@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.services.strategy_performance_service import StrategyPerformanceService
 from app.services.strategy_service import (
     StrategyNotFoundError,
     StrategyService,
@@ -11,6 +12,7 @@ from app.trading.strategy.schemas import (
     StrategyCreateRequest,
     StrategyRead,
     StrategyVersionCreateRequest,
+    StrategyVersionPerformanceRead,
     StrategyVersionRead,
     StrategyVersionUpdateRequest,
 )
@@ -20,6 +22,10 @@ router = APIRouter(prefix="/strategies", tags=["strategies"])
 
 def get_strategy_service(session: AsyncSession = Depends(get_db)) -> StrategyService:
     return StrategyService(session)
+
+
+def get_performance_service(session: AsyncSession = Depends(get_db)) -> StrategyPerformanceService:
+    return StrategyPerformanceService(session)
 
 
 @router.get("", response_model=list[StrategyRead])
@@ -78,6 +84,26 @@ async def create_strategy_version(
         )
     except StrategyNotFoundError as e:
         raise HTTPException(status_code=404, detail="strategy not found") from e
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}/performance",
+    response_model=StrategyVersionPerformanceRead,
+)
+async def get_version_performance(
+    strategy_id: int,
+    version_id: int,
+    service: StrategyPerformanceService = Depends(get_performance_service),
+) -> StrategyVersionPerformanceRead:
+    """strategy_version의 신호 기반 성과와 실제 체결 성과를 반환한다.
+
+    신호가 없으면 빈 집계(zeros)를 반환한다.
+    strategy_id/version_id 조합이 없으면 404.
+    """
+    performance = await service.get_version_performance(strategy_id, version_id)
+    if performance is None:
+        raise HTTPException(status_code=404, detail="strategy version not found")
+    return performance
 
 
 @router.patch("/{strategy_id}/versions/{version_id}", response_model=StrategyVersionRead)
