@@ -116,6 +116,7 @@ class TradeService:
             market_condition=market_condition,
             order_status=order_result.order_status,
             broker_order_id=order_result.broker_order_id,
+            org_no=order_result.org_no,
         )
         await self._session.commit()
         logger.info(

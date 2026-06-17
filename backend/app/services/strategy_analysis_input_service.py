@@ -15,9 +15,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.enums import OrderStatus
 from app.domain.repositories.market_data import MarketDataRepository
 from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyRepository, StrategyVersionRepository
+from app.domain.repositories.trade import TradeRepository
 from app.services.signal_outcome_service import SignalOutcomeService
 from app.services.strategy_performance_service import StrategyPerformanceService
 from app.trading.strategy.schemas import (
@@ -33,6 +35,8 @@ _RECENT_SIGNAL_LIMIT = 20
 _LIMITATIONS: list[str] = [
     "Signal outcome is based on hypothetical next-candle entry.",
     "Actual trading PnL may be incomplete when pnl_amount is null.",
+    "Paper trading order status may lag or differ from real trading."
+    " Fill status is synchronized via VTTC0081R daily order execution inquiry when available.",
     "This is not financial advice.",
 ]
 
@@ -44,6 +48,7 @@ class StrategyAnalysisInputService:
         self._version_repo = StrategyVersionRepository(session)
         self._signal_repo = SignalLogRepository(session)
         self._md_repo = MarketDataRepository(session)
+        self._trade_repo = TradeRepository(session)
         self._perf_svc = StrategyPerformanceService(session)
         self._outcome_svc = SignalOutcomeService(session)
 
@@ -72,6 +77,14 @@ class StrategyAnalysisInputService:
         symbol_code: str = version.parameters.get("symbol_code", "")
         market_data = await self._get_market_data_summary(symbol_code)
         recent_signals = await self._get_recent_signals(version_id)
+        limitations = list(_LIMITATIONS)
+        pending_count = await self._count_pending_trades(version_id)
+        if pending_count > 0:
+            limitations.append(
+                f"{pending_count} order(s) are still in pending/partial status."
+                " These are NOT included in fill/PnL calculations."
+                " Run order sync (VTTC0081R) to update fill status."
+            )
 
         return StrategyAnalysisInputRead(
             strategy=AnalysisInputStrategyMeta(
@@ -87,12 +100,19 @@ class StrategyAnalysisInputService:
             recent_signals=recent_signals,
             analysis_context=AnalysisInputContext(
                 generated_at=datetime.now(tz=timezone.utc),
-                limitations=_LIMITATIONS,
+                limitations=limitations,
             ),
         )
 
     # ------------------------------------------------------------------
     # private helpers
+
+    async def _count_pending_trades(self, version_id: int) -> int:
+        trades = await self._trade_repo.list_by_strategy_version(version_id)
+        return sum(
+            1 for t in trades
+            if t.order_status in (OrderStatus.PENDING, OrderStatus.PARTIAL)
+        )
     # ------------------------------------------------------------------
 
     async def _get_market_data_summary(self, symbol_code: str) -> AnalysisInputMarketData:

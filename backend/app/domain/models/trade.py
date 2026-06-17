@@ -42,6 +42,7 @@ class Trade(Base):
         pg_enum(OrderStatus, "order_status"), nullable=False, default=OrderStatus.PENDING
     )
     broker_order_id: Mapped[str | None] = mapped_column(String(50))
+    org_no: Mapped[str | None] = mapped_column(String(10))  # KRX_FWDG_ORD_ORGNO — 주문채번지점번호
     partial_fill: Mapped[dict | None] = mapped_column(JSONB)
     position_applied_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

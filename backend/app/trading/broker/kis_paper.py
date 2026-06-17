@@ -29,8 +29,11 @@ TR_ID_INQUIRE_BALANCE = "VTTC8434R"
 TR_ID_ORDER_CASH_BUY = "VTTC0012U"
 # tr_id: 주식 현금 매도 주문 (모의투자)
 TR_ID_ORDER_CASH_SELL = "VTTC0011U"
-# tr_id: 주식일별주문체결조회 (모의투자, 3개월 이내)
-TR_ID_INQUIRE_DAILY_CCLD = "VTTC8001R"
+# tr_id: 주식일별주문체결조회 (모의투자, 3개월 이내) — KIS 문서 VTTC0081R
+TR_ID_INQUIRE_DAILY_CCLD = "VTTC0081R"
+# tr_id: 주식일별주문체결조회 (실전, 3개월 이내) — KIS 문서 TTTC0081R
+# 향후 KISRealBrokerClient 구현 시 이 상수를 사용한다.
+TR_ID_INQUIRE_DAILY_CCLD_REAL = "TTTC0081R"
 
 # 주문구분: 지정가
 ORD_DVSN_LIMIT = "00"
@@ -178,6 +181,7 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
         output = data["output"]
         return OrderResult(
             broker_order_id=output["ODNO"],
+            org_no=output.get("KRX_FWDG_ORD_ORGNO"),
             order_status=OrderStatus.PENDING,
             ordered_at=datetime.now(KST),
         )
@@ -208,6 +212,7 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
                 "ODNO": "",
                 "INQR_DVSN_3": "00",
                 "INQR_DVSN_1": "",
+                "EXCG_ID_DVSN_CD": EXCG_ID_DVSN_CD_KRX,
                 "CTX_AREA_FK100": "",
                 "CTX_AREA_NK100": "",
             },
@@ -226,6 +231,10 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             executions.append(
                 OrderExecution(
                     broker_order_id=row["odno"],
+                    org_no=row.get("ord_gno_brno"),
+                    symbol_code=row.get("pdno"),
+                    sll_buy_dvsn_cd=row.get("sll_buy_dvsn_cd"),
+                    unfilled_quantity=int(row["rmn_qty"]) if row.get("rmn_qty") else 0,
                     total_quantity=int(row["ord_qty"]),
                     filled_quantity=filled_quantity,
                     filled_price=filled_price,
