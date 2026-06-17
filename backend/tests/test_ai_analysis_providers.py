@@ -183,16 +183,16 @@ def test_factory_returns_analysis_provider_subclass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 11. factory — openai (미구현)
+# 11. factory — openai (C-2.7.1 구현 완료)
 # ---------------------------------------------------------------------------
 
 
-def test_factory_openai_not_implemented() -> None:
-    """get_analysis_provider('openai')는 ProviderNotImplementedError를 발생시킨다."""
-    with pytest.raises(ProviderNotImplementedError) as exc_info:
-        get_analysis_provider("openai")
-    assert exc_info.value.provider_name == "openai"
-    assert "openai" in str(exc_info.value).lower()
+def test_factory_openai_returns_provider() -> None:
+    """get_analysis_provider('openai')는 OpenAIAnalysisProvider를 반환한다."""
+    from app.services.ai_analysis.openai_provider import OpenAIAnalysisProvider
+    provider = get_analysis_provider("openai")
+    assert isinstance(provider, OpenAIAnalysisProvider)
+    assert provider.provider_name() == "openai"
 
 
 # ---------------------------------------------------------------------------

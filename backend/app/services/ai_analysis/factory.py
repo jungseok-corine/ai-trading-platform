@@ -1,15 +1,15 @@
 """AI Analysis Provider factory.
 
 get_analysis_provider()로 provider 이름을 받아 구현체를 반환한다.
-현재 "fake"만 실제 반환하며, "openai"/"anthropic"은 구현 대기 상태다.
+
+구현 상태:
+  "fake"     → FakeAnalysisProvider (항상 사용 가능)
+  "openai"   → OpenAIAnalysisProvider (C-2.7.1; API key 필요)
+  "anthropic" → ProviderNotImplementedError (미구현)
 
 사용 예:
     provider = get_analysis_provider("fake")
-    result = await provider.analyze(prompt)
-
-향후 C-2.3 이후 단계에서:
-    provider = get_analysis_provider("openai")    # OpenAIAnalysisProvider 반환
-    provider = get_analysis_provider("anthropic")  # AnthropicAnalysisProvider 반환
+    provider = get_analysis_provider("openai")   # settings.ai_openai_api_key 필요
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from app.services.ai_analysis.base import AnalysisProvider
 from app.services.ai_analysis.fake import FakeAnalysisProvider
 
 _SUPPORTED_PROVIDERS: frozenset[str] = frozenset({"fake", "openai", "anthropic"})
-_IMPLEMENTED_PROVIDERS: frozenset[str] = frozenset({"fake"})
+_IMPLEMENTED_PROVIDERS: frozenset[str] = frozenset({"fake", "openai"})
 
 
 class ProviderNotImplementedError(NotImplementedError):
@@ -62,5 +62,15 @@ def get_analysis_provider(provider_name: str) -> AnalysisProvider:
     if provider_name == "fake":
         return FakeAnalysisProvider()
 
-    # "openai", "anthropic" — 향후 C-2.4 이후에 구현
+    if provider_name == "openai":
+        from app.core.config import get_settings
+        from app.services.ai_analysis.openai_provider import OpenAIAnalysisProvider
+        s = get_settings()
+        return OpenAIAnalysisProvider(
+            api_key=s.ai_openai_api_key,
+            default_model=s.ai_openai_model,
+            default_timeout_seconds=s.ai_openai_timeout_seconds,
+        )
+
+    # "anthropic" — 향후 구현
     raise ProviderNotImplementedError(provider_name)

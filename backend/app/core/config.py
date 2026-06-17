@@ -57,10 +57,16 @@ class Settings(BaseSettings):
     order_sync_scheduler_interval_seconds: int = 60
 
     # AI Analysis Provider (C-2.3)
-    # 실제 API key는 C-2.4 이후 단계에서 추가한다.
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"
     ai_default_model: str = "fake-1.0"
+
+    # OpenAI provider (C-2.7.1)
+    # AI_OPENAI_API_KEY를 .env에 설정하면 openai provider가 활성화된다.
+    # key가 없으면 get_analysis_provider("openai") 호출 시 AnalysisProviderError가 발생한다.
+    ai_openai_api_key: str | None = None
+    ai_openai_model: str = "gpt-4o"
+    ai_openai_timeout_seconds: int = 60
 
     # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)
     #
