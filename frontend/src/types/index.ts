@@ -302,6 +302,59 @@ export interface WatchlistBulkStrategyCreateResponse {
   items: WatchlistBulkStrategyCreateItem[];
 }
 
+export interface SignalOutcomeHorizonResult {
+  horizon_minutes: number;
+  close_price: string | null;
+  return_pct: string | null;
+  directional_return_pct: string | null;
+  is_win: boolean | null;
+  available: boolean;
+}
+
+export interface SignalOutcomeRead {
+  signal_id: number;
+  symbol_code: string;
+  signal_type: TradeSide;
+  signal_ts: string;
+  timeframe: string;
+  entry_price: string | null;
+  horizons: SignalOutcomeHorizonResult[];
+  mfe_pct: string | null;
+  mae_pct: string | null;
+  available: boolean;
+  note: string | null;
+}
+
+export interface SignalOutcomeByHorizon {
+  horizon_minutes: number;
+  count: number;
+  avg_return_pct: string;
+  win_rate: string;
+}
+
+export interface SignalOutcomeBySymbol {
+  symbol_code: string;
+  signal_count: number;
+  analyzed_count: number;
+  win_rate_5m: string | null;
+}
+
+export interface SignalOutcomeBySignalType {
+  signal_type: TradeSide;
+  signal_count: number;
+  analyzed_count: number;
+  win_rate_5m: string | null;
+}
+
+export interface SignalOutcomeSummary {
+  total_signals: number;
+  analyzed_count: number;
+  skipped_count: number;
+  by_horizon: SignalOutcomeByHorizon[];
+  by_symbol: SignalOutcomeBySymbol[];
+  by_signal_type: SignalOutcomeBySignalType[];
+}
+
 export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   strategy_type: "moving_average_cross",
   symbol_code: "",

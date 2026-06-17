@@ -11,6 +11,8 @@ import type {
   SchedulerSettings,
   SchedulerSettingsUpdateRequest,
   SignalLog,
+  SignalOutcomeRead,
+  SignalOutcomeSummary,
   Strategy,
   StrategyRunResult,
   StrategyVersion,
@@ -64,6 +66,18 @@ export async function updateSchedulerSettings(
 
 export async function getSignals(): Promise<SignalLog[]> {
   const { data } = await apiClient.get<SignalLog[]>("/signals");
+  return data;
+}
+
+export async function getSignalOutcome(signalId: number): Promise<SignalOutcomeRead> {
+  const { data } = await apiClient.get<SignalOutcomeRead>(`/signals/${signalId}/outcome`);
+  return data;
+}
+
+export async function getOutcomesSummary(limit = 100): Promise<SignalOutcomeSummary> {
+  const { data } = await apiClient.get<SignalOutcomeSummary>("/signals/outcomes/summary", {
+    params: { limit },
+  });
   return data;
 }
 

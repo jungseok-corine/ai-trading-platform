@@ -7,6 +7,7 @@ import PortfolioSummaryCard from "../components/PortfolioSummaryCard";
 import PositionsTable from "../components/PositionsTable";
 import TradesTable from "../components/TradesTable";
 import SignalsTable from "../components/SignalsTable";
+import SignalOutcomeSummaryCard from "../components/SignalOutcomeSummaryCard";
 import RiskControls from "../components/RiskControls";
 import RunOnceResultsTable from "../components/RunOnceResultsTable";
 import { useSettings } from "../i18n/SettingsContext";
@@ -165,6 +166,7 @@ export default function DashboardPage() {
       <PositionsTable />
       <TradesTable />
       <SignalsTable />
+      <SignalOutcomeSummaryCard />
       <RiskControls />
     </div>
   );

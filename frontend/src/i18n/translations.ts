@@ -223,6 +223,29 @@ export interface Translations {
     bulkResultReason: Record<string, string>;
     autoTradeBulkDisabledHint: string;
   };
+  signalOutcome: {
+    panelTitle: string;
+    showOutcome: string;
+    hideOutcome: string;
+    entryPrice: string;
+    mfe: string;
+    mae: string;
+    colHorizonMin: string;
+    colDirectional: string;
+    colWin: string;
+    win: string;
+    loss: string;
+    noData: string;
+    na: string;
+    summaryTitle: string;
+    summaryDescription: string;
+    analyzedCount: string;
+    skippedCount: string;
+    colCount: string;
+    colWinRate: string;
+    colAvgReturn: string;
+    noSummary: string;
+  };
   settings: {
     language: string;
     languageKo: string;
@@ -533,6 +556,29 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, string>,
       autoTradeBulkDisabledHint: "자동매매는 이 화면에서 켤 수 없습니다. 전략 관리 화면에서 개별적으로 설정하세요.",
     },
+    signalOutcome: {
+      panelTitle: "신호 결과",
+      showOutcome: "결과 보기",
+      hideOutcome: "닫기",
+      entryPrice: "진입가",
+      mfe: "최대유리",
+      mae: "최대불리",
+      colHorizonMin: "분",
+      colDirectional: "방향수익",
+      colWin: "승패",
+      win: "승",
+      loss: "패",
+      noData: "market_data 없음",
+      na: "N/A",
+      summaryTitle: "신호 성과 요약",
+      summaryDescription: "최근 신호 발생 이후 실제 가격 반응을 집계합니다. 방향수익은 BUY/SELL 방향 기준으로 양수=유리, 음수=불리입니다.",
+      analyzedCount: "분석 완료",
+      skippedCount: "데이터 부족",
+      colCount: "건수",
+      colWinRate: "승률",
+      colAvgReturn: "평균 방향수익",
+      noSummary: "분석된 신호가 없습니다.",
+    },
     settings: {
       language: "언어",
       languageKo: "한국어",
@@ -839,6 +885,29 @@ export const translations: Record<Language, Translations> = {
         duplicate_symbol_version_exists: "A strategy_version for this symbol already exists",
       } as Record<string, string>,
       autoTradeBulkDisabledHint: "Auto trading cannot be enabled here. Set it individually on the Strategies page.",
+    },
+    signalOutcome: {
+      panelTitle: "Outcome",
+      showOutcome: "View Outcome",
+      hideOutcome: "Hide",
+      entryPrice: "Entry",
+      mfe: "MFE",
+      mae: "MAE",
+      colHorizonMin: "min",
+      colDirectional: "Dir. Return",
+      colWin: "W/L",
+      win: "W",
+      loss: "L",
+      noData: "No market_data",
+      na: "N/A",
+      summaryTitle: "Signal Outcome Summary",
+      summaryDescription: "Aggregates actual price reactions after recent signals. Directional return is positive when price moves in the signal direction.",
+      analyzedCount: "Analyzed",
+      skippedCount: "No Data",
+      colCount: "Count",
+      colWinRate: "Win Rate",
+      colAvgReturn: "Avg Dir. Return",
+      noSummary: "No analyzed signals yet.",
     },
     settings: {
       language: "Language",
