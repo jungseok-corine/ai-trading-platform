@@ -64,6 +64,8 @@ class SignalLogRead(BaseModel):
 
     id: int
     symbol_code: str
+    symbol_name: str | None = None
+    symbol_display: str | None = None
     strategy_version_id: int | None
     signal_type: TradeSide
     generated_at: datetime

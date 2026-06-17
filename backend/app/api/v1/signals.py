@@ -32,7 +32,9 @@ async def generate_signal(
     except KISAPIError as e:
         raise HTTPException(status_code=502, detail=e.msg1) from e
 
-    return SignalLogRead.model_validate(log) if log else None
+    if log is None:
+        return None
+    return await service.get_signal(log.id)
 
 
 @router.get("", response_model=list[SignalLogRead])

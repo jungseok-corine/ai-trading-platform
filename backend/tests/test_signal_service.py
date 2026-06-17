@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import TradeSide
+from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 from app.services.market_data_service import MarketDataService
 from app.services.signal_service import SignalService
 from app.trading.broker.base import BrokerClient
@@ -124,3 +125,75 @@ async def test_list_signals_returns_newest_first(db_session: AsyncSession) -> No
     # 나중에 생성된 log2가 첫 번째여야 한다
     assert logs[0].id == log2.id
     assert logs[1].id == log1.id
+
+
+async def _create_watchlist_symbol(
+    session: AsyncSession, symbol_code: str, symbol_name: str
+) -> None:
+    watchlist = Watchlist(name=f"test_{symbol_code}")
+    session.add(watchlist)
+    await session.flush()
+    session.add(WatchlistSymbol(watchlist_id=watchlist.id, symbol_code=symbol_code, symbol_name=symbol_name))
+    await session.flush()
+
+
+async def test_list_signals_includes_symbol_display_when_watchlist_has_name(
+    db_session: AsyncSession,
+) -> None:
+    await _create_watchlist_symbol(db_session, "005930", "삼성전자")
+
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient(_make_candles(closes))
+    service = SignalService(db_session, MarketDataService(broker))
+    await service.generate_and_log_signal(MovingAverageCrossStrategy(), "005930")
+
+    logs = await service.list_signals()
+    assert len(logs) == 1
+    assert logs[0].symbol_code == "005930"
+    assert logs[0].symbol_name == "삼성전자"
+    assert logs[0].symbol_display == "삼성전자 (005930)"
+
+
+async def test_list_signals_symbol_display_is_none_when_no_watchlist_entry(
+    db_session: AsyncSession,
+) -> None:
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient(_make_candles(closes))
+    service = SignalService(db_session, MarketDataService(broker))
+    await service.generate_and_log_signal(MovingAverageCrossStrategy(), "005930")
+
+    logs = await service.list_signals()
+    assert len(logs) == 1
+    assert logs[0].symbol_code == "005930"
+    assert logs[0].symbol_name is None
+    assert logs[0].symbol_display is None
+
+
+async def test_get_signal_includes_symbol_display_when_watchlist_has_name(
+    db_session: AsyncSession,
+) -> None:
+    await _create_watchlist_symbol(db_session, "035420", "NAVER")
+
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient(_make_candles(closes))
+    service = SignalService(db_session, MarketDataService(broker))
+    log = await service.generate_and_log_signal(MovingAverageCrossStrategy(), "035420")
+    assert log is not None
+
+    fetched = await service.get_signal(log.id)
+    assert fetched is not None
+    assert fetched.symbol_name == "NAVER"
+    assert fetched.symbol_display == "NAVER (035420)"
+
+
+async def test_symbol_code_is_preserved_in_all_cases(db_session: AsyncSession) -> None:
+    await _create_watchlist_symbol(db_session, "000660", "SK하이닉스")
+
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient(_make_candles(closes))
+    service = SignalService(db_session, MarketDataService(broker))
+    await service.generate_and_log_signal(MovingAverageCrossStrategy(), "000660")
+
+    logs = await service.list_signals()
+    assert len(logs) == 1
+    assert logs[0].symbol_code == "000660"

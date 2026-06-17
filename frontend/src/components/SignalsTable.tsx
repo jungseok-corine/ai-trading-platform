@@ -34,7 +34,12 @@ export default function SignalsTable() {
               {data.map((signal) => (
                 <tr key={signal.id}>
                   <td>{signal.id}</td>
-                  <td>{signal.symbol_code}</td>
+                  <td>
+                    {signal.symbol_display ??
+                      (signal.symbol_name
+                        ? `${signal.symbol_name} (${signal.symbol_code})`
+                        : signal.symbol_code)}
+                  </td>
                   <td>
                     <span className={`badge side-${signal.signal_type}`}>
                       {signal.signal_type === "buy" ? t.common.buy : t.common.sell}
