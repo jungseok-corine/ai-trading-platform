@@ -28,6 +28,24 @@ class MinuteCandle(BaseModel):
     volume: int
 
 
+class BrokerPositionItem(BaseModel):
+    """KIS 주식잔고조회(VTTC8434R/TTTC8434R) output1 행을 정규화한 모델.
+
+    AccountHolding보다 필드가 더 많으며, 포지션 정합성 검사에 사용된다.
+    """
+
+    symbol_code: str          # pdno — 종목코드
+    symbol_name: str          # prdt_name — 상품명
+    quantity: int             # hldg_qty — 보유수량
+    sellable_quantity: int    # ord_psbl_qty — 주문가능수량
+    average_price: Decimal    # pchs_avg_pric — 매입평균가격
+    purchase_amount: Decimal  # pchs_amt — 매입금액
+    current_price: Decimal    # prpr — 현재가
+    market_value: Decimal     # evlu_amt — 평가금액
+    unrealized_pnl: Decimal   # evlu_pfls_amt — 평가손익금액
+    pnl_rate: Decimal         # evlu_pfls_rt — 평가손익율
+
+
 class AccountHolding(BaseModel):
     symbol_code: str
     symbol_name: str

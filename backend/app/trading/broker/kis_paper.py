@@ -8,6 +8,7 @@ from app.trading.broker.schemas import (
     AccountBalance,
     AccountHolding,
     AccountSummary,
+    BrokerPositionItem,
     MinuteCandle,
     OrderExecution,
     OrderRequest,
@@ -25,6 +26,8 @@ TR_ID_INQUIRE_PRICE = "FHKST01010100"
 TR_ID_INQUIRE_TIME_ITEMCHARTPRICE = "FHKST03010200"
 # tr_id: 주식잔고조회 (모의투자)
 TR_ID_INQUIRE_BALANCE = "VTTC8434R"
+# tr_id: 주식잔고조회 (실전) — 향후 KISRealBrokerClient 구현 시 사용
+TR_ID_INQUIRE_BALANCE_REAL = "TTTC8434R"
 # tr_id: 주식 현금 매수 주문 (모의투자)
 TR_ID_ORDER_CASH_BUY = "VTTC0012U"
 # tr_id: 주식 현금 매도 주문 (모의투자)
@@ -185,6 +188,47 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             order_status=OrderStatus.PENDING,
             ordered_at=datetime.now(KST),
         )
+
+    async def get_broker_positions(self) -> list[BrokerPositionItem]:
+        """KIS 모의투자 잔고조회 응답에서 BrokerPositionItem 목록을 반환한다.
+
+        get_account_positions()와 동일한 KIS API를 호출하지만 BrokerPositionItem으로
+        파싱해 sellable_quantity / purchase_amount 등 더 많은 필드를 제공한다.
+        """
+        data = await self._request(
+            "GET",
+            "/uapi/domestic-stock/v1/trading/inquire-balance",
+            tr_id=TR_ID_INQUIRE_BALANCE,
+            params={
+                "CANO": self._cano,
+                "ACNT_PRDT_CD": self._acnt_prdt_cd,
+                "AFHR_FLPR_YN": "N",
+                "OFL_YN": "",
+                "INQR_DVSN": "02",
+                "UNPR_DVSN": "01",
+                "FUND_STTL_ICLD_YN": "N",
+                "FNCG_AMT_AUTO_RDPT_YN": "N",
+                "PRCS_DVSN": "00",
+                "CTX_AREA_FK100": "",
+                "CTX_AREA_NK100": "",
+            },
+        )
+        return [
+            BrokerPositionItem(
+                symbol_code=row["pdno"],
+                symbol_name=row["prdt_name"],
+                quantity=int(row["hldg_qty"]),
+                sellable_quantity=int(row["ord_psbl_qty"]),
+                average_price=Decimal(row["pchs_avg_pric"]),
+                purchase_amount=Decimal(row["pchs_amt"]),
+                current_price=Decimal(row["prpr"]),
+                market_value=Decimal(row["evlu_amt"]),
+                unrealized_pnl=Decimal(row["evlu_pfls_amt"]),
+                pnl_rate=Decimal(row["evlu_pfls_rt"]),
+            )
+            for row in data["output1"]
+            if int(row["hldg_qty"]) > 0
+        ]
 
     async def get_daily_executions(
         self, start_date: str | None = None, end_date: str | None = None

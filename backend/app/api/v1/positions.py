@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.domain.repositories.position import PositionRepository
 from app.domain.repositories.position_event import PositionEventRepository
 from app.services.portfolio_service import PortfolioService
+from app.services.position_reconciliation_service import PositionReconciliationService
 from app.services.position_service import PositionService
 from app.trading.broker.base import BrokerClient
 from app.trading.position.schemas import (
@@ -13,6 +14,7 @@ from app.trading.position.schemas import (
     PortfolioSummaryRead,
     PositionEventRead,
     PositionRead,
+    ReconciliationResultRead,
     RefreshPricesResultRead,
 )
 
@@ -86,6 +88,22 @@ async def list_position_events(
 ) -> list[PositionEventRead]:
     repo = PositionEventRepository(session)
     return await repo.list_by_position(position_id, limit=limit, offset=offset)
+
+
+@router.post("/accounts/{account_id}/positions/reconcile", response_model=ReconciliationResultRead)
+async def reconcile_positions(
+    account_id: int,
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> ReconciliationResultRead:
+    """브로커 잔고와 DB 포지션을 비교해 불일치를 탐지한다.
+
+    paper 계좌: 불일치 발견 시 DB를 broker 기준으로 동기화한다.
+    real 계좌: 불일치 발견 시 risk_event만 기록하고 DB는 수정하지 않는다.
+    """
+    svc = PositionReconciliationService(session, broker)
+    result = await svc.reconcile(account_id)
+    return ReconciliationResultRead.from_result(result)
 
 
 @router.get("/positions/{account_id}/{symbol_code}", response_model=PositionRead)

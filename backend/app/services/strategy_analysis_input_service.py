@@ -37,6 +37,8 @@ _LIMITATIONS: list[str] = [
     "Actual trading PnL may be incomplete when pnl_amount is null.",
     "Paper trading order status may lag or differ from real trading."
     " Fill status is synchronized via VTTC0081R daily order execution inquiry when available.",
+    "Broker balance reconciliation (POST /accounts/{account_id}/positions/reconcile)"
+    " is available to verify position accuracy against the broker's actual holdings.",
     "This is not financial advice.",
 ]
 

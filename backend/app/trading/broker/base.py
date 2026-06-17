@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from app.trading.broker.schemas import (
     AccountBalance,
     AccountHolding,
+    BrokerPositionItem,
     MinuteCandle,
     OrderExecution,
     OrderRequest,
@@ -43,3 +44,11 @@ class BrokerClient(ABC):
     async def get_daily_executions(
         self, start_date: str | None = None, end_date: str | None = None
     ) -> list[OrderExecution]: ...
+
+    async def get_broker_positions(self) -> list[BrokerPositionItem]:
+        """브로커 잔고 포지션 목록을 BrokerPositionItem으로 반환한다.
+
+        기본 구현은 NotImplementedError를 발생시킨다. 포지션 정합성 검사(C-2.10)를
+        지원하는 구현체는 이 메서드를 오버라이드해야 한다.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_broker_positions")
