@@ -208,6 +208,9 @@ async def create_analysis_run(
             prompt_type=payload.prompt_type,
             provider_name=payload.provider,
             model=payload.model,
+            mode=payload.mode,
+            secondary_provider_name=payload.secondary_provider,
+            secondary_model=payload.secondary_model,
         )
     except UnsupportedPromptTypeError:
         supported = ", ".join(sorted(SUPPORTED_PROMPT_TYPES))

@@ -1,16 +1,26 @@
-"""AI Analysis Run API 스키마 (C-2.4).
+"""AI Analysis Run API 스키마 (C-2.4 / C-2.5).
 
 AiAnalysisRun / AiModelResponse ORM 객체를 API 응답으로 직렬화하기 위한 Pydantic 모델.
 """
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class AnalysisRunCreateRequest(BaseModel):
     prompt_type: str = "overview"
+    mode: Literal["single", "dual"] = "single"
     provider: str = "fake"
     model: str | None = None
+    secondary_provider: str | None = None
+    secondary_model: str | None = None
+
+    @model_validator(mode="after")
+    def _require_secondary_for_dual(self) -> "AnalysisRunCreateRequest":
+        if self.mode == "dual" and not self.secondary_provider:
+            raise ValueError("secondary_provider is required when mode='dual'")
+        return self
 
 
 class AiModelResponseRead(BaseModel):
@@ -40,6 +50,7 @@ class AnalysisRunRead(BaseModel):
     target_id: int
     strategy_id: int | None
     strategy_version_id: int | None
+    mode: str
     prompt_type: str
     provider: str
     model: str

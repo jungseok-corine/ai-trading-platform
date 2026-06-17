@@ -1,12 +1,12 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 from app.domain.models._types import pg_enum
-from app.domain.models.enums import AnalysisRunStatus, AnalysisRunType, AnalysisTargetType
+from app.domain.models.enums import AnalysisRunMode, AnalysisRunStatus, AnalysisRunType, AnalysisTargetType
 
 
 class AiAnalysisRun(Base):
@@ -32,6 +32,11 @@ class AiAnalysisRun(Base):
     strategy_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategy_versions.id", ondelete="SET NULL"), nullable=True
     )
+    mode: Mapped[AnalysisRunMode] = mapped_column(
+        pg_enum(AnalysisRunMode, "analysis_run_mode"),
+        nullable=False,
+        server_default="single",
+    )
     prompt_type: Mapped[str] = mapped_column(String(50), nullable=False)
     provider: Mapped[str] = mapped_column(String(30), nullable=False)
     model: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -39,7 +44,9 @@ class AiAnalysisRun(Base):
         pg_enum(AnalysisRunStatus, "analysis_run_status"), nullable=False
     )
     input_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     warnings: Mapped[list | None] = mapped_column(JSONB, nullable=True)

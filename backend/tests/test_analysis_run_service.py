@@ -1,4 +1,4 @@
-"""AI Analysis Run Service (Phase C-2.4 / C-2.4.1) 통합 테스트.
+"""AI Analysis Run Service (Phase C-2.4 / C-2.4.1 / C-2.5) 통합 테스트.
 
 검증 항목:
   1. fake provider로 analysis run 생성 성공
@@ -23,6 +23,15 @@
   19. 동일 입력 → 동일 input_hash
   20. 다른 prompt_type → 다른 input_hash
   21. GET run API 응답에 input_hash / prompt_hash 포함
+  --- C-2.5: Dual-Model ---
+  22. dual mode — responses 2개 저장
+  23. dual mode — role이 primary_analysis / secondary_analysis
+  24. dual mode — input_hash / prompt_hash 공유 (run 레벨)
+  25. secondary_provider 누락 시 422 validation error
+  26. dual mode secondary provider 실패 → run FAILED + 성공 response 보존
+  27. unsupported secondary provider → 400
+  28. API dual mode 성공 (201, 2 responses)
+  29. mode 컬럼이 응답에 포함됨
 """
 from unittest.mock import AsyncMock, patch
 
@@ -550,3 +559,224 @@ async def test_api_get_run_includes_hashes(db_session: AsyncSession) -> None:
     assert len(body["input_hash"]) == 64
     assert body["prompt_hash"] is not None
     assert len(body["prompt_hash"]) == 64
+
+
+# ---------------------------------------------------------------------------
+# 22. dual mode — responses 2개 저장  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_mode_saves_two_responses(db_session: AsyncSession) -> None:
+    """dual mode로 생성된 run은 ai_model_responses가 2개이다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+    )
+
+    assert run is not None
+    assert len(run.responses) == 2
+
+
+# ---------------------------------------------------------------------------
+# 23. dual mode — role  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_mode_response_roles(db_session: AsyncSession) -> None:
+    """dual mode responses의 role이 primary_analysis / secondary_analysis이다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+    )
+
+    assert run is not None
+    roles = {r.role for r in run.responses}
+    assert roles == {"primary_analysis", "secondary_analysis"}
+
+
+# ---------------------------------------------------------------------------
+# 24. dual mode — input_hash / prompt_hash 공유  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_mode_shares_hashes(db_session: AsyncSession) -> None:
+    """dual mode run은 input_hash / prompt_hash가 run 레벨에서 공유된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(
+        strat.id, ver.id, "overview", "fake",
+        mode="dual",
+        secondary_provider_name="fake",
+        secondary_model="fake-claude-1.0",
+    )
+
+    assert run is not None
+    assert run.input_hash is not None
+    assert len(run.input_hash) == 64
+    assert run.prompt_hash is not None
+    assert len(run.prompt_hash) == 64
+    # 두 responses 모두 같은 run에 속하므로 hash는 run 레벨에서 공유됨
+    assert len(run.responses) == 2
+    assert all(r.run_id == run.id for r in run.responses)
+
+
+# ---------------------------------------------------------------------------
+# 25. secondary_provider 누락 → 422 validation error  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_dual_mode_missing_secondary_provider_returns_422(
+    db_session: AsyncSession,
+) -> None:
+    """dual mode에서 secondary_provider 없이 요청하면 422 (Pydantic validation error)."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={"prompt_type": "overview", "mode": "dual", "provider": "fake"},
+        )
+
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 26. dual mode secondary 실패 → run FAILED + 성공 response 보존  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_dual_mode_secondary_failure_preserves_primary_response(
+    db_session: AsyncSession,
+) -> None:
+    """dual mode에서 secondary 실패 시 run.status=FAILED, primary response는 보존된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    from app.services.ai_analysis.schemas import AnalysisProviderResult
+
+    _primary_result = AnalysisProviderResult(
+        provider="fake", model="fake-1.0", content="primary ok",
+        prompt_tokens=10, completion_tokens=5, total_tokens=15,
+        latency_ms=42, finish_reason="stop", raw=None,
+    )
+    call_count = 0
+
+    async def _flaky_analyze(prompt: str, *, model=None, timeout_seconds=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:  # secondary call
+            raise AnalysisProviderError(provider="fake", message="secondary failure")
+        return _primary_result
+
+    with patch(
+        "app.services.ai_analysis.fake.FakeAnalysisProvider.analyze",
+        new_callable=AsyncMock,
+        side_effect=_flaky_analyze,
+    ):
+        run = await svc.create_run(
+            strat.id, ver.id, "overview", "fake",
+            mode="dual",
+            secondary_provider_name="fake",
+            secondary_model="fake-claude-1.0",
+        )
+
+    assert run is not None
+    assert run.status == AnalysisRunStatus.FAILED
+    assert run.error_message is not None
+    assert "secondary" in run.error_message.lower()
+    # 두 responses 모두 저장되어야 함 (primary 성공 + secondary 에러)
+    assert len(run.responses) == 2
+    primary_resp = next(r for r in run.responses if r.role == "primary_analysis")
+    secondary_resp = next(r for r in run.responses if r.role == "secondary_analysis")
+    assert primary_resp.content is not None
+    assert primary_resp.finish_reason == "stop"
+    assert secondary_resp.finish_reason == "error"
+    assert secondary_resp.error_message == "secondary failure"
+
+
+# ---------------------------------------------------------------------------
+# 27. unsupported secondary provider → 400  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_dual_mode_unsupported_secondary_provider_returns_400(
+    db_session: AsyncSession,
+) -> None:
+    """dual mode에서 미구현 secondary provider → 400."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={
+                "prompt_type": "overview",
+                "mode": "dual",
+                "provider": "fake",
+                "secondary_provider": "openai",
+            },
+        )
+
+    assert resp.status_code == 400
+    assert "openai" in resp.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# 28. API dual mode 성공 (201, 2 responses)  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_dual_mode_returns_201_with_two_responses(db_session: AsyncSession) -> None:
+    """POST dual mode → 201, responses에 2개의 항목이 있다."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={
+                "prompt_type": "overview",
+                "mode": "dual",
+                "provider": "fake",
+                "secondary_provider": "fake",
+                "secondary_model": "fake-claude-1.0",
+            },
+        )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["mode"] == "dual"
+    assert body["status"] == "succeeded"
+    assert len(body["responses"]) == 2
+    roles = {r["role"] for r in body["responses"]}
+    assert roles == {"primary_analysis", "secondary_analysis"}
+
+
+# ---------------------------------------------------------------------------
+# 29. mode 컬럼이 API 응답에 포함됨  (C-2.5)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_single_mode_response_includes_mode_field(db_session: AsyncSession) -> None:
+    """단일 모드 POST 응답에도 mode='single' 필드가 포함된다."""
+    strat, ver = await _make_strategy_version(db_session)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
+            json={"prompt_type": "overview", "provider": "fake"},
+        )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert "mode" in body
+    assert body["mode"] == "single"

@@ -64,3 +64,8 @@ class AnalysisRunType(str, enum.Enum):
 
 class AnalysisTargetType(str, enum.Enum):
     STRATEGY_VERSION = "strategy_version"
+
+
+class AnalysisRunMode(str, enum.Enum):
+    SINGLE = "single"
+    DUAL = "dual"
