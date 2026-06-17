@@ -302,6 +302,53 @@ export interface WatchlistBulkStrategyCreateResponse {
   items: WatchlistBulkStrategyCreateItem[];
 }
 
+export interface StrategyVersionPerformanceByHorizon {
+  horizon_minutes: number;
+  count: number;
+  win_rate: string;
+  avg_return_pct: string;
+  avg_directional_return_pct: string;
+  avg_mfe_pct: string | null;
+  avg_mae_pct: string | null;
+}
+
+export interface StrategyVersionPerformanceBySignalType {
+  signal_type: TradeSide;
+  signal_count: number;
+  analyzed_count: number;
+  win_rate_5m: string | null;
+  avg_directional_return_pct_5m: string | null;
+}
+
+export interface StrategyVersionPerformanceBySymbol {
+  symbol_code: string;
+  signal_count: number;
+  analyzed_count: number;
+  win_rate_5m: string | null;
+  avg_directional_return_pct_5m: string | null;
+}
+
+export interface StrategyVersionActualTradingPerformance {
+  trade_count: number;
+  filled_count: number;
+  total_pnl_amount: string | null;
+  win_trade_count: number | null;
+  loss_trade_count: number | null;
+  note: string;
+}
+
+export interface StrategyVersionPerformanceRead {
+  strategy_id: number;
+  strategy_version_id: number;
+  total_signals: number;
+  analyzed_signals: number;
+  skipped_signals: number;
+  by_horizon: StrategyVersionPerformanceByHorizon[];
+  by_signal_type: StrategyVersionPerformanceBySignalType[];
+  by_symbol: StrategyVersionPerformanceBySymbol[];
+  actual_trading: StrategyVersionActualTradingPerformance | null;
+}
+
 export interface SignalOutcomeHorizonResult {
   horizon_minutes: number;
   close_price: string | null;

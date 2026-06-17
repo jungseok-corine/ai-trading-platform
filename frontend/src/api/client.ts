@@ -17,6 +17,7 @@ import type {
   StrategyRunResult,
   StrategyVersion,
   StrategyVersionCreateRequest,
+  StrategyVersionPerformanceRead,
   StrategyVersionUpdateRequest,
   Trade,
   Watchlist,
@@ -137,6 +138,16 @@ export async function createStrategyVersion(
   payload: StrategyVersionCreateRequest,
 ): Promise<StrategyVersion> {
   const { data } = await apiClient.post<StrategyVersion>(`/strategies/${strategyId}/versions`, payload);
+  return data;
+}
+
+export async function getVersionPerformance(
+  strategyId: number,
+  versionId: number,
+): Promise<StrategyVersionPerformanceRead> {
+  const { data } = await apiClient.get<StrategyVersionPerformanceRead>(
+    `/strategies/${strategyId}/versions/${versionId}/performance`,
+  );
   return data;
 }
 

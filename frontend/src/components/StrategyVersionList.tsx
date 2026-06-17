@@ -1,9 +1,11 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getStrategyVersions, updateStrategyVersion } from "../api/client";
+import { useSettings } from "../i18n/SettingsContext";
 import type { StrategyVersion, StrategyVersionStatus } from "../types";
 import StrategyVersionCreateForm from "./StrategyVersionCreateForm";
 import StrategyVersionEditor from "./StrategyVersionEditor";
+import StrategyVersionPerformancePanel from "./StrategyVersionPerformancePanel";
 
 interface StrategyVersionListProps {
   strategyId: number;
@@ -50,7 +52,9 @@ function StatusSelect({ version }: { version: StrategyVersion }) {
 }
 
 export default function StrategyVersionList({ strategyId }: StrategyVersionListProps) {
+  const { t } = useSettings();
   const [editingVersionId, setEditingVersionId] = useState<number | null>(null);
+  const [performingVersionId, setPerformingVersionId] = useState<number | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["strategy-versions", strategyId],
@@ -80,34 +84,61 @@ export default function StrategyVersionList({ strategyId }: StrategyVersionListP
                 <th>MDD</th>
                 <th>Updated At</th>
                 <th>Actions</th>
+                <th>성과</th>
               </tr>
             </thead>
             <tbody>
               {data.map((version) => (
-                <tr key={version.id}>
-                  <td>{version.id}</td>
-                  <td>{version.version_no}</td>
-                  <td>
-                    <StatusSelect version={version} />
-                  </td>
-                  <td>
-                    <pre className="parameters-cell">{JSON.stringify(version.parameters, null, 2)}</pre>
-                  </td>
-                  <td>{version.win_rate ?? "-"}</td>
-                  <td>{version.avg_profit ?? "-"}</td>
-                  <td>{version.avg_loss ?? "-"}</td>
-                  <td>{version.mdd ?? "-"}</td>
-                  <td>{version.updated_at}</td>
-                  <td>
-                    <button
-                      onClick={() =>
-                        setEditingVersionId(editingVersionId === version.id ? null : version.id)
-                      }
-                    >
-                      {editingVersionId === version.id ? "닫기" : "편집"}
-                    </button>
-                  </td>
-                </tr>
+                <React.Fragment key={version.id}>
+                  <tr>
+                    <td>{version.id}</td>
+                    <td>{version.version_no}</td>
+                    <td>
+                      <StatusSelect version={version} />
+                    </td>
+                    <td>
+                      <pre className="parameters-cell">{JSON.stringify(version.parameters, null, 2)}</pre>
+                    </td>
+                    <td>{version.win_rate ?? "-"}</td>
+                    <td>{version.avg_profit ?? "-"}</td>
+                    <td>{version.avg_loss ?? "-"}</td>
+                    <td>{version.mdd ?? "-"}</td>
+                    <td>{version.updated_at}</td>
+                    <td>
+                      <button
+                        onClick={() =>
+                          setEditingVersionId(editingVersionId === version.id ? null : version.id)
+                        }
+                      >
+                        {editingVersionId === version.id ? "닫기" : "편집"}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        className="outcome-expand-btn"
+                        onClick={() =>
+                          setPerformingVersionId(
+                            performingVersionId === version.id ? null : version.id,
+                          )
+                        }
+                      >
+                        {performingVersionId === version.id
+                          ? t.performance.hidePerformance
+                          : t.performance.showPerformance}
+                      </button>
+                    </td>
+                  </tr>
+                  {performingVersionId === version.id && (
+                    <tr className="outcome-panel-row">
+                      <td colSpan={11}>
+                        <StrategyVersionPerformancePanel
+                          strategyId={strategyId}
+                          versionId={version.id}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

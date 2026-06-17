@@ -247,6 +247,39 @@ export interface Translations {
     colAvgReturn: string;
     noSummary: string;
   };
+  performance: {
+    showPerformance: string;
+    hidePerformance: string;
+    refresh: string;
+    loading: string;
+    loadError: string;
+    totalSignals: string;
+    analyzedSignals: string;
+    skippedSignals: string;
+    horizonTitle: string;
+    colHorizon: string;
+    colCount: string;
+    colWinRate: string;
+    colAvgDirectional: string;
+    colMfe: string;
+    colMae: string;
+    signalTypeTitle: string;
+    colSignalType: string;
+    colSignalCount: string;
+    colAnalyzedCount: string;
+    colWinRate5m: string;
+    colAvgDir5m: string;
+    symbolTitle: string;
+    colSymbol: string;
+    tradingTitle: string;
+    tradeCount: string;
+    filledCount: string;
+    totalPnl: string;
+    winTrades: string;
+    lossTrades: string;
+    noPnlData: string;
+    noSignalData: string;
+  };
   settings: {
     language: string;
     languageKo: string;
@@ -581,6 +614,39 @@ export const translations: Record<Language, Translations> = {
       colAvgReturn: "평균 방향수익",
       noSummary: "분석된 신호가 없습니다.",
     },
+    performance: {
+      showPerformance: "성과 보기",
+      hidePerformance: "닫기",
+      refresh: "새로고침",
+      loading: "분석 중...",
+      loadError: "성과 데이터 조회 실패",
+      totalSignals: "총 신호",
+      analyzedSignals: "분석 완료",
+      skippedSignals: "데이터 부족",
+      horizonTitle: "시간 경과별 성과",
+      colHorizon: "경과",
+      colCount: "건수",
+      colWinRate: "승률",
+      colAvgDirectional: "평균 방향수익",
+      colMfe: "평균 MFE",
+      colMae: "평균 MAE",
+      signalTypeTitle: "신호 유형별",
+      colSignalType: "신호 유형",
+      colSignalCount: "신호 수",
+      colAnalyzedCount: "분석 수",
+      colWinRate5m: "5분 승률",
+      colAvgDir5m: "5분 방향수익",
+      symbolTitle: "종목별",
+      colSymbol: "종목코드",
+      tradingTitle: "실제 체결 성과",
+      tradeCount: "주문 수",
+      filledCount: "체결 수",
+      totalPnl: "실현 손익",
+      winTrades: "수익 체결",
+      lossTrades: "손실 체결",
+      noPnlData: "실현 손익 데이터 부족",
+      noSignalData: "분석된 신호가 없습니다.",
+    },
     settings: {
       language: "언어",
       languageKo: "한국어",
@@ -911,6 +977,39 @@ export const translations: Record<Language, Translations> = {
       colWinRate: "Win Rate",
       colAvgReturn: "Avg Dir. Return",
       noSummary: "No analyzed signals yet.",
+    },
+    performance: {
+      showPerformance: "Performance",
+      hidePerformance: "Close",
+      refresh: "Refresh",
+      loading: "Analyzing...",
+      loadError: "Failed to load performance data",
+      totalSignals: "Total Signals",
+      analyzedSignals: "Analyzed",
+      skippedSignals: "No Data",
+      horizonTitle: "Performance by Horizon",
+      colHorizon: "Horizon",
+      colCount: "Count",
+      colWinRate: "Win Rate",
+      colAvgDirectional: "Avg Dir. Return",
+      colMfe: "Avg MFE",
+      colMae: "Avg MAE",
+      signalTypeTitle: "By Signal Type",
+      colSignalType: "Type",
+      colSignalCount: "Signals",
+      colAnalyzedCount: "Analyzed",
+      colWinRate5m: "5m Win Rate",
+      colAvgDir5m: "5m Dir. Return",
+      symbolTitle: "By Symbol",
+      colSymbol: "Symbol",
+      tradingTitle: "Actual Trading",
+      tradeCount: "Orders",
+      filledCount: "Filled",
+      totalPnl: "Realized PnL",
+      winTrades: "Win Trades",
+      lossTrades: "Loss Trades",
+      noPnlData: "Insufficient PnL data",
+      noSignalData: "No analyzed signals yet.",
     },
     settings: {
       language: "Language",

@@ -466,3 +466,46 @@ tr.selected {
   border-bottom: none;
   min-width: 70px;
 }
+
+.perf-panel {
+  padding: 10px 16px 12px;
+}
+
+.perf-overview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.perf-stat {
+  font-size: 12px;
+}
+
+.perf-section-title {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.perf-trading {
+  margin-top: 10px;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+
+.perf-trading-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.perf-note {
+  font-size: 11px;
+  color: #888;
+  margin: 4px 0 0;
+}
