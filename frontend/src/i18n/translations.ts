@@ -237,6 +237,7 @@ export interface Translations {
     loss: string;
     noData: string;
     na: string;
+    refresh: string;
     summaryTitle: string;
     summaryDescription: string;
     analyzedCount: string;
@@ -570,6 +571,7 @@ export const translations: Record<Language, Translations> = {
       loss: "패",
       noData: "market_data 없음",
       na: "N/A",
+      refresh: "새로고침",
       summaryTitle: "신호 성과 요약",
       summaryDescription: "최근 신호 발생 이후 실제 가격 반응을 집계합니다. 방향수익은 BUY/SELL 방향 기준으로 양수=유리, 음수=불리입니다.",
       analyzedCount: "분석 완료",
@@ -900,6 +902,7 @@ export const translations: Record<Language, Translations> = {
       loss: "L",
       noData: "No market_data",
       na: "N/A",
+      refresh: "Refresh",
       summaryTitle: "Signal Outcome Summary",
       summaryDescription: "Aggregates actual price reactions after recent signals. Directional return is positive when price moves in the signal direction.",
       analyzedCount: "Analyzed",

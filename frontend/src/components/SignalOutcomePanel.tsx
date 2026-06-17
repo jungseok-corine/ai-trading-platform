@@ -45,11 +45,21 @@ function HorizonCell({ h }: { h: SignalOutcomeHorizonResult }) {
 
 export default function SignalOutcomePanel({ signalId }: { signalId: number }) {
   const { t } = useSettings();
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["signal-outcome", signalId],
     queryFn: () => getSignalOutcome(signalId),
     retry: false,
   });
+
+  const refreshBtn = (
+    <button
+      className="outcome-refresh-btn"
+      disabled={isFetching}
+      onClick={() => void refetch()}
+    >
+      {isFetching ? t.common.loading : t.signalOutcome.refresh}
+    </button>
+  );
 
   if (isLoading) {
     return (
@@ -61,8 +71,9 @@ export default function SignalOutcomePanel({ signalId }: { signalId: number }) {
 
   if (isError) {
     return (
-      <div className="outcome-panel">
+      <div className="outcome-panel outcome-panel-row">
         <span className="muted">{t.common.loadError}</span>
+        {refreshBtn}
       </div>
     );
   }
@@ -71,8 +82,9 @@ export default function SignalOutcomePanel({ signalId }: { signalId: number }) {
 
   if (!data.available) {
     return (
-      <div className="outcome-panel">
+      <div className="outcome-panel outcome-panel-row">
         <span className="muted">{data.note ?? t.signalOutcome.noData}</span>
+        {refreshBtn}
       </div>
     );
   }
@@ -95,6 +107,7 @@ export default function SignalOutcomePanel({ signalId }: { signalId: number }) {
             {t.signalOutcome.mae}: <span className="value error">-{parseFloat(data.mae_pct).toFixed(2)}%</span>
           </span>
         )}
+        <span style={{ marginLeft: "auto" }}>{refreshBtn}</span>
       </div>
       <table className="outcome-table">
         <thead>
