@@ -289,6 +289,56 @@ export interface Translations {
     timezoneBangkok: string;
     timezoneUtc: string;
   };
+  aiAnalysis: {
+    sectionTitle: string;
+    safetyNote: string;
+    safetyNote2: string;
+    providerTitle: string;
+    statusAvailable: string;
+    statusMissingConfig: string;
+    statusNotImplemented: string;
+    runFormTitle: string;
+    labelPromptType: string;
+    labelMode: string;
+    labelProvider: string;
+    labelSecondaryProvider: string;
+    labelEnableCritique: string;
+    labelEnableSynthesis: string;
+    btnRun: string;
+    btnRunning: string;
+    btnRefresh: string;
+    btnShowRuns: string;
+    btnHideRuns: string;
+    warningMissingConfig: string;
+    runListTitle: string;
+    runListEmpty: string;
+    runListLoading: string;
+    colRunId: string;
+    colMode: string;
+    colStatus: string;
+    colProvider: string;
+    colPromptType: string;
+    colCreatedAt: string;
+    colActions: string;
+    btnDetail: string;
+    btnHideDetail: string;
+    detailTitle: string;
+    detailStatus: string;
+    detailError: string;
+    detailInputHash: string;
+    detailResponses: string;
+    roleLabel: string;
+    providerLabel: string;
+    modelLabel: string;
+    tokensLabel: string;
+    latencyLabel: string;
+    finishLabel: string;
+    contentLabel: string;
+    errorLabel: string;
+    warnLengthTruncated: string;
+    loadError: string;
+    createError: string;
+  };
 }
 
 export const translations: Record<Language, Translations> = {
@@ -656,6 +706,56 @@ export const translations: Record<Language, Translations> = {
       timezoneBangkok: "태국 시간",
       timezoneUtc: "서버 시간 (UTC)",
     },
+    aiAnalysis: {
+      sectionTitle: "AI 분석",
+      safetyNote: "AI 분석은 연구·검토 목적으로만 사용됩니다.",
+      safetyNote2: "매매 주문을 자동으로 실행하거나 전략을 변경하지 않습니다.",
+      providerTitle: "AI Provider 상태",
+      statusAvailable: "사용 가능",
+      statusMissingConfig: "API 키 미설정",
+      statusNotImplemented: "미구현",
+      runFormTitle: "분석 실행",
+      labelPromptType: "분석 유형",
+      labelMode: "모드",
+      labelProvider: "Primary Provider",
+      labelSecondaryProvider: "Secondary Provider",
+      labelEnableCritique: "상호 비판 (Critique)",
+      labelEnableSynthesis: "종합 (Synthesis)",
+      btnRun: "분석 실행",
+      btnRunning: "실행 중...",
+      btnRefresh: "새로고침",
+      btnShowRuns: "분석 기록",
+      btnHideRuns: "닫기",
+      warningMissingConfig: "선택한 provider의 API 키가 설정되지 않았습니다. .env를 확인하세요.",
+      runListTitle: "분석 기록",
+      runListEmpty: "분석 기록이 없습니다.",
+      runListLoading: "불러오는 중...",
+      colRunId: "ID",
+      colMode: "모드",
+      colStatus: "상태",
+      colProvider: "Provider",
+      colPromptType: "유형",
+      colCreatedAt: "생성시각",
+      colActions: "상세",
+      btnDetail: "보기",
+      btnHideDetail: "닫기",
+      detailTitle: "분석 결과",
+      detailStatus: "상태",
+      detailError: "오류",
+      detailInputHash: "Input Hash",
+      detailResponses: "응답",
+      roleLabel: "역할",
+      providerLabel: "Provider",
+      modelLabel: "모델",
+      tokensLabel: "토큰",
+      latencyLabel: "지연",
+      finishLabel: "종료 이유",
+      contentLabel: "내용",
+      errorLabel: "오류",
+      warnLengthTruncated: "응답이 토큰 제한으로 잘렸습니다. max token 설정을 늘리거나 prompt를 줄이세요.",
+      loadError: "분석 기록 조회 실패",
+      createError: "분석 실행 실패",
+    },
   },
   en: {
     nav: {
@@ -1019,6 +1119,56 @@ export const translations: Record<Language, Translations> = {
       timezoneSeoul: "Korea Time",
       timezoneBangkok: "Thailand Time",
       timezoneUtc: "Server Time (UTC)",
+    },
+    aiAnalysis: {
+      sectionTitle: "AI Analysis",
+      safetyNote: "AI analysis is for research and review only.",
+      safetyNote2: "It does not place trades or modify strategies automatically.",
+      providerTitle: "AI Provider Status",
+      statusAvailable: "Available",
+      statusMissingConfig: "API key not set",
+      statusNotImplemented: "Not implemented",
+      runFormTitle: "Run Analysis",
+      labelPromptType: "Analysis Type",
+      labelMode: "Mode",
+      labelProvider: "Primary Provider",
+      labelSecondaryProvider: "Secondary Provider",
+      labelEnableCritique: "Mutual Critique",
+      labelEnableSynthesis: "Synthesis",
+      btnRun: "Run Analysis",
+      btnRunning: "Running...",
+      btnRefresh: "Refresh",
+      btnShowRuns: "Analysis History",
+      btnHideRuns: "Close",
+      warningMissingConfig: "Selected provider API key is not configured. Check your .env file.",
+      runListTitle: "Analysis History",
+      runListEmpty: "No analysis runs yet.",
+      runListLoading: "Loading...",
+      colRunId: "ID",
+      colMode: "Mode",
+      colStatus: "Status",
+      colProvider: "Provider",
+      colPromptType: "Type",
+      colCreatedAt: "Created",
+      colActions: "Detail",
+      btnDetail: "View",
+      btnHideDetail: "Close",
+      detailTitle: "Analysis Result",
+      detailStatus: "Status",
+      detailError: "Error",
+      detailInputHash: "Input Hash",
+      detailResponses: "Responses",
+      roleLabel: "Role",
+      providerLabel: "Provider",
+      modelLabel: "Model",
+      tokensLabel: "Tokens",
+      latencyLabel: "Latency",
+      finishLabel: "Finish Reason",
+      contentLabel: "Content",
+      errorLabel: "Error",
+      warnLengthTruncated: "Response was truncated by token limit. Increase max_tokens or reduce prompt length.",
+      loadError: "Failed to load analysis runs",
+      createError: "Failed to run analysis",
     },
   },
 };

@@ -6,6 +6,7 @@ import type { StrategyVersion, StrategyVersionStatus } from "../types";
 import StrategyVersionCreateForm from "./StrategyVersionCreateForm";
 import StrategyVersionEditor from "./StrategyVersionEditor";
 import StrategyVersionPerformancePanel from "./StrategyVersionPerformancePanel";
+import StrategyAnalysisRunPanel from "./StrategyAnalysisRunPanel";
 
 interface StrategyVersionListProps {
   strategyId: number;
@@ -55,6 +56,7 @@ export default function StrategyVersionList({ strategyId }: StrategyVersionListP
   const { t } = useSettings();
   const [editingVersionId, setEditingVersionId] = useState<number | null>(null);
   const [performingVersionId, setPerformingVersionId] = useState<number | null>(null);
+  const [analysisVersionId, setAnalysisVersionId] = useState<number | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["strategy-versions", strategyId],
@@ -85,6 +87,7 @@ export default function StrategyVersionList({ strategyId }: StrategyVersionListP
                 <th>Updated At</th>
                 <th>Actions</th>
                 <th>성과</th>
+                <th>AI 분석</th>
               </tr>
             </thead>
             <tbody>
@@ -127,11 +130,35 @@ export default function StrategyVersionList({ strategyId }: StrategyVersionListP
                           : t.performance.showPerformance}
                       </button>
                     </td>
+                    <td>
+                      <button
+                        className="outcome-expand-btn"
+                        onClick={() =>
+                          setAnalysisVersionId(
+                            analysisVersionId === version.id ? null : version.id,
+                          )
+                        }
+                      >
+                        {analysisVersionId === version.id
+                          ? t.aiAnalysis.btnHideRuns
+                          : t.aiAnalysis.sectionTitle}
+                      </button>
+                    </td>
                   </tr>
                   {performingVersionId === version.id && (
                     <tr className="outcome-panel-row">
-                      <td colSpan={11}>
+                      <td colSpan={12}>
                         <StrategyVersionPerformancePanel
+                          strategyId={strategyId}
+                          versionId={version.id}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {analysisVersionId === version.id && (
+                    <tr className="outcome-panel-row">
+                      <td colSpan={12}>
+                        <StrategyAnalysisRunPanel
                           strategyId={strategyId}
                           versionId={version.id}
                         />

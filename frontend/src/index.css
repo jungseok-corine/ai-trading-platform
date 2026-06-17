@@ -509,3 +509,269 @@ tr.selected {
   color: #888;
   margin: 4px 0 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * AI Analysis (C-2.8)
+ * ---------------------------------------------------------------------------*/
+
+.strategy-analysis-run-panel {
+  padding: 10px 16px 14px;
+  font-size: 13px;
+}
+
+.ai-safety-note {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #fff8e1;
+  border-left: 3px solid #f6c000;
+  padding: 6px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.ai-provider-status-panel {
+  margin-bottom: 10px;
+}
+
+.ai-provider-status-panel h5 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+}
+
+.provider-status-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.provider-status.available {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.provider-status.missing {
+  background: #fff3e0;
+  border-color: #ffcc80;
+  color: #e65100;
+}
+
+.provider-status.not-impl {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
+  color: #9e9e9e;
+}
+
+.analysis-run-form {
+  margin-bottom: 12px;
+}
+
+.analysis-run-form h5 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.config-warning {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.analysis-run-history {
+  margin-top: 12px;
+}
+
+.run-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.run-list-header h5 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.run-list-table {
+  font-size: 12px;
+  width: 100%;
+}
+
+.run-detail-row td {
+  padding: 0;
+  background: #f9f9f9;
+}
+
+.analysis-run-detail {
+  padding: 10px 16px;
+  font-size: 12px;
+}
+
+.analysis-run-detail h5 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.run-meta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.run-error {
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+
+.run-warnings {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.warn-item {
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.run-responses h6 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+}
+
+.model-response-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+
+.model-response-card.response-error {
+  border-color: #ef9a9a;
+  background: #fff5f5;
+}
+
+.response-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.response-index {
+  font-size: 11px;
+  color: #aaa;
+  font-weight: 700;
+  min-width: 16px;
+}
+
+.role-badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.role-badge.analysis {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.role-badge.critique {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.role-badge.synthesis {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.response-provider {
+  font-size: 11px;
+  color: #888;
+}
+
+.warn-truncated {
+  font-size: 11px;
+  color: #e65100;
+  background: #fff3e0;
+  border-left: 3px solid #ffcc80;
+  padding: 3px 7px;
+  margin: 0 0 6px;
+  border-radius: 2px;
+}
+
+.response-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.response-error-body {
+  font-size: 12px;
+}
+
+.response-content-details summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #666;
+  user-select: none;
+}
+
+.response-content {
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+  padding: 6px 8px;
+  margin: 4px 0 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.hash-value {
+  font-size: 11px;
+  color: #888;
+  font-family: monospace;
+}
+
+.label {
+  color: #888;
+  font-size: 11px;
+}
+
+.value.success {
+  color: #2e7d32;
+  font-weight: 600;
+}

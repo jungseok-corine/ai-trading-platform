@@ -402,6 +402,76 @@ export interface SignalOutcomeSummary {
   by_signal_type: SignalOutcomeBySignalType[];
 }
 
+// ---------------------------------------------------------------------------
+// AI Analysis (C-2.8)
+// ---------------------------------------------------------------------------
+
+export type AIProviderStatus = "available" | "missing_config" | "not_implemented";
+
+export interface AIProviderStatusRead {
+  provider: string;
+  implemented: boolean;
+  configured: boolean;
+  default_model: string | null;
+  missing_settings: string[];
+  status: AIProviderStatus;
+  note: string | null;
+}
+
+export type AnalysisRunMode = "single" | "dual";
+export type AnalysisRunStatus = "running" | "succeeded" | "failed";
+export type PromptType = "overview" | "risk" | "improvement";
+
+export interface AIModelResponse {
+  id: number;
+  run_id: number;
+  role: string;
+  provider: string;
+  model: string;
+  content: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  latency_ms: number | null;
+  finish_reason: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface AnalysisRun {
+  id: number;
+  strategy_id: number;
+  strategy_version_id: number;
+  mode: AnalysisRunMode;
+  prompt_type: string;
+  provider: string;
+  model: string;
+  secondary_provider?: string | null;
+  secondary_model?: string | null;
+  status: AnalysisRunStatus;
+  input_hash: string | null;
+  prompt_hash: string | null;
+  prompt_length: number | null;
+  truncated: boolean;
+  warnings: string[] | null;
+  error_message: string | null;
+  responses: AIModelResponse[];
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface AnalysisRunCreateRequest {
+  prompt_type: PromptType;
+  provider: string;
+  model?: string | null;
+  mode?: AnalysisRunMode;
+  secondary_provider?: string | null;
+  secondary_model?: string | null;
+  enable_critique?: boolean;
+  enable_synthesis?: boolean;
+}
+
 export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   strategy_type: "moving_average_cross",
   symbol_code: "",

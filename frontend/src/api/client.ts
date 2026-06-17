@@ -1,5 +1,8 @@
 import axios from "axios";
 import type {
+  AIProviderStatusRead,
+  AnalysisRun,
+  AnalysisRunCreateRequest,
   BrokerSyncResult,
   EngineStatus,
   OrderSyncResult,
@@ -222,5 +225,41 @@ export async function setEmergencyStop(accountId: number, enabled: boolean): Pro
   const { data } = await apiClient.post<RiskConfig>(`/risk-config/${accountId}/emergency-stop`, {
     enabled,
   });
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// AI Analysis (C-2.8)
+// ---------------------------------------------------------------------------
+
+export async function getAIProviderStatuses(): Promise<AIProviderStatusRead[]> {
+  const { data } = await apiClient.get<AIProviderStatusRead[]>("/ai-analysis/providers");
+  return data;
+}
+
+export async function createStrategyAnalysisRun(
+  strategyId: number,
+  versionId: number,
+  request: AnalysisRunCreateRequest,
+): Promise<AnalysisRun> {
+  const { data } = await apiClient.post<AnalysisRun>(
+    `/strategies/${strategyId}/versions/${versionId}/analysis-runs`,
+    request,
+  );
+  return data;
+}
+
+export async function getStrategyAnalysisRuns(
+  strategyId: number,
+  versionId: number,
+): Promise<AnalysisRun[]> {
+  const { data } = await apiClient.get<AnalysisRun[]>(
+    `/strategies/${strategyId}/versions/${versionId}/analysis-runs`,
+  );
+  return data;
+}
+
+export async function getAnalysisRun(runId: number): Promise<AnalysisRun> {
+  const { data } = await apiClient.get<AnalysisRun>(`/analysis-runs/${runId}`);
   return data;
 }
