@@ -263,8 +263,10 @@ class SignalOutcomeHorizonResult(BaseModel):
 
     horizon_minutes: int
     close_price: Decimal | None
-    return_pct: Decimal | None  # (close - entry) / entry * 100; BUY: 양수=상승, SELL: 음수=하락이 좋음
+    return_pct: Decimal | None  # (close - entry) / entry * 100; 항상 raw — BUY 양수=좋음, SELL 음수=좋음
     available: bool  # False = market_data 없음
+    is_win: bool | None = None  # 신호 방향 기준 성공 여부; unavailable이면 None
+    directional_return_pct: Decimal | None = None  # BUY: return_pct 그대로; SELL: -return_pct; 양수=신호 방향 맞음
 
 
 class SignalOutcomeRead(BaseModel):

@@ -139,7 +139,7 @@ class SignalOutcomeService:
         if entry_price <= 0:
             return self._unavailable(signal, ref_ts=ref_ts, note="invalid entry_price (≤ 0)")
 
-        horizon_results = self._compute_horizons(ref_ts, entry_price, candles)
+        horizon_results = self._compute_horizons(ref_ts, entry_price, candles, signal.signal_type)
         mfe_pct, mae_pct = self._compute_excursions(signal.signal_type, entry_price, candles)
 
         return SignalOutcomeRead(
@@ -161,6 +161,7 @@ class SignalOutcomeService:
         ref_ts,
         entry_price: Decimal,
         candles: list[MarketData],
+        signal_type: TradeSide,
     ) -> list[SignalOutcomeHorizonResult]:
         results = []
         for h in HORIZONS:
@@ -173,14 +174,24 @@ class SignalOutcomeService:
                     close_price=None,
                     return_pct=None,
                     available=False,
+                    is_win=None,
+                    directional_return_pct=None,
                 ))
             else:
                 ret = _safe_pct(candle.close - entry_price, entry_price)
+                if ret is not None:
+                    is_win = _is_win(ret, signal_type)
+                    dir_ret = ret if signal_type == TradeSide.BUY else -ret
+                else:
+                    is_win = None
+                    dir_ret = None
                 results.append(SignalOutcomeHorizonResult(
                     horizon_minutes=h,
                     close_price=candle.close,
                     return_pct=ret,
                     available=ret is not None,
+                    is_win=is_win,
+                    directional_return_pct=dir_ret,
                 ))
         return results
 

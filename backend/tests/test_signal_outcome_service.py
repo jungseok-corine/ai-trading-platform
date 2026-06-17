@@ -499,3 +499,117 @@ async def test_api_outcomes_summary_max_limit_enforced(db_session: AsyncSession)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/api/v1/signals/outcomes/summary", params={"limit": 9999})
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 8. 방향성 필드 (is_win, directional_return_pct) — C-0.1
+# ---------------------------------------------------------------------------
+
+
+async def test_buy_win_directional_fields(db_session: AsyncSession) -> None:
+    """BUY 신호 이후 가격 상승 → is_win=True, directional_return_pct > 0."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.BUY, candle_ts=_ts(30))
+    # entry=100, 5분 후 close=110 → return_pct=+10%
+    db_session.add(_candle(db_session, minute=31, open_=100, close=100))
+    db_session.add(_candle(db_session, minute=35, close=110))
+    await db_session.flush()
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    h5 = next(h for h in outcome.horizons if h.horizon_minutes == 5)
+    assert h5.available is True
+    assert h5.is_win is True
+    assert h5.directional_return_pct is not None
+    assert h5.directional_return_pct > 0
+    assert h5.directional_return_pct == h5.return_pct  # BUY: 동일해야 함
+
+
+async def test_buy_loss_directional_fields(db_session: AsyncSession) -> None:
+    """BUY 신호 이후 가격 하락 → is_win=False, directional_return_pct < 0."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.BUY, candle_ts=_ts(30))
+    # entry=100, 5분 후 close=90 → return_pct=-10%
+    db_session.add(_candle(db_session, minute=31, open_=100, close=100))
+    db_session.add(_candle(db_session, minute=35, close=90))
+    await db_session.flush()
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    h5 = next(h for h in outcome.horizons if h.horizon_minutes == 5)
+    assert h5.is_win is False
+    assert h5.directional_return_pct is not None
+    assert h5.directional_return_pct < 0
+    assert h5.return_pct == Decimal("-10.0000")
+    assert h5.directional_return_pct == Decimal("-10.0000")
+
+
+async def test_sell_win_directional_fields(db_session: AsyncSession) -> None:
+    """SELL 신호 이후 가격 하락 → return_pct 음수지만 directional_return_pct 양수, is_win=True."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.SELL, candle_ts=_ts(30))
+    # entry=100, 5분 후 close=80 → return_pct=-20%, directional_return_pct=+20%
+    db_session.add(_candle(db_session, minute=31, open_=100, close=100))
+    db_session.add(_candle(db_session, minute=35, close=80))
+    await db_session.flush()
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    h5 = next(h for h in outcome.horizons if h.horizon_minutes == 5)
+    assert h5.available is True
+    assert h5.return_pct == Decimal("-20.0000")        # raw: 가격 하락
+    assert h5.directional_return_pct == Decimal("20.0000")  # SELL: -return_pct
+    assert h5.is_win is True
+
+
+async def test_sell_loss_directional_fields(db_session: AsyncSession) -> None:
+    """SELL 신호 이후 가격 상승 → return_pct 양수지만 directional_return_pct 음수, is_win=False."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.SELL, candle_ts=_ts(30))
+    # entry=100, 5분 후 close=120 → return_pct=+20%, directional_return_pct=-20%
+    db_session.add(_candle(db_session, minute=31, open_=100, close=100))
+    db_session.add(_candle(db_session, minute=35, close=120))
+    await db_session.flush()
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    h5 = next(h for h in outcome.horizons if h.horizon_minutes == 5)
+    assert h5.available is True
+    assert h5.return_pct == Decimal("20.0000")          # raw: 가격 상승
+    assert h5.directional_return_pct == Decimal("-20.0000")  # SELL: -return_pct
+    assert h5.is_win is False
+
+
+async def test_unavailable_horizon_directional_fields_are_null(db_session: AsyncSession) -> None:
+    """데이터 없는 horizon의 is_win과 directional_return_pct는 None이다."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.BUY, candle_ts=_ts(30))
+    # entry 캔들만 있고 5분 이후 없음
+    db_session.add(_candle(db_session, minute=31, open_=100, close=100))
+    await db_session.flush()
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    for h in outcome.horizons:
+        if not h.available:
+            assert h.is_win is None
+            assert h.directional_return_pct is None
+
+
+async def test_unavailable_outcome_all_directional_fields_are_null(db_session: AsyncSession) -> None:
+    """market_data 없어서 available=False인 경우 모든 horizon의 is_win, directional_return_pct가 None."""
+    ver = await _add_strategy(db_session)
+    sig = await _add_signal(db_session, ver.id, TradeSide.BUY, candle_ts=_ts(30))
+    # market_data 없음
+
+    svc = SignalOutcomeService(db_session)
+    outcome = await svc.get_outcome(sig.id)
+
+    assert outcome.available is False
+    assert all(h.is_win is None for h in outcome.horizons)
+    assert all(h.directional_return_pct is None for h in outcome.horizons)
