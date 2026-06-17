@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     order_sync_scheduler_enabled: bool = True
     order_sync_scheduler_interval_seconds: int = 60
 
+    # AI Analysis Provider (C-2.3)
+    # 실제 API key는 C-2.4 이후 단계에서 추가한다.
+    # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
+    ai_default_provider: str = "fake"
+    ai_default_model: str = "fake-1.0"
+
     # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)
     #
     # - trading_commission_rate: 매수/매도 공통 거래 수수료율. KIS 모의투자(VTS)는
