@@ -251,3 +251,49 @@ class WatchlistBulkStrategyCreateItem(BaseModel):
 class WatchlistBulkStrategyCreateResponse(BaseModel):
     strategy_id: int
     items: list[WatchlistBulkStrategyCreateItem]
+
+
+# ---------------------------------------------------------------------------
+# Market Data
+# ---------------------------------------------------------------------------
+
+
+class MarketDataRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol_code: str
+    timeframe: str
+    ts: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class MarketDataTimeframeSummary(BaseModel):
+    timeframe: str
+    count: int
+    oldest_ts: datetime | None
+    latest_ts: datetime | None
+
+
+class MarketDataSymbolSummary(BaseModel):
+    symbol_code: str
+    total_count: int
+    oldest_ts: datetime | None
+    latest_ts: datetime | None
+    by_timeframe: list[MarketDataTimeframeSummary]
+
+
+class MarketDataSymbolOverview(BaseModel):
+    symbol_code: str
+    total_count: int
+    latest_ts: datetime | None
+    timeframes: list[str]
+
+
+class MarketDataGlobalSummary(BaseModel):
+    total_symbols: int
+    total_rows: int
+    symbols: list[MarketDataSymbolOverview]

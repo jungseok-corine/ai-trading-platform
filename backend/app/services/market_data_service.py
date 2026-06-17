@@ -5,10 +5,17 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.market_data import MarketData
 from app.domain.repositories.market_data import MarketDataRepository
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.indicators import calculate_sma
+from app.trading.strategy.schemas import (
+    MarketDataGlobalSummary,
+    MarketDataSymbolOverview,
+    MarketDataSymbolSummary,
+    MarketDataTimeframeSummary,
+)
 
 KST = ZoneInfo("Asia/Seoul")
 log = logging.getLogger(__name__)
@@ -27,7 +34,7 @@ class MarketDataService:
     session이 없으면 브로커 조회만 수행한다(저장 건너뜀).
     """
 
-    def __init__(self, broker: BrokerClient, session: AsyncSession | None = None) -> None:
+    def __init__(self, broker: BrokerClient | None = None, session: AsyncSession | None = None) -> None:
         self._broker = broker
         self._session = session
 
@@ -88,6 +95,76 @@ class MarketDataService:
         ]
         repo = MarketDataRepository(self._session)
         return await repo.upsert_bulk(rows)
+
+    async def list_candles(
+        self,
+        symbol_code: str,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[MarketData]:
+        if self._session is None:
+            raise RuntimeError("list_candles requires session")
+        repo = MarketDataRepository(self._session)
+        return await repo.list_candles(symbol_code, timeframe, start_at, end_at, limit, offset)
+
+    async def get_symbol_summary(self, symbol_code: str) -> MarketDataSymbolSummary:
+        if self._session is None:
+            raise RuntimeError("get_symbol_summary requires session")
+        repo = MarketDataRepository(self._session)
+        rows = await repo.get_symbol_summary_by_timeframe(symbol_code)
+        by_timeframe = [
+            MarketDataTimeframeSummary(
+                timeframe=r["timeframe"],
+                count=r["count"],
+                oldest_ts=r["oldest_ts"],
+                latest_ts=r["latest_ts"],
+            )
+            for r in rows
+        ]
+        total_count = sum(r.count for r in by_timeframe)
+        oldest_ts = min((r.oldest_ts for r in by_timeframe if r.oldest_ts), default=None)
+        latest_ts = max((r.latest_ts for r in by_timeframe if r.latest_ts), default=None)
+        return MarketDataSymbolSummary(
+            symbol_code=symbol_code,
+            total_count=total_count,
+            oldest_ts=oldest_ts,
+            latest_ts=latest_ts,
+            by_timeframe=by_timeframe,
+        )
+
+    async def get_global_summary(self) -> MarketDataGlobalSummary:
+        if self._session is None:
+            raise RuntimeError("get_global_summary requires session")
+        repo = MarketDataRepository(self._session)
+        rows = await repo.get_global_summary()
+
+        # symbol_code별로 집계
+        symbols_map: dict[str, MarketDataSymbolOverview] = {}
+        for row in rows:
+            code = row["symbol_code"]
+            if code not in symbols_map:
+                symbols_map[code] = MarketDataSymbolOverview(
+                    symbol_code=code,
+                    total_count=0,
+                    latest_ts=None,
+                    timeframes=[],
+                )
+            overview = symbols_map[code]
+            overview.total_count += row["count"]
+            overview.timeframes.append(row["timeframe"])
+            if row["latest_ts"] is not None:
+                if overview.latest_ts is None or row["latest_ts"] > overview.latest_ts:
+                    overview.latest_ts = row["latest_ts"]
+
+        symbols = list(symbols_map.values())
+        return MarketDataGlobalSummary(
+            total_symbols=len(symbols),
+            total_rows=sum(s.total_count for s in symbols),
+            symbols=symbols,
+        )
 
     @staticmethod
     def calculate_sma(candles: list[MinuteCandle], period: int) -> Decimal | None:
