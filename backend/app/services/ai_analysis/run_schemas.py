@@ -44,6 +44,8 @@ class AnalysisRunRead(BaseModel):
     provider: str
     model: str
     status: str
+    input_hash: str | None
+    prompt_hash: str | None
     prompt_length: int | None
     truncated: bool
     warnings: list[str] | None

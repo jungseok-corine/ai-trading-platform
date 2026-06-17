@@ -16,6 +16,8 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -31,6 +33,7 @@ from app.services.ai_analysis.factory import (
     get_analysis_provider,
 )
 from app.services.ai_analysis.schemas import AnalysisProviderError
+from app.services.strategy_analysis_input_service import StrategyAnalysisInputService
 from app.services.strategy_analysis_prompt_service import (
     SUPPORTED_PROMPT_TYPES,
     StrategyAnalysisPromptService,
@@ -80,13 +83,30 @@ class AnalysisRunService:
         provider = get_analysis_provider(provider_name)   # raises Unknown / NotImplemented
         used_model = model or provider.default_model()
 
-        # 2. prompt 생성 (strategy/version 존재 확인 겸용)
+        # 2. input payload 수집 (재현/감사용 스냅샷)
+        input_svc = StrategyAnalysisInputService(self._session)
+        input_data = await input_svc.get_analysis_input(strategy_id, version_id)
+        if input_data is None:
+            return None   # strategy/version 없음
+
+        payload_dict = input_data.model_dump(mode="json")
+        # analysis_context는 payload 생성 시각(generated_at)만 담고 있어
+        # 호출마다 달라진다. 동일 input + prompt_type + provider + model →
+        # 동일 input_hash를 보장하기 위해 hash 대상에서 제외한다.
+        payload_for_hash = {k: v for k, v in payload_dict.items() if k != "analysis_context"}
+        input_canonical = json.dumps(payload_for_hash, sort_keys=True, ensure_ascii=True, default=str)
+        input_hash_src = input_canonical + "|" + prompt_type + "|" + provider_name + "|" + used_model
+        input_hash = hashlib.sha256(input_hash_src.encode()).hexdigest()
+
+        # 3. prompt 생성 (strategy/version 존재 확인 겸용 — input_svc와 별도 DB reads 허용)
         prompt_svc = StrategyAnalysisPromptService(self._session)
         prompt_result = await prompt_svc.get_prompt(strategy_id, version_id, prompt_type)
         if prompt_result is None:
-            return None   # strategy/version 없음 → 호출자가 404 처리
+            return None   # defensive
 
-        # 3. run row 생성
+        prompt_hash = hashlib.sha256(prompt_result.prompt.encode()).hexdigest()
+
+        # 4. run row 생성
         now = datetime.now(KST)
         run = await self._run_repo.create(
             analysis_type=AnalysisRunType.STRATEGY_PERFORMANCE,
@@ -98,18 +118,21 @@ class AnalysisRunService:
             provider=provider_name,
             model=used_model,
             status=AnalysisRunStatus.RUNNING,
+            input_payload=payload_dict,
+            input_hash=input_hash,
             prompt=prompt_result.prompt,
+            prompt_hash=prompt_hash,
             prompt_length=prompt_result.prompt_length,
             truncated=prompt_result.truncated,
             warnings=prompt_result.warnings if prompt_result.warnings else None,
             started_at=now,
         )
 
-        # 4. provider 호출
+        # 5. provider 호출
         try:
             result = await provider.analyze(prompt_result.prompt, model=used_model)
 
-            # 5. response 저장
+            # 6. response 저장
             await self._response_repo.create(
                 run_id=run.id,
                 provider=result.provider,
@@ -124,7 +147,7 @@ class AnalysisRunService:
                 raw=result.raw,
             )
 
-            # 6. run status → SUCCEEDED
+            # 7. run status → SUCCEEDED
             run = await self._run_repo.update(
                 run,
                 status=AnalysisRunStatus.SUCCEEDED,

@@ -1,4 +1,4 @@
-"""AI Analysis Run Service (Phase C-2.4) 통합 테스트.
+"""AI Analysis Run Service (Phase C-2.4 / C-2.4.1) 통합 테스트.
 
 검증 항목:
   1. fake provider로 analysis run 생성 성공
@@ -16,6 +16,13 @@
   13. 분석 run POST API 성공 (201)
   14. 응답 구조 — prompt_length / truncated / warnings 포함
   15. responses 포함 확인 (GET single run)
+  --- C-2.4.1: Reproducibility ---
+  16. input_payload 저장 확인
+  17. input_hash 생성 확인
+  18. prompt_hash 생성 확인
+  19. 동일 입력 → 동일 input_hash
+  20. 다른 prompt_type → 다른 input_hash
+  21. GET run API 응답에 input_hash / prompt_hash 포함
 """
 from unittest.mock import AsyncMock, patch
 
@@ -424,3 +431,122 @@ async def test_get_run_includes_responses(db_session: AsyncSession) -> None:
     assert len(fetched.responses) == 1
     assert fetched.responses[0].provider == "fake"
     assert fetched.responses[0].total_tokens is not None
+
+
+# ---------------------------------------------------------------------------
+# 16. input_payload 저장 확인  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_run_saves_input_payload(db_session: AsyncSession) -> None:
+    """run 생성 시 input_payload가 JSONB로 저장된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(strat.id, ver.id, "overview", "fake")
+
+    assert run is not None
+    assert run.input_payload is not None
+    assert isinstance(run.input_payload, dict)
+    # StrategyAnalysisInputRead 필드 확인
+    assert "strategy" in run.input_payload
+    assert run.input_payload["strategy"]["strategy_id"] == strat.id
+    assert run.input_payload["strategy"]["strategy_version_id"] == ver.id
+
+
+# ---------------------------------------------------------------------------
+# 17. input_hash 생성 확인  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_run_generates_input_hash(db_session: AsyncSession) -> None:
+    """run 생성 시 input_hash가 64자 SHA256 hex string으로 저장된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(strat.id, ver.id, "overview", "fake")
+
+    assert run is not None
+    assert run.input_hash is not None
+    assert isinstance(run.input_hash, str)
+    assert len(run.input_hash) == 64
+    # hex string
+    int(run.input_hash, 16)  # raises ValueError if not valid hex
+
+
+# ---------------------------------------------------------------------------
+# 18. prompt_hash 생성 확인  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_run_generates_prompt_hash(db_session: AsyncSession) -> None:
+    """run 생성 시 prompt_hash가 64자 SHA256 hex string으로 저장된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run = await svc.create_run(strat.id, ver.id, "overview", "fake")
+
+    assert run is not None
+    assert run.prompt_hash is not None
+    assert isinstance(run.prompt_hash, str)
+    assert len(run.prompt_hash) == 64
+    int(run.prompt_hash, 16)  # valid hex
+
+
+# ---------------------------------------------------------------------------
+# 19. 동일 입력 → 동일 input_hash  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_same_input_produces_same_input_hash(db_session: AsyncSession) -> None:
+    """동일한 strategy_version + prompt_type + provider + model → input_hash 동일."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run1 = await svc.create_run(strat.id, ver.id, "overview", "fake")
+    run2 = await svc.create_run(strat.id, ver.id, "overview", "fake")
+
+    assert run1 is not None and run2 is not None
+    assert run1.input_hash == run2.input_hash
+
+
+# ---------------------------------------------------------------------------
+# 20. 다른 prompt_type → 다른 input_hash  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_different_prompt_type_produces_different_input_hash(db_session: AsyncSession) -> None:
+    """prompt_type이 달라지면 input_hash도 달라진다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+
+    run_overview = await svc.create_run(strat.id, ver.id, "overview", "fake")
+    run_risk = await svc.create_run(strat.id, ver.id, "risk", "fake")
+
+    assert run_overview is not None and run_risk is not None
+    assert run_overview.input_hash != run_risk.input_hash
+
+
+# ---------------------------------------------------------------------------
+# 21. GET run API 응답에 input_hash / prompt_hash 포함  (C-2.4.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_api_get_run_includes_hashes(db_session: AsyncSession) -> None:
+    """GET /analysis-runs/{run_id} 응답 JSON에 input_hash와 prompt_hash가 포함된다."""
+    strat, ver = await _make_strategy_version(db_session)
+    svc = AnalysisRunService(db_session)
+    run = await svc.create_run(strat.id, ver.id, "overview", "fake")
+    assert run is not None
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get(f"/api/v1/analysis-runs/{run.id}")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "input_hash" in body
+    assert "prompt_hash" in body
+    assert body["input_hash"] is not None
+    assert len(body["input_hash"]) == 64
+    assert body["prompt_hash"] is not None
+    assert len(body["prompt_hash"]) == 64
