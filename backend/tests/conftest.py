@@ -88,3 +88,25 @@ async def db_session(_prepare_test_database):
             yield session
         await trans.rollback()
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session_with_factory(_prepare_test_database):
+    """(session, factory) 튜플을 반환한다. persistence 테스트 전용.
+
+    factory로 추가 session을 생성하면 같은 connection 위에서
+    새로운 identity map으로 데이터를 조회할 수 있다.
+
+    service.commit() → savepoint release → 같은 connection의 다른 session에서 조회 가능
+    → flush만 된 상태(미커밋)와 commit된 상태를 구분하는 테스트에 사용한다.
+    """
+    engine = create_async_engine(get_settings().database_url, poolclass=NullPool)
+    async with engine.connect() as conn:
+        trans = await conn.begin()
+        factory = async_sessionmaker(
+            bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
+        )
+        async with factory() as session:
+            yield session, factory
+        await trans.rollback()
+    await engine.dispose()

@@ -224,6 +224,7 @@ class AnalysisRunService:
                 error_message=exc.message,
                 completed_at=datetime.now(KST),
             )
+        await self._session.commit()
         return await self._run_repo.get_with_responses(run.id)
 
     async def _execute_dual(
@@ -344,6 +345,7 @@ class AnalysisRunService:
                 completed_at=datetime.now(KST),
             )
 
+        await self._session.commit()
         return await self._run_repo.get_with_responses(run.id)
 
     # ------------------------------------------------------------------

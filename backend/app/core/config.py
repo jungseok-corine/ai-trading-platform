@@ -76,8 +76,8 @@ class Settings(BaseSettings):
     ai_anthropic_api_key: str | None = None
     ai_anthropic_model: str = "claude-sonnet-4-6"
     # 출력 토큰 상한 (비용 통제용). 긴 분석이 필요하면 환경변수로 늘린다.
-    ai_anthropic_max_tokens: int = 2048
-    ai_anthropic_timeout_seconds: int = 60
+    ai_anthropic_max_tokens: int = 4096
+    ai_anthropic_timeout_seconds: int = 120
 
     # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)
     #
