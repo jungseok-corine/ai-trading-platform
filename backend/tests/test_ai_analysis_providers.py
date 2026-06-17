@@ -11,8 +11,8 @@
   8. 다른 prompt → 다른 content (hash 포함 확인)
   9. model 인자 override
   10. provider factory — fake 반환
-  11. provider factory — openai (미구현) → ProviderNotImplementedError
-  12. provider factory — anthropic (미구현) → ProviderNotImplementedError
+  11. provider factory — openai (C-2.7.1 구현 완료) → OpenAIAnalysisProvider
+  12. provider factory — anthropic (C-2.7.2 구현 완료) → AnthropicAnalysisProvider
   13. provider factory — 알 수 없는 이름 → UnknownProviderError
   14. AnalysisProviderError 구조 (provider/message/retryable/status_code/raw)
   15. AnalysisProviderError retryable=True/False 구분
@@ -196,15 +196,16 @@ def test_factory_openai_returns_provider() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 12. factory — anthropic (미구현)
+# 12. factory — anthropic (C-2.7.2 구현 완료)
 # ---------------------------------------------------------------------------
 
 
-def test_factory_anthropic_not_implemented() -> None:
-    """get_analysis_provider('anthropic')는 ProviderNotImplementedError를 발생시킨다."""
-    with pytest.raises(ProviderNotImplementedError) as exc_info:
-        get_analysis_provider("anthropic")
-    assert exc_info.value.provider_name == "anthropic"
+def test_factory_anthropic_returns_provider() -> None:
+    """get_analysis_provider('anthropic')는 AnthropicAnalysisProvider를 반환한다."""
+    from app.services.ai_analysis.anthropic_provider import AnthropicAnalysisProvider
+    provider = get_analysis_provider("anthropic")
+    assert isinstance(provider, AnthropicAnalysisProvider)
+    assert provider.provider_name() == "anthropic"
 
 
 # ---------------------------------------------------------------------------

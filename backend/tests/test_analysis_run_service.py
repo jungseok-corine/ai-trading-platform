@@ -302,17 +302,17 @@ async def test_create_run_failed_response_saved(db_session: AsyncSession) -> Non
 
 
 async def test_api_create_run_400_for_unimplemented_provider(db_session: AsyncSession) -> None:
-    """anthropic provider는 아직 미구현 → 400."""
+    """알 수 없는 provider → 400 (unknown-llm은 _SUPPORTED_PROVIDERS에 없음)."""
     strat, ver = await _make_strategy_version(db_session)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post(
             f"/api/v1/strategies/{strat.id}/versions/{ver.id}/analysis-runs",
-            json={"prompt_type": "overview", "provider": "anthropic"},
+            json={"prompt_type": "overview", "provider": "unknown-llm"},
         )
 
     assert resp.status_code == 400
-    assert "anthropic" in resp.json()["detail"].lower()
+    assert "unknown-llm" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -713,7 +713,7 @@ async def test_dual_mode_secondary_failure_preserves_primary_response(
 async def test_api_dual_mode_unsupported_secondary_provider_returns_400(
     db_session: AsyncSession,
 ) -> None:
-    """dual mode에서 미구현 secondary provider (anthropic) → 400."""
+    """dual mode에서 알 수 없는 secondary provider (unknown-llm) → 400."""
     strat, ver = await _make_strategy_version(db_session)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -723,12 +723,12 @@ async def test_api_dual_mode_unsupported_secondary_provider_returns_400(
                 "prompt_type": "overview",
                 "mode": "dual",
                 "provider": "fake",
-                "secondary_provider": "anthropic",
+                "secondary_provider": "unknown-llm",
             },
         )
 
     assert resp.status_code == 400
-    assert "anthropic" in resp.json()["detail"].lower()
+    assert "unknown-llm" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
