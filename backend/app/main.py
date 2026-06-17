@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import account, market, orders, positions, risk_config, signals, strategies, watchlists
+from app.api.v1 import analysis_runs as analysis_runs_api
 from app.api.v1 import engine as engine_api
 from app.api.v1 import market_data as market_data_api
 from app.core.config import get_settings
@@ -65,6 +66,7 @@ app.include_router(strategies.router, prefix="/api/v1")
 app.include_router(watchlists.router, prefix="/api/v1")
 app.include_router(engine_api.router, prefix="/api/v1")
 app.include_router(market_data_api.router, prefix="/api/v1")
+app.include_router(analysis_runs_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

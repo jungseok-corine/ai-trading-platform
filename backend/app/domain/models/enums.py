@@ -49,3 +49,18 @@ class TradeAttemptStatus(str, enum.Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     ERROR = "error"
+
+
+class AnalysisRunStatus(str, enum.Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class AnalysisRunType(str, enum.Enum):
+    STRATEGY_PERFORMANCE = "strategy_performance"
+
+
+class AnalysisTargetType(str, enum.Enum):
+    STRATEGY_VERSION = "strategy_version"

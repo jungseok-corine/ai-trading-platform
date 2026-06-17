@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.services.ai_analysis.factory import ProviderNotImplementedError, UnknownProviderError
+from app.services.ai_analysis.run_schemas import AnalysisRunCreateRequest, AnalysisRunRead
+from app.services.ai_analysis.run_service import AnalysisRunService
 from app.services.strategy_analysis_input_service import StrategyAnalysisInputService
 from app.services.strategy_analysis_prompt_service import (
     SUPPORTED_PROMPT_TYPES,
@@ -46,6 +49,12 @@ def get_analysis_prompt_service(
     session: AsyncSession = Depends(get_db),
 ) -> StrategyAnalysisPromptService:
     return StrategyAnalysisPromptService(session)
+
+
+def get_analysis_run_service(
+    session: AsyncSession = Depends(get_db),
+) -> AnalysisRunService:
+    return AnalysisRunService(session)
 
 
 @router.get("", response_model=list[StrategyRead])
@@ -174,6 +183,58 @@ async def get_analysis_prompt(
     if result is None:
         raise HTTPException(status_code=404, detail="strategy version not found")
     return result
+
+
+@router.post(
+    "/{strategy_id}/versions/{version_id}/analysis-runs",
+    response_model=AnalysisRunRead,
+    status_code=201,
+)
+async def create_analysis_run(
+    strategy_id: int,
+    version_id: int,
+    payload: AnalysisRunCreateRequest,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> AnalysisRunRead:
+    """strategy_version에 대해 single-model 분석을 실행하고 결과를 저장한다.
+
+    FakeAnalysisProvider (기본) 또는 향후 openai/anthropic provider 사용.
+    실제 LLM API 호출 여부는 provider 설정에 따라 결정된다.
+    """
+    try:
+        run = await service.create_run(
+            strategy_id=strategy_id,
+            version_id=version_id,
+            prompt_type=payload.prompt_type,
+            provider_name=payload.provider,
+            model=payload.model,
+        )
+    except UnsupportedPromptTypeError:
+        supported = ", ".join(sorted(SUPPORTED_PROMPT_TYPES))
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported prompt_type: '{payload.prompt_type}'. supported: {supported}",
+        )
+    except (UnknownProviderError, ProviderNotImplementedError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if run is None:
+        raise HTTPException(status_code=404, detail="strategy version not found")
+    return AnalysisRunRead.model_validate(run)
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}/analysis-runs",
+    response_model=list[AnalysisRunRead],
+)
+async def list_analysis_runs(
+    strategy_id: int,
+    version_id: int,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> list[AnalysisRunRead]:
+    """strategy_version에 대한 분석 run 목록을 최신 순으로 반환한다."""
+    runs = await service.list_runs_for_version(strategy_id, version_id)
+    return [AnalysisRunRead.model_validate(r) for r in runs]
 
 
 @router.patch("/{strategy_id}/versions/{version_id}", response_model=StrategyVersionRead)

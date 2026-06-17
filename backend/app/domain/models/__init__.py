@@ -1,4 +1,5 @@
 from app.domain.models.account import Account
+from app.domain.models.ai_analysis import AiAnalysisRun, AiModelResponse
 from app.domain.models.market_data import MarketData
 from app.domain.models.position import Position
 from app.domain.models.position_event import PositionEvent
@@ -12,6 +13,8 @@ from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 
 __all__ = [
     "Account",
+    "AiAnalysisRun",
+    "AiModelResponse",
     "MarketData",
     "Position",
     "PositionEvent",
