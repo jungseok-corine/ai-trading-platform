@@ -33,6 +33,12 @@ from app.services.ai_analysis.schemas import AnalysisProviderError, AnalysisProv
 SMOKE_PROMPT = "Return exactly: provider smoke test ok"
 _KNOWN_PROVIDERS = ("openai", "anthropic", "both")
 
+# API key 관련 필드명 — 출력에서 절대 포함하지 않는다
+_SENSITIVE_FIELD_NAMES = frozenset({
+    "authorization", "x-api-key", "api_key", "api-key",
+    "secret", "token", "password", "credential",
+})
+
 
 # ---------------------------------------------------------------------------
 # 결과 타입
@@ -66,6 +72,54 @@ async def smoke_single_provider(
         return SmokeResult(provider=provider_name, success=False, error=exc)
 
 
+def _safe_raw_summary(raw: dict | None) -> str | None:
+    """raw error dict에서 진단에 유용한 정보만 추출한다.
+
+    API key, Authorization, X-Api-Key 등 민감한 값은 절대 포함하지 않는다.
+    raw는 항상 provider의 HTTP response body이므로 credentials가 없지만,
+    명시적으로 필터링해 안전성을 보장한다.
+    """
+    if not isinstance(raw, dict):
+        return None
+    err = raw.get("error")
+    if not isinstance(err, dict):
+        return None
+
+    parts: list[str] = []
+    for key in ("type", "code", "param"):
+        val = err.get(key)
+        if val is not None and str(key).lower() not in _SENSITIVE_FIELD_NAMES:
+            parts.append(f"{key}={val!r}")
+    msg = err.get("message", "")
+    if msg:
+        truncated = msg[:200] + ("..." if len(msg) > 200 else "")
+        parts.append(f"message={truncated!r}")
+
+    return "  ".join(parts) if parts else None
+
+
+def _diagnostic_hint(provider: str, status_code: int | None) -> str | None:
+    """provider별 진단 힌트를 반환한다. 실패 원인 파악에 도움이 되는 점검 목록."""
+    if provider == "openai" and status_code == 429:
+        return (
+            "OpenAI 429 진단:\n"
+            "  1. https://platform.openai.com/usage 에서 사용량/잔액 확인\n"
+            "  2. https://platform.openai.com/account/billing 에서 결제 수단 확인\n"
+            "  3. error.code=insufficient_quota → 크레딧 충전 후 재시도\n"
+            "  4. error.code=rate_limit_exceeded → 잠시 대기 후 재시도"
+        )
+    if provider == "anthropic" and status_code == 400:
+        return (
+            "Anthropic 400 진단:\n"
+            "  1. https://console.anthropic.com/ 에서 잔액/플랜 확인\n"
+            "  2. 모델 이름이 유효한지 확인 (AI_ANTHROPIC_MODEL 환경변수)\n"
+            "  3. max_tokens 값이 모델 한도 내인지 확인 (AI_ANTHROPIC_MAX_TOKENS)\n"
+            "  4. anthropic-version 헤더: 2023-06-01 유지 필요\n"
+            "  5. messages 필드: [{\"role\": \"user\", \"content\": \"...\"}] 형식 확인"
+        )
+    return None
+
+
 def print_result(smoke: SmokeResult, *, file=None) -> None:
     """SmokeResult를 사람이 읽기 좋은 형식으로 출력한다."""
     if file is None:
@@ -92,6 +146,16 @@ def print_result(smoke: SmokeResult, *, file=None) -> None:
         print(f"       retryable: {exc.retryable}", file=file)
         if exc.status_code is not None:
             print(f"       status   : {exc.status_code}", file=file)
+
+        raw_summary = _safe_raw_summary(exc.raw)
+        if raw_summary:
+            print(f"       raw_error: {raw_summary}", file=file)
+
+        hint = _diagnostic_hint(smoke.provider, exc.status_code)
+        if hint:
+            print(file=file)
+            for line in hint.splitlines():
+                print(f"       {line}", file=file)
 
 
 async def run_smoke(

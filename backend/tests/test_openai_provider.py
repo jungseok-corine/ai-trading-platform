@@ -20,6 +20,12 @@
   15. provider_name() == "openai"
   16. default_model()이 settings.ai_openai_model과 일치
   17. model override 적용 확인
+  --- C-2.7.5: Error Diagnostics ---
+  18. 429 insufficient_quota → retryable=False (billing 문제)
+  19. 429 insufficient_quota → message에 "insufficient_quota" 포함
+  20. 429 rate_limit_error (code 없음) → retryable=True 유지
+  21. request body에 max_output_tokens 포함
+  22. 에러 메시지에 error code/type 포함
 """
 import json
 from typing import Any
@@ -432,3 +438,128 @@ async def test_openai_provider_model_override() -> None:
 
     assert captured_kwargs.get("model") == override_model
     assert result.model == override_model
+
+
+# ---------------------------------------------------------------------------
+# C-2.7.5: Error Diagnostics
+# ---------------------------------------------------------------------------
+
+
+# 18. 429 insufficient_quota → retryable=False
+async def test_openai_429_insufficient_quota_not_retryable() -> None:
+    """429 + error.code=insufficient_quota → retryable=False (quota/billing 문제)."""
+    provider = _make_provider()
+    error_body = {
+        "error": {
+            "message": "You exceeded your current quota, please check your plan and billing details.",
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+        }
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(429, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert err.retryable is False
+    assert err.status_code == 429
+
+
+# 19. 429 insufficient_quota → message에 코드 포함
+async def test_openai_429_insufficient_quota_message_contains_code() -> None:
+    """429 insufficient_quota 에러 메시지에 코드가 포함된다."""
+    provider = _make_provider()
+    error_body = {
+        "error": {
+            "message": "You exceeded your quota.",
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+        }
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(429, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert "insufficient_quota" in err.message
+    assert "429" in err.message
+
+
+# 20. 429 rate_limit_error (code 없음) → retryable=True 유지
+async def test_openai_429_rate_limit_error_still_retryable() -> None:
+    """429 + error.type=rate_limit_error (code 미포함) → retryable=True 유지."""
+    provider = _make_provider()
+    error_body = {
+        "error": {
+            "message": "Rate limit reached for requests.",
+            "type": "rate_limit_error",
+            # code 없음 — insufficient_quota가 아님
+        }
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(429, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert err.retryable is True
+    assert err.status_code == 429
+
+
+# 21. request body에 max_output_tokens 포함
+async def test_openai_request_body_has_max_output_tokens() -> None:
+    """request body에 max_output_tokens 필드가 포함된다."""
+    provider = OpenAIAnalysisProvider(
+        api_key=_FAKE_KEY,
+        default_model=_DEFAULT_MODEL,
+        default_timeout_seconds=_DEFAULT_TIMEOUT,
+        max_output_tokens=512,
+    )
+    body = _ok_body()
+    captured: dict = {}
+
+    async def _fake_post(url: str, *, headers=None, json=None, **kwargs):
+        captured.update(json or {})
+        return _mock_response(200, body)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=_fake_post):
+        await provider.analyze("Analyze.")
+
+    assert captured.get("max_output_tokens") == 512
+
+
+# 22. 에러 메시지에 error type이 포함 (code 없고 type만 있는 경우)
+async def test_openai_error_message_includes_type_when_no_code() -> None:
+    """error.code 없고 error.type만 있을 때 message에 type이 포함된다."""
+    provider = _make_provider()
+    error_body = {
+        "error": {
+            "message": "Incorrect API key.",
+            "type": "invalid_request_error",
+        }
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(401, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert "invalid_request_error" in err.message

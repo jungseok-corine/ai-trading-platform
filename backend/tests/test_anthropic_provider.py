@@ -23,6 +23,10 @@
   18. default_model()이 settings.ai_anthropic_model과 일치
   19. model override 적용 확인
   20. 요청 헤더 확인 (x-api-key, anthropic-version)
+  --- C-2.7.5: Error Diagnostics ---
+  21. 400 invalid_request_error → message에 type 포함
+  22. request body에 max_tokens 포함 확인
+  23. 에러 메시지 형식: "HTTP {status} {error_type}: {message}"
 """
 import json
 from typing import Any
@@ -497,3 +501,83 @@ async def test_anthropic_request_headers() -> None:
     assert captured_headers.get("x-api-key") == "sk-ant-my-key"
     assert "anthropic-version" in captured_headers
     assert captured_headers.get("content-type") == "application/json"
+
+
+# ---------------------------------------------------------------------------
+# C-2.7.5: Error Diagnostics
+# ---------------------------------------------------------------------------
+
+
+# 21. 400 invalid_request_error → message에 type 포함
+async def test_anthropic_400_message_includes_error_type() -> None:
+    """400 응답의 error.type이 message에 포함된다."""
+    provider = _make_provider()
+    error_body = {
+        "type": "error",
+        "error": {
+            "type": "invalid_request_error",
+            "message": "max_tokens is required",
+        },
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(400, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert "invalid_request_error" in err.message
+    assert "400" in err.message
+    assert err.retryable is False
+
+
+# 22. request body에 max_tokens 포함
+async def test_anthropic_request_body_has_max_tokens() -> None:
+    """request body에 max_tokens 필드가 포함된다."""
+    from app.services.ai_analysis.anthropic_provider import AnthropicAnalysisProvider
+
+    provider = AnthropicAnalysisProvider(
+        api_key=_FAKE_KEY,
+        default_model=_DEFAULT_MODEL,
+        default_timeout_seconds=_DEFAULT_TIMEOUT,
+        max_tokens=512,
+    )
+    body = _ok_body()
+    captured: dict = {}
+
+    async def _fake_post(url: str, *, headers=None, json=None, **kwargs):
+        captured.update(json or {})
+        return _mock_response(200, body)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=_fake_post):
+        await provider.analyze("Analyze.")
+
+    assert captured.get("max_tokens") == 512
+
+
+# 23. 에러 메시지 형식 확인
+async def test_anthropic_error_message_format() -> None:
+    """에러 메시지가 'HTTP {status} {error_type}: {message}' 형식이다."""
+    provider = _make_provider()
+    error_body = {
+        "type": "error",
+        "error": {
+            "type": "overloaded_error",
+            "message": "Anthropic's API is temporarily overloaded.",
+        },
+    }
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        return_value=_mock_response(529, error_body),
+    ):
+        with pytest.raises(AnalysisProviderError) as exc_info:
+            await provider.analyze("Analyze.")
+
+    err = exc_info.value
+    assert "529" in err.message
+    assert "overloaded_error" in err.message

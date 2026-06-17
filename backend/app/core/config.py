@@ -61,19 +61,22 @@ class Settings(BaseSettings):
     ai_default_provider: str = "fake"
     ai_default_model: str = "fake-1.0"
 
-    # OpenAI provider (C-2.7.1)
+    # OpenAI provider (C-2.7.1/C-2.7.5)
     # AI_OPENAI_API_KEY를 .env에 설정하면 openai provider가 활성화된다.
     # key가 없으면 analyze() 호출 시 AnalysisProviderError가 발생한다.
     ai_openai_api_key: str | None = None
     ai_openai_model: str = "gpt-4o"
     ai_openai_timeout_seconds: int = 60
+    # 출력 토큰 상한 (비용 통제용). 긴 분석이 필요하면 환경변수로 늘린다.
+    ai_openai_max_output_tokens: int = 1024
 
-    # Anthropic provider (C-2.7.2)
+    # Anthropic provider (C-2.7.2/C-2.7.5)
     # AI_ANTHROPIC_API_KEY를 .env에 설정하면 anthropic provider가 활성화된다.
     # key가 없으면 analyze() 호출 시 AnalysisProviderError가 발생한다.
     ai_anthropic_api_key: str | None = None
     ai_anthropic_model: str = "claude-sonnet-4-6"
-    ai_anthropic_max_tokens: int = 8096
+    # 출력 토큰 상한 (비용 통제용). 긴 분석이 필요하면 환경변수로 늘린다.
+    ai_anthropic_max_tokens: int = 2048
     ai_anthropic_timeout_seconds: int = 60
 
     # 거래 수수료/세금 (MVP 기본값, 추후 브로커/시장 정책 변경 시 .env로 조정)

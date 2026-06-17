@@ -1,4 +1,4 @@
-"""AnthropicAnalysisProvider — httpx 기반 Anthropic Messages API 구현 (C-2.7.2).
+"""AnthropicAnalysisProvider — httpx 기반 Anthropic Messages API 구현 (C-2.7.2/C-2.7.5).
 
 Anthropic Claude Messages API (POST /v1/messages)를 사용한다.
 SDK 의존성 없이 httpx.AsyncClient로 직접 HTTP 호출한다.
@@ -262,16 +262,28 @@ class AnthropicAnalysisProvider(AnalysisProvider):
         except Exception:
             raw = None
 
+        error_type = ""
         error_msg = ""
+
         if isinstance(raw, dict):
             err = raw.get("error") or {}
-            error_msg = err.get("message", "") if isinstance(err, dict) else str(err)
+            if isinstance(err, dict):
+                error_type = err.get("type") or ""
+                error_msg = err.get("message") or ""
+
         if not error_msg:
             error_msg = response.text[:300] if response.text else f"HTTP {status_code}"
 
+        # error.type을 메시지에 포함해 진단 정보를 풍부하게 한다
+        message = (
+            f"HTTP {status_code} {error_type}: {error_msg}"
+            if error_type
+            else f"HTTP {status_code}: {error_msg}"
+        )
+
         raise AnalysisProviderError(
             provider=_PROVIDER_NAME,
-            message=f"HTTP {status_code}: {error_msg}",
+            message=message,
             retryable=retryable,
             status_code=status_code,
             raw=raw,

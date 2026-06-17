@@ -71,6 +71,7 @@ def get_analysis_provider(provider_name: str) -> AnalysisProvider:
             api_key=s.ai_openai_api_key,
             default_model=s.ai_openai_model,
             default_timeout_seconds=s.ai_openai_timeout_seconds,
+            max_output_tokens=s.ai_openai_max_output_tokens,
         )
 
     if provider_name == "anthropic":

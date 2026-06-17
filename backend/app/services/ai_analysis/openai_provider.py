@@ -1,21 +1,25 @@
-"""OpenAIAnalysisProvider — httpx 기반 OpenAI Responses API 구현 (C-2.7.1).
+"""OpenAIAnalysisProvider — httpx 기반 OpenAI Responses API 구현 (C-2.7.1/C-2.7.5).
 
 OpenAI Responses API (POST /v1/responses)를 사용한다.
 SDK 의존성 없이 httpx.AsyncClient로 직접 HTTP 호출한다.
 
 참고:
   - Endpoint : POST https://api.openai.com/v1/responses
-  - Request  : {"model": "...", "input": "prompt text"}
+  - Request  : {"model": "...", "input": "prompt text", "max_output_tokens": N}
   - Response : {"output": [{"content": [{"type": "output_text", "text": "..."}]}],
                 "usage": {"input_tokens": N, "output_tokens": M, "total_tokens": L},
                 "status": "completed" | "incomplete" | "failed"}
 
 에러 처리:
   - 401/403        → retryable=False (인증 문제)
-  - 429            → retryable=True  (rate limit)
+  - 429 + code=insufficient_quota → retryable=False (quota/billing 문제, 재시도 무의미)
+  - 429 (일반 rate limit) → retryable=True
   - 5xx            → retryable=True  (서버 오류)
   - httpx timeout  → retryable=True
   - malformed JSON → retryable=False
+
+에러 메시지 형식: "HTTP {status} {error_code}: {error_message}"
+  예) "HTTP 429 insufficient_quota: You exceeded your current quota..."
 """
 from __future__ import annotations
 
@@ -81,10 +85,17 @@ class OpenAIAnalysisProvider(AnalysisProvider):
     AnalysisProviderError(retryable=False)를 발생시킨다.
     """
 
-    def __init__(self, api_key: str | None, default_model: str, default_timeout_seconds: int) -> None:
+    def __init__(
+        self,
+        api_key: str | None,
+        default_model: str,
+        default_timeout_seconds: int,
+        max_output_tokens: int = 1024,
+    ) -> None:
         self._api_key = api_key
         self._default_model = default_model
         self._default_timeout_seconds = default_timeout_seconds
+        self._max_output_tokens = max_output_tokens
 
     # ------------------------------------------------------------------
     # AnalysisProvider interface
@@ -116,6 +127,7 @@ class OpenAIAnalysisProvider(AnalysisProvider):
         request_body: dict[str, Any] = {
             "model": used_model,
             "input": prompt,
+            "max_output_tokens": self._max_output_tokens,
         }
 
         t_start = time.monotonic()
@@ -234,16 +246,31 @@ class OpenAIAnalysisProvider(AnalysisProvider):
         except Exception:
             raw = None
 
+        error_code = ""
+        error_type = ""
         error_msg = ""
+
         if isinstance(raw, dict):
             err = raw.get("error") or {}
-            error_msg = err.get("message", "") if isinstance(err, dict) else str(err)
+            if isinstance(err, dict):
+                error_code = err.get("code") or ""
+                error_type = err.get("type") or ""
+                error_msg = err.get("message") or ""
+
         if not error_msg:
             error_msg = response.text[:300] if response.text else f"HTTP {status_code}"
 
+        # insufficient_quota는 billing 문제 → 재시도해도 해결 안 됨
+        if status_code == 429 and error_code in ("insufficient_quota",):
+            retryable = False
+
+        # 진단에 유용한 code 또는 type을 메시지에 포함
+        qualifier = error_code or error_type
+        message = f"HTTP {status_code} {qualifier}: {error_msg}" if qualifier else f"HTTP {status_code}: {error_msg}"
+
         raise AnalysisProviderError(
             provider=_PROVIDER_NAME,
-            message=f"HTTP {status_code}: {error_msg}",
+            message=message,
             retryable=retryable,
             status_code=status_code,
             raw=raw,

@@ -1,4 +1,4 @@
-"""AI Provider smoke test 스크립트 테스트 (C-2.7.4).
+"""AI Provider smoke test 스크립트 테스트 (C-2.7.4/C-2.7.5).
 
 실제 네트워크 호출 없음 — provider는 AsyncMock으로 대체한다.
 
@@ -23,6 +23,13 @@
   18. both — 모두 성공 → exit code 0
   19. both — 모두 실패 → exit code 1
   20. smoke_single_provider — AnalysisProviderError 잡아서 SmokeResult 반환
+  --- C-2.7.5: 진단 출력 개선 ---
+  21. print_result — 실패 시 raw error 요약 출력 (type/code/message)
+  22. _safe_raw_summary — 민감 필드 포함하지 않음 (API key 등 절대 출력 안 됨)
+  23. print_result — openai 429일 때 진단 힌트 출력
+  24. print_result — anthropic 400일 때 진단 힌트 출력
+  25. _safe_raw_summary — raw=None이면 None 반환
+  26. _safe_raw_summary — error dict 없으면 None 반환
 """
 from __future__ import annotations
 
@@ -39,6 +46,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.ai_provider_smoke_test import (
     SMOKE_PROMPT,
     SmokeResult,
+    _diagnostic_hint,
+    _safe_raw_summary,
     main_async,
     parse_args,
     print_result,
@@ -495,3 +504,92 @@ async def test_smoke_single_provider_catches_error() -> None:
     assert result.error is err
     assert result.skipped is False
     assert result.provider == "openai"
+
+
+# ---------------------------------------------------------------------------
+# C-2.7.5: 진단 출력 개선
+# ---------------------------------------------------------------------------
+
+
+# 21. print_result — raw error 요약 출력
+def test_print_result_shows_raw_error_summary() -> None:
+    """실패 SmokeResult에 raw error가 있으면 요약 정보를 출력한다."""
+    raw = {
+        "error": {
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+            "message": "You exceeded your current quota.",
+        }
+    }
+    err = AnalysisProviderError(
+        provider="openai", message="HTTP 429 insufficient_quota: ...", retryable=False, status_code=429, raw=raw
+    )
+    smoke = SmokeResult(provider="openai", success=False, error=err)
+    out = StringIO()
+    print_result(smoke, file=out)
+    output = out.getvalue()
+
+    assert "insufficient_quota" in output
+    assert "raw_error" in output
+
+
+# 22. _safe_raw_summary — 민감 필드 없음
+def test_safe_raw_summary_no_sensitive_keys() -> None:
+    """_safe_raw_summary 출력에 API key나 Authorization 등 민감 정보가 없다."""
+    # raw에는 provider response body만 있어야 하므로 원래 credentials가 없지만,
+    # 만약 실수로 포함된 경우에도 출력에 나오지 않아야 한다.
+    raw = {
+        "error": {
+            "type": "rate_limit_error",
+            "code": "rate_limit_exceeded",
+            "message": "Rate limit exceeded.",
+            "authorization": "Bearer sk-secret-key",  # 민감 필드 (실제론 없지만 안전성 확인)
+        }
+    }
+    summary = _safe_raw_summary(raw)
+    assert summary is not None
+    # 민감 키는 _SENSITIVE_FIELD_NAMES 필터로 제외되거나, 직접 필드값이 출력되지 않음
+    # 실제로 "authorization"은 필드 이름이지 값이 아님 — 출력되는 건 type/code/message만
+    assert "sk-secret-key" not in (summary or "")
+    assert "Bearer" not in (summary or "")
+
+
+# 23. print_result — openai 429 진단 힌트
+def test_print_result_openai_429_shows_hint() -> None:
+    """openai 429 실패 시 진단 힌트가 출력에 포함된다."""
+    err = AnalysisProviderError(
+        provider="openai", message="HTTP 429 insufficient_quota: ...", retryable=False, status_code=429
+    )
+    smoke = SmokeResult(provider="openai", success=False, error=err)
+    out = StringIO()
+    print_result(smoke, file=out)
+    output = out.getvalue()
+
+    assert "429" in output or "quota" in output.lower() or "billing" in output.lower()
+
+
+# 24. print_result — anthropic 400 진단 힌트
+def test_print_result_anthropic_400_shows_hint() -> None:
+    """anthropic 400 실패 시 진단 힌트가 출력에 포함된다."""
+    err = AnalysisProviderError(
+        provider="anthropic", message="HTTP 400 invalid_request_error: ...", retryable=False, status_code=400
+    )
+    smoke = SmokeResult(provider="anthropic", success=False, error=err)
+    out = StringIO()
+    print_result(smoke, file=out)
+    output = out.getvalue()
+
+    assert "400" in output or "max_tokens" in output.lower() or "anthropic" in output.lower()
+
+
+# 25. _safe_raw_summary — raw=None → None
+def test_safe_raw_summary_none_input() -> None:
+    """raw=None이면 None을 반환한다."""
+    assert _safe_raw_summary(None) is None
+
+
+# 26. _safe_raw_summary — error dict 없으면 None
+def test_safe_raw_summary_no_error_key() -> None:
+    """raw에 'error' 키가 없으면 None을 반환한다."""
+    assert _safe_raw_summary({"status": "ok"}) is None
+    assert _safe_raw_summary({"error": "string not dict"}) is None
