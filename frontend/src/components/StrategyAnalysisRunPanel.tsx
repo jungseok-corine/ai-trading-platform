@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createStrategyAnalysisRun, getAIProviderStatuses } from "../api/client";
 import { useSettings } from "../i18n/SettingsContext";
@@ -34,6 +34,10 @@ export default function StrategyAnalysisRunPanel({
   const [enableCritique, setEnableCritique] = useState(true);
   const [enableSynthesis, setEnableSynthesis] = useState(true);
 
+  // elapsed timer
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const { data: providerStatuses } = useQuery({
     queryKey: ["ai-provider-statuses"],
     queryFn: getAIProviderStatuses,
@@ -50,6 +54,10 @@ export default function StrategyAnalysisRunPanel({
   const secondaryMissing = mode === "dual" && isProviderMissing(secondaryProvider);
   const canRun = !primaryMissing && !secondaryMissing;
 
+  const missingConfigWarnings: string[] = [];
+  if (primaryMissing) missingConfigWarnings.push(ta.providerMissingConfig(provider));
+  if (secondaryMissing) missingConfigWarnings.push(ta.providerMissingConfig(secondaryProvider));
+
   const createMutation = useMutation({
     mutationFn: (req: AnalysisRunCreateRequest) =>
       createStrategyAnalysisRun(strategyId, versionId, req),
@@ -59,6 +67,25 @@ export default function StrategyAnalysisRunPanel({
       setShowRuns(true);
     },
   });
+
+  useEffect(() => {
+    if (createMutation.isPending) {
+      setElapsedSec(0);
+      timerRef.current = setInterval(() => {
+        setElapsedSec((s) => s + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [createMutation.isPending]);
 
   const handleRun = () => {
     if (!canRun || createMutation.isPending) return;
@@ -73,6 +100,11 @@ export default function StrategyAnalysisRunPanel({
       req.secondary_provider = secondaryProvider;
     }
     createMutation.mutate(req);
+  };
+
+  const handleRefreshRuns = () => {
+    setShowRuns(true);
+    queryClient.invalidateQueries({ queryKey: ["analysis-runs", strategyId, versionId] });
   };
 
   return (
@@ -170,9 +202,9 @@ export default function StrategyAnalysisRunPanel({
           </>
         )}
 
-        {(primaryMissing || secondaryMissing) && (
-          <p className="value error config-warning">{ta.warningMissingConfig}</p>
-        )}
+        {missingConfigWarnings.map((w) => (
+          <p key={w} className="value error config-warning">{w}</p>
+        ))}
 
         <div className="actions">
           <button
@@ -184,11 +216,22 @@ export default function StrategyAnalysisRunPanel({
           </button>
         </div>
 
+        {createMutation.isPending && (
+          <div className="running-notice">
+            <p>{ta.runningLongNotice}</p>
+            <p className="elapsed-time">{ta.elapsedSeconds(elapsedSec)}</p>
+          </div>
+        )}
+
         {createMutation.isError && (
-          <p className="value error">
-            {ta.createError}:{" "}
-            {(createMutation.error as Error)?.message ?? "unknown error"}
-          </p>
+          <div className="create-error-block">
+            <p className="value error">
+              {ta.createError}:{" "}
+              {(createMutation.error as Error)?.message ?? "unknown error"}
+            </p>
+            <p className="request-may-still-run">{ta.requestMayStillBeRunning}</p>
+            <button onClick={handleRefreshRuns}>{ta.refreshRuns}</button>
+          </div>
         )}
       </div>
 

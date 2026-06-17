@@ -338,6 +338,13 @@ export interface Translations {
     warnLengthTruncated: string;
     loadError: string;
     createError: string;
+    runningLongNotice: string;
+    elapsedSeconds: (n: number) => string;
+    refreshRuns: string;
+    refreshFailed: string;
+    requestMayStillBeRunning: string;
+    providerMissingConfig: (provider: string) => string;
+    lengthWarningImpact: (role: string) => string;
   };
 }
 
@@ -755,6 +762,13 @@ export const translations: Record<Language, Translations> = {
       warnLengthTruncated: "응답이 토큰 제한으로 잘렸습니다. max token 설정을 늘리거나 prompt를 줄이세요.",
       loadError: "분석 기록 조회 실패",
       createError: "분석 실행 실패",
+      runningLongNotice: "분석에는 1~2분이 걸릴 수 있습니다. 잠시 기다려 주세요.",
+      elapsedSeconds: (n: number) => `${n}초 경과`,
+      refreshRuns: "기록 새로고침",
+      refreshFailed: "새로고침 실패",
+      requestMayStillBeRunning: "분석이 서버에서 계속 진행 중일 수 있습니다. 기록을 새로고침해 확인하세요.",
+      providerMissingConfig: (provider: string) => `${provider} API 키가 설정되지 않았습니다. .env를 확인하세요.`,
+      lengthWarningImpact: (role: string) => `${role} 응답이 토큰 제한으로 잘렸습니다. critique/synthesis 품질이 낮아질 수 있습니다.`,
     },
   },
   en: {
@@ -1169,6 +1183,13 @@ export const translations: Record<Language, Translations> = {
       warnLengthTruncated: "Response was truncated by token limit. Increase max_tokens or reduce prompt length.",
       loadError: "Failed to load analysis runs",
       createError: "Failed to run analysis",
+      runningLongNotice: "Analysis may take 1–2 minutes. Please wait.",
+      elapsedSeconds: (n: number) => `${n}s elapsed`,
+      refreshRuns: "Refresh run list",
+      refreshFailed: "Refresh failed",
+      requestMayStillBeRunning: "The analysis may still be running on the server. Refresh the run list to check.",
+      providerMissingConfig: (provider: string) => `${provider} API key is not configured. Check your .env file.`,
+      lengthWarningImpact: (role: string) => `${role} response was cut off by the token limit. This may reduce critique/synthesis quality.`,
     },
   },
 };

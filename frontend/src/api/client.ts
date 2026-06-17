@@ -36,6 +36,10 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api
 
 export const apiClient = axios.create({ baseURL: BASE_URL });
 
+// AI analysis create 전용 — 실제 LLM 호출이 최대 ~2분 걸릴 수 있으므로
+// 전역 timeout보다 훨씬 길게 설정한다.
+const AI_ANALYSIS_TIMEOUT_MS = 210_000; // 3.5분
+
 export async function getEngineStatus(): Promise<EngineStatus> {
   const { data } = await apiClient.get<EngineStatus>("/engine/status");
   return data;
@@ -245,6 +249,7 @@ export async function createStrategyAnalysisRun(
   const { data } = await apiClient.post<AnalysisRun>(
     `/strategies/${strategyId}/versions/${versionId}/analysis-runs`,
     request,
+    { timeout: AI_ANALYSIS_TIMEOUT_MS },
   );
   return data;
 }

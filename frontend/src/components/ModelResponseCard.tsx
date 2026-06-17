@@ -46,7 +46,7 @@ export default function ModelResponseCard({ response, index }: ModelResponseCard
       </div>
 
       {isTruncated && !isError && (
-        <p className="warn-truncated">{ta.warnLengthTruncated}</p>
+        <p className="warn-truncated">{ta.lengthWarningImpact(roleLabel(response.role))}</p>
       )}
 
       {isError ? (
