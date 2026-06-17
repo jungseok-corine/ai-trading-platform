@@ -77,6 +77,27 @@ class MarketDataRepository(BaseRepository[MarketData]):
             for row in result.all()
         ]
 
+    async def get_candles_between(
+        self,
+        symbol_code: str,
+        timeframe: str,
+        after_ts: datetime,
+        until_ts: datetime,
+    ) -> list[MarketData]:
+        """after_ts(exclusive) ~ until_ts(inclusive) 범위의 캔들을 시간순으로 반환한다."""
+        stmt = (
+            select(MarketData)
+            .where(
+                MarketData.symbol_code == symbol_code,
+                MarketData.timeframe == timeframe,
+                MarketData.ts > after_ts,
+                MarketData.ts <= until_ts,
+            )
+            .order_by(MarketData.ts.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def upsert_bulk(self, rows: list[dict]) -> int:
         """OHLCV 행을 bulk upsert한다. 동일 PK(symbol_code, timeframe, ts) 시 OHLCV 업데이트."""
         if not rows:

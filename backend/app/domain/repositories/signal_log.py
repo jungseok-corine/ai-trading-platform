@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from sqlalchemy import select
@@ -17,6 +19,22 @@ class SignalLogRepository(BaseRepository[SignalLog]):
             .limit(limit)
             .offset(offset)
         )
+        return list(result.scalars().all())
+
+    async def list_filtered(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        signal_type: TradeSide | None = None,
+        symbol_code: str | None = None,
+    ) -> list[SignalLog]:
+        stmt = select(SignalLog).order_by(SignalLog.generated_at.desc(), SignalLog.id.desc())
+        if signal_type is not None:
+            stmt = stmt.where(SignalLog.signal_type == signal_type)
+        if symbol_code is not None:
+            stmt = stmt.where(SignalLog.symbol_code == symbol_code)
+        stmt = stmt.limit(limit).offset(offset)
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def exists_for_candle(

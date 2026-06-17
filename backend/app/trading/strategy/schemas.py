@@ -254,6 +254,74 @@ class WatchlistBulkStrategyCreateResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Signal Outcome Analysis (Phase C-0)
+# ---------------------------------------------------------------------------
+
+
+class SignalOutcomeHorizonResult(BaseModel):
+    """특정 horizon에서의 가격 반응 결과."""
+
+    horizon_minutes: int
+    close_price: Decimal | None
+    return_pct: Decimal | None  # (close - entry) / entry * 100; BUY: 양수=상승, SELL: 음수=하락이 좋음
+    available: bool  # False = market_data 없음
+
+
+class SignalOutcomeRead(BaseModel):
+    """단일 신호의 이후 가격 반응 분석 결과."""
+
+    signal_id: int
+    symbol_code: str
+    signal_type: TradeSide
+    signal_ts: datetime  # candle_ts (없으면 generated_at 대체)
+    timeframe: str
+    entry_price: Decimal | None  # 신호 다음 캔들의 open; None이면 market_data 없음
+    horizons: list[SignalOutcomeHorizonResult]
+    mfe_pct: Decimal | None  # 최대 유리 변동폭 (신호 방향 기준, 양수)
+    mae_pct: Decimal | None  # 최대 불리 변동폭 (신호 방향 기준, 양수)
+    available: bool  # False = 신호 이후 market_data 전혀 없음
+    note: str | None = None
+
+
+class SignalOutcomeByHorizon(BaseModel):
+    """horizon별 집계 통계."""
+
+    horizon_minutes: int
+    count: int  # 해당 horizon 데이터가 있는 신호 수
+    avg_return_pct: Decimal
+    win_rate: Decimal  # 신호 방향과 일치하는 비율 (BUY에서 양수, SELL에서 음수)
+
+
+class SignalOutcomeBySymbol(BaseModel):
+    """종목별 신호 성과 요약."""
+
+    symbol_code: str
+    signal_count: int
+    analyzed_count: int
+    win_rate_5m: Decimal | None  # 5분 horizon win rate; 데이터 없으면 None
+
+
+class SignalOutcomeBySignalType(BaseModel):
+    """신호 종류별 성과 요약."""
+
+    signal_type: TradeSide
+    signal_count: int
+    analyzed_count: int
+    win_rate_5m: Decimal | None
+
+
+class SignalOutcomeSummary(BaseModel):
+    """전체 신호 결과 요약."""
+
+    total_signals: int
+    analyzed_count: int  # market_data 있어서 분석된 신호 수
+    skipped_count: int  # market_data 없거나 분석 불가 신호 수
+    by_horizon: list[SignalOutcomeByHorizon]
+    by_symbol: list[SignalOutcomeBySymbol]
+    by_signal_type: list[SignalOutcomeBySignalType]
+
+
+# ---------------------------------------------------------------------------
 # Market Data
 # ---------------------------------------------------------------------------
 
