@@ -30,6 +30,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         token_cache_path=settings.kis_token_cache_path,
         rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,
         rate_limit_cooldown_seconds=settings.kis_rate_limit_cooldown_seconds,
+        request_max_retries=settings.kis_request_max_retries,
+        request_retry_base_delay_seconds=settings.kis_request_retry_base_delay_seconds,
+        request_retry_max_delay_seconds=settings.kis_request_retry_max_delay_seconds,
     )
 
     await start_scheduler(app)

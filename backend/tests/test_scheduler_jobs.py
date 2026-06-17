@@ -1,6 +1,7 @@
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy import delete, select
@@ -83,10 +84,12 @@ class FakeBrokerClient(BrokerClient):
         candles_by_symbol: dict[str, list[MinuteCandle]] | None = None,
         executions: list[OrderExecution] | None = None,
         get_daily_executions_error: Exception | None = None,
+        candles_error_by_symbol: dict[str, Exception] | None = None,
     ) -> None:
         self._candles_by_symbol = candles_by_symbol or {}
         self._executions = executions or []
         self._get_daily_executions_error = get_daily_executions_error
+        self._candles_error_by_symbol = candles_error_by_symbol or {}
 
     async def get_current_price(self, symbol_code: str) -> PriceQuote:
         raise NotImplementedError
@@ -94,6 +97,8 @@ class FakeBrokerClient(BrokerClient):
     async def get_minute_candles(
         self, symbol_code: str, target_time: str | None = None, include_past_data: bool = True
     ) -> list[MinuteCandle]:
+        if symbol_code in self._candles_error_by_symbol:
+            raise self._candles_error_by_symbol[symbol_code]
         return self._candles_by_symbol.get(symbol_code, [])
 
     async def get_account_balance(self) -> AccountBalance:
@@ -113,7 +118,7 @@ class FakeBrokerClient(BrokerClient):
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
 
-    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+    async def get_daily_executions(self, start_date: str | None = None, end_date: str | None = None) -> list[OrderExecution]:
         if self._get_daily_executions_error is not None:
             raise self._get_daily_executions_error
         return self._executions
@@ -291,4 +296,127 @@ async def test_order_sync_job_records_failure_when_get_daily_executions_raises(j
             await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == ORDER_SYNC_JOB_ID))
             await session.execute(delete(Trade).where(Trade.id == trade_id))
             await session.execute(delete(Account).where(Account.id == account_id))
+            await session.commit()
+
+
+async def test_run_strategy_job_partial_failure_is_success(job_session_factory) -> None:
+    """일부 version이 httpx 오류로 실패해도 일부가 성공하면 job status는 SUCCESS다."""
+    async with job_session_factory() as session:
+        strategy_ok = Strategy(name="Scheduler Partial OK", description="test")
+        strategy_fail = Strategy(name="Scheduler Partial Fail", description="test")
+        session.add(strategy_ok)
+        session.add(strategy_fail)
+        await session.flush()
+        version_ok = StrategyVersion(
+            strategy_id=strategy_ok.id,
+            version_no=1,
+            parameters={**GOLDEN_CROSS_PARAMS, "symbol_code": "005930"},
+            status=StrategyVersionStatus.ACTIVE,
+        )
+        version_fail = StrategyVersion(
+            strategy_id=strategy_fail.id,
+            version_no=1,
+            parameters={**GOLDEN_CROSS_PARAMS, "symbol_code": "999999"},
+            status=StrategyVersionStatus.ACTIVE,
+        )
+        session.add(version_ok)
+        session.add(version_fail)
+        await session.commit()
+        ok_strategy_id = strategy_ok.id
+        fail_strategy_id = strategy_fail.id
+        ok_version_id = version_ok.id
+        fail_version_id = version_fail.id
+
+    app = FastAPI()
+    app.state.broker_client = FakeBrokerClient(
+        candles_by_symbol={"005930": _make_candles(GOLDEN_CROSS_CLOSES)},
+        candles_error_by_symbol={"999999": httpx.ReadTimeout("timeout")},
+    )
+
+    try:
+        await run_strategy_job(app)
+
+        assert app.state.scheduler_last_error is None  # 일부 성공이므로 error=None
+        assert app.state.scheduler_last_run_at is not None
+
+        async with job_session_factory() as session:
+            run = (
+                (
+                    await session.execute(
+                        select(SchedulerRun)
+                        .where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID)
+                        .order_by(SchedulerRun.id.desc())
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+        assert run is not None
+        assert run.status == SchedulerRunStatus.SUCCESS
+        assert run.error_message is None
+        assert run.summary["versions_run"] == 2
+        assert run.summary["versions_succeeded"] == 1
+        assert run.summary["versions_failed"] == 1
+        assert "999999" in run.summary["failed_symbols"]
+    finally:
+        async with job_session_factory() as session:
+            await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID))
+            await session.execute(delete(SignalLog).where(SignalLog.strategy_version_id.in_([ok_version_id, fail_version_id])))
+            await session.execute(delete(StrategyVersion).where(StrategyVersion.id.in_([ok_version_id, fail_version_id])))
+            await session.execute(delete(Strategy).where(Strategy.id.in_([ok_strategy_id, fail_strategy_id])))
+            await session.commit()
+
+
+async def test_run_strategy_job_all_versions_fail_records_failed(job_session_factory) -> None:
+    """모든 version이 실패하면 job status는 FAILED다."""
+    async with job_session_factory() as session:
+        strategy = Strategy(name="Scheduler All Fail", description="test")
+        session.add(strategy)
+        await session.flush()
+        version = StrategyVersion(
+            strategy_id=strategy.id,
+            version_no=1,
+            parameters={**GOLDEN_CROSS_PARAMS, "symbol_code": "999999"},
+            status=StrategyVersionStatus.ACTIVE,
+        )
+        session.add(version)
+        await session.commit()
+        strategy_id = strategy.id
+        version_id = version.id
+
+    app = FastAPI()
+    app.state.broker_client = FakeBrokerClient(
+        candles_error_by_symbol={"999999": httpx.ReadTimeout("timeout")},
+    )
+
+    try:
+        await run_strategy_job(app)
+
+        assert app.state.scheduler_last_error is not None
+        assert app.state.scheduler_last_run_at is not None
+
+        async with job_session_factory() as session:
+            run = (
+                (
+                    await session.execute(
+                        select(SchedulerRun)
+                        .where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID)
+                        .order_by(SchedulerRun.id.desc())
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+        assert run is not None
+        assert run.status == SchedulerRunStatus.FAILED
+        assert run.error_message is not None
+        assert run.summary["versions_failed"] == 1
+        assert run.summary["versions_succeeded"] == 0
+    finally:
+        async with job_session_factory() as session:
+            await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID))
+            await session.execute(delete(StrategyVersion).where(StrategyVersion.id == version_id))
+            await session.execute(delete(Strategy).where(Strategy.id == strategy_id))
             await session.commit()

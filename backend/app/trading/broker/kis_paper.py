@@ -173,6 +173,7 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
                 "SLL_TYPE": "" if order.side == TradeSide.BUY else "01",
                 "CNDT_PRIC": "",
             },
+            retryable=False,  # 중복주문 방지 — 주문 API는 재시도하지 않는다
         )
         output = data["output"]
         return OrderResult(

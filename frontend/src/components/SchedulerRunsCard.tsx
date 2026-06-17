@@ -25,7 +25,7 @@ function formatSummaryValue(value: unknown): string {
   return String(value);
 }
 
-const HIDDEN_SUMMARY_KEYS = new Set(["errors", "error_category", "skipped_reason", "executions"]);
+const HIDDEN_SUMMARY_KEYS = new Set(["errors", "error_category", "skipped_reason", "executions", "error_categories"]);
 
 function ExecutionsList({ executions, t }: { executions: OrderSyncExecutionSummary[]; t: Translations }) {
   if (executions.length === 0) return null;

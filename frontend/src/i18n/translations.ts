@@ -308,6 +308,9 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, string>,
       summaryKeyLabels: {
         versions_run: "실행 전략 수",
+        versions_succeeded: "성공 전략 수",
+        versions_failed: "실패 전략 수",
+        failed_symbols: "실패 종목",
         signals_created: "생성 신호 수",
         trades_attempted: "주문 시도 수",
         checked: "확인한 주문 수",
@@ -315,6 +318,8 @@ export const translations: Record<Language, Translations> = {
         matched: "매칭된 주문 수",
         unmatched: "미매칭 주문 수",
         unmatched_order_ids: "미매칭 주문번호",
+        stale_cancelled: "자동취소(stale)",
+        stale_pending_requires_review: "실전 검토 필요",
       } as Record<string, string>,
       errorCategoryLabels: {
         invalid_price_tick: {
@@ -356,6 +361,7 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, { title: string; description: string }>,
       skippedReasonLabels: {
         no_pending_orders: "대기 중인 주문이 없어 건너뜀",
+        no_active_orders: "모든 stale 주문 처리 완료 — 당일 대기 주문 없음",
       } as Record<string, string>,
       showDetails: "상세 보기",
       hideDetails: "숨기기",
@@ -609,6 +615,9 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, string>,
       summaryKeyLabels: {
         versions_run: "Versions Run",
+        versions_succeeded: "Versions Succeeded",
+        versions_failed: "Versions Failed",
+        failed_symbols: "Failed Symbols",
         signals_created: "Signals Created",
         trades_attempted: "Trades Attempted",
         checked: "Checked",
@@ -616,6 +625,8 @@ export const translations: Record<Language, Translations> = {
         matched: "Matched",
         unmatched: "Unmatched",
         unmatched_order_ids: "Unmatched Order IDs",
+        stale_cancelled: "Stale Auto-Cancelled",
+        stale_pending_requires_review: "Live Review Required",
       } as Record<string, string>,
       errorCategoryLabels: {
         invalid_price_tick: {
@@ -657,6 +668,7 @@ export const translations: Record<Language, Translations> = {
       } as Record<string, { title: string; description: string }>,
       skippedReasonLabels: {
         no_pending_orders: "Skipped: no pending orders",
+        no_active_orders: "All stale orders resolved — no active orders today",
       } as Record<string, string>,
       showDetails: "Show details",
       hideDetails: "Hide",

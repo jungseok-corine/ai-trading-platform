@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     kis_rate_limit_min_interval_seconds: float = 0.5
     kis_rate_limit_cooldown_seconds: float = 7.0
 
+    # KIS API 요청 재시도 설정
+    # 재시도 대상: httpx.ReadTimeout / ConnectError / RemoteProtocolError / EGW00201(rate limit)
+    # 재시도 제외: 주문 API(place_order) — 중복주문 방지
+    kis_request_max_retries: int = 2
+    kis_request_retry_base_delay_seconds: float = 1.0
+    kis_request_retry_max_delay_seconds: float = 5.0
+
     # Strategy Engine 스케줄러 (APScheduler)
     strategy_scheduler_enabled: bool = True
     strategy_scheduler_interval_seconds: int = 60

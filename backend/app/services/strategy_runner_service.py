@@ -12,8 +12,7 @@ from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
-from app.trading.broker.error_classifier import classify_kis_error
-from app.trading.broker.exceptions import KISAPIError
+from app.trading.broker.error_classifier import classify_exception, exc_message
 from app.trading.strategy.base import Signal
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
 
@@ -100,12 +99,12 @@ class StrategyRunnerService:
 
         try:
             log = await self._signal_service.generate_and_log_signal(strategy, symbol_code, version.id)
-        except KISAPIError as e:
-            result.error = f"market data error: {e.msg1}"
-            result.error_category = classify_kis_error(e)
+        except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
+            result.error = f"market data error: {exc_message(exc)}"
+            result.error_category = classify_exception(exc)
             logger.error(
                 "strategy_version_id=%s signal generation failed (%s): %s",
-                version.id, result.error_category, e.msg1,
+                version.id, result.error_category, exc_message(exc),
             )
             return result
 
@@ -165,12 +164,12 @@ class StrategyRunnerService:
             placement = await self._trade_service.execute_signal(
                 account_id, signal, reason_source="strategy_runner"
             )
-        except KISAPIError as e:
-            result.error = f"order error: {e.msg1}"
-            result.error_category = classify_kis_error(e)
+        except Exception as exc:  # noqa: BLE001 - 주문 오류가 전체 runner를 중단시키지 않도록
+            result.error = f"order error: {exc_message(exc)}"
+            result.error_category = classify_exception(exc)
             logger.error(
                 "strategy_version_id=%s auto-trade order failed (%s): %s",
-                version.id, result.error_category, e.msg1,
+                version.id, result.error_category, exc_message(exc),
             )
             await self._mark_trade_attempt(log, TradeAttemptStatus.ERROR)
             return

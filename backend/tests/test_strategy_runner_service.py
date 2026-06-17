@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,8 +44,13 @@ def _make_candles(closes: list[int]) -> list[MinuteCandle]:
 class FakeBrokerClient(BrokerClient):
     """symbol_code별로 고정된 분봉 데이터를 반환한다."""
 
-    def __init__(self, candles_by_symbol: dict[str, list[MinuteCandle]]) -> None:
-        self._candles_by_symbol = candles_by_symbol
+    def __init__(
+        self,
+        candles_by_symbol: dict[str, list[MinuteCandle]] | None = None,
+        candles_error_by_symbol: dict[str, Exception] | None = None,
+    ) -> None:
+        self._candles_by_symbol = candles_by_symbol or {}
+        self._candles_error_by_symbol = candles_error_by_symbol or {}
 
     async def get_current_price(self, symbol_code: str) -> PriceQuote:
         raise NotImplementedError
@@ -52,6 +58,8 @@ class FakeBrokerClient(BrokerClient):
     async def get_minute_candles(
         self, symbol_code: str, target_time: str | None = None, include_past_data: bool = True
     ) -> list[MinuteCandle]:
+        if symbol_code in self._candles_error_by_symbol:
+            raise self._candles_error_by_symbol[symbol_code]
         return self._candles_by_symbol.get(symbol_code, [])
 
     async def get_account_balance(self) -> AccountBalance:
@@ -71,7 +79,7 @@ class FakeBrokerClient(BrokerClient):
     async def place_order(self, order: OrderRequest) -> OrderResult:
         raise NotImplementedError
 
-    async def get_daily_executions(self, target_date: str | None = None) -> list[OrderExecution]:
+    async def get_daily_executions(self, start_date: str | None = None, end_date: str | None = None) -> list[OrderExecution]:
         raise NotImplementedError
 
 
@@ -171,6 +179,48 @@ async def test_duplicate_candle_signal_not_saved_twice(db_session: AsyncSession)
     assert len(second) == 1
     assert second[0].signal_created is False
     assert second[0].signal_id is None
+
+    rows = (await db_session.execute(select(SignalLog))).scalars().all()
+    assert len(rows) == 1
+
+
+async def test_symbol_httpx_error_does_not_crash_runner(db_session: AsyncSession) -> None:
+    """한 종목에서 httpx.ReadTimeout이 발생해도 runner가 종료되지 않고 error를 기록한다."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    broker = FakeBrokerClient(candles_error_by_symbol={"005930": httpx.ReadTimeout("timeout")})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert len(results) == 1
+    assert results[0].signal_created is False
+    assert results[0].error is not None
+    assert "market data error" in results[0].error
+    assert results[0].error_category == "connection_timeout"
+
+    rows = (await db_session.execute(select(SignalLog))).scalars().all()
+    assert rows == []
+
+
+async def test_two_symbols_one_fails_other_succeeds(db_session: AsyncSession) -> None:
+    """두 종목 중 하나가 httpx 오류를 내도 나머지는 정상 실행된다."""
+    closes = [100] * 20 + [200]
+    await _create_strategy_version(db_session, {**GOLDEN_CROSS_PARAMS, "symbol_code": "005930"})
+    await _create_strategy_version(db_session, {**GOLDEN_CROSS_PARAMS, "symbol_code": "035720"})
+    broker = FakeBrokerClient(
+        candles_by_symbol={"035720": _make_candles(closes)},
+        candles_error_by_symbol={"005930": httpx.ReadTimeout("timeout")},
+    )
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert len(results) == 2
+    failing = next(r for r in results if r.symbol_code == "005930")
+    succeeding = next(r for r in results if r.symbol_code == "035720")
+
+    assert failing.error is not None
+    assert failing.error_category == "connection_timeout"
+    assert succeeding.signal_created is True
+    assert succeeding.error is None
 
     rows = (await db_session.execute(select(SignalLog))).scalars().all()
     assert len(rows) == 1

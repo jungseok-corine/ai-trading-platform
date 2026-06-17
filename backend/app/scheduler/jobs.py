@@ -69,6 +69,10 @@ async def run_strategy_job(app: FastAPI) -> None:
 
         signals_created = sum(1 for r in results if r.signal_created)
         trades_attempted = sum(1 for r in results if r.trade_attempted)
+        versions_failed = sum(1 for r in results if r.error)
+        versions_succeeded = len(results) - versions_failed
+        failed_symbols = [r.symbol_code for r in results if r.error]
+        error_categories = list({r.error_category for r in results if r.error_category})
         errors = [
             {
                 "strategy_version_id": r.strategy_version_id,
@@ -81,8 +85,12 @@ async def run_strategy_job(app: FastAPI) -> None:
         ]
         summary = {
             "versions_run": len(results),
+            "versions_succeeded": versions_succeeded,
+            "versions_failed": versions_failed,
+            "failed_symbols": failed_symbols,
             "signals_created": signals_created,
             "trades_attempted": trades_attempted,
+            "error_categories": error_categories,
             "errors": errors,
         }
 
@@ -92,14 +100,24 @@ async def run_strategy_job(app: FastAPI) -> None:
                 signals_created, trades_attempted,
             )
 
-        if errors:
+        if versions_failed:
+            logger.warning(
+                "strategy scheduler: %d/%d version(s) failed — symbols: %s",
+                versions_failed, len(results), failed_symbols,
+            )
+
+        # Status 정책:
+        # - FAILED: job 자체가 crash하거나 모든 version이 실패한 경우
+        # - SKIPPED: 실행할 전략이 없음
+        # - SUCCESS: 일부라도 성공하면 SUCCESS (per-symbol 오류는 summary에 기록)
+        if errors and versions_succeeded == 0:
             status = SchedulerRunStatus.FAILED
             error_message = "; ".join(e["message"] for e in errors)
         elif not results:
             status = SchedulerRunStatus.SKIPPED
 
         app.state.scheduler_last_error = error_message
-        app.state.scheduler_last_error_category = errors[0]["category"] if errors else None
+        app.state.scheduler_last_error_category = error_categories[0] if error_categories else None
     except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
         logger.exception("strategy scheduler job failed")
         status = SchedulerRunStatus.FAILED
@@ -148,11 +166,16 @@ async def order_sync_job(app: FastAPI) -> None:
 
         if result.updated or result.errors:
             logger.info(
-                "order sync: %d/%d trade(s) updated, %d error(s)",
+                "order sync: %d/%d trade(s) updated, %d error(s), stale_cancelled=%d, requires_review=%d",
                 result.updated, result.checked, len(result.errors),
+                result.stale_cancelled, result.stale_pending_requires_review,
             )
 
-        if result.errors:
+        # Status 정책:
+        # - FAILED: KIS API 자체 조회 실패 (error_category 설정됨)
+        # - SKIPPED: pending 주문 없음
+        # - SUCCESS: API 성공 (per-trade 오류는 summary.errors에 기록)
+        if result.error_category:
             status = SchedulerRunStatus.FAILED
             error_message = "; ".join(result.errors)
         elif result.skipped_reason:
