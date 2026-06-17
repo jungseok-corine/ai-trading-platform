@@ -445,6 +445,31 @@ class StrategyAnalysisInputRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Analysis Prompt (Phase C-2.1)
+# ---------------------------------------------------------------------------
+
+
+class AnalysisPromptInputSummary(BaseModel):
+    """prompt 생성에 사용된 데이터 요약 — 응답에 포함해 디버깅/로깅을 돕는다."""
+
+    total_signals: int
+    analyzed_signals: int
+    symbols: list[str]
+    timeframes: list[str]
+
+
+class StrategyAnalysisPromptRead(BaseModel):
+    """LLM 분석용 prompt preview 응답."""
+
+    strategy_id: int
+    strategy_version_id: int
+    prompt_type: str
+    prompt: str
+    input_summary: AnalysisPromptInputSummary
+    warnings: list[str]
+
+
+# ---------------------------------------------------------------------------
 # Market Data
 # ---------------------------------------------------------------------------
 

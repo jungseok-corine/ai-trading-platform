@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.services.strategy_analysis_input_service import StrategyAnalysisInputService
+from app.services.strategy_analysis_prompt_service import (
+    SUPPORTED_PROMPT_TYPES,
+    StrategyAnalysisPromptService,
+    UnsupportedPromptTypeError,
+)
 from app.services.strategy_performance_service import StrategyPerformanceService
 from app.services.strategy_service import (
     StrategyNotFoundError,
@@ -11,6 +16,7 @@ from app.services.strategy_service import (
 )
 from app.trading.strategy.schemas import (
     StrategyAnalysisInputRead,
+    StrategyAnalysisPromptRead,
     StrategyCreateRequest,
     StrategyRead,
     StrategyVersionCreateRequest,
@@ -34,6 +40,12 @@ def get_analysis_input_service(
     session: AsyncSession = Depends(get_db),
 ) -> StrategyAnalysisInputService:
     return StrategyAnalysisInputService(session)
+
+
+def get_analysis_prompt_service(
+    session: AsyncSession = Depends(get_db),
+) -> StrategyAnalysisPromptService:
+    return StrategyAnalysisPromptService(session)
 
 
 @router.get("", response_model=list[StrategyRead])
@@ -129,6 +141,36 @@ async def get_analysis_input(
     데이터(신호, market_data, 실제 거래)가 없어도 payload는 항상 생성된다.
     """
     result = await service.get_analysis_input(strategy_id, version_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="strategy version not found")
+    return result
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}/analysis-prompt",
+    response_model=StrategyAnalysisPromptRead,
+)
+async def get_analysis_prompt(
+    strategy_id: int,
+    version_id: int,
+    prompt_type: str = Query(default="overview"),
+    service: StrategyAnalysisPromptService = Depends(get_analysis_prompt_service),
+) -> StrategyAnalysisPromptRead:
+    """LLM 분석용 prompt를 생성해 반환한다.
+
+    prompt_type: overview (기본) | risk | improvement
+    지원하지 않는 prompt_type은 400 반환.
+    strategy_id/version_id 조합을 찾을 수 없으면 404 반환.
+    LLM API 호출 없음 — prompt text preview만 제공한다.
+    """
+    try:
+        result = await service.get_prompt(strategy_id, version_id, prompt_type)
+    except UnsupportedPromptTypeError:
+        supported = ", ".join(sorted(SUPPORTED_PROMPT_TYPES))
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported prompt_type: '{prompt_type}'. supported: {supported}",
+        )
     if result is None:
         raise HTTPException(status_code=404, detail="strategy version not found")
     return result
