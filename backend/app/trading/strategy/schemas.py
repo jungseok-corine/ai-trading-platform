@@ -386,6 +386,65 @@ class StrategyVersionPerformanceRead(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# AI Analysis Input Payload (Phase C-2.0)
+# ---------------------------------------------------------------------------
+
+
+class AnalysisInputStrategyMeta(BaseModel):
+    """분석 대상 strategy/version 메타데이터."""
+
+    strategy_id: int
+    strategy_name: str
+    strategy_version_id: int
+    version_no: int
+    status: StrategyVersionStatus
+    parameters: dict
+
+
+class AnalysisInputMarketData(BaseModel):
+    """분석 대상 종목의 market_data 요약."""
+
+    symbols: list[str]
+    timeframes: list[str]
+    latest_ts: datetime | None
+    row_count: int
+
+
+class AnalysisInputSignalOutcome5m(BaseModel):
+    """5분 horizon 결과 요약 (optional; 데이터 없으면 None)."""
+
+    directional_return_pct: Decimal | None
+    is_win: bool | None
+
+
+class AnalysisInputRecentSignal(BaseModel):
+    """최근 신호 및 5분 결과 (시간 경과 불충분 시 outcome_5m=None)."""
+
+    signal_id: int
+    symbol_code: str
+    signal_type: TradeSide
+    generated_at: datetime
+    outcome_5m: AnalysisInputSignalOutcome5m | None
+
+
+class AnalysisInputContext(BaseModel):
+    """payload 생성 시점 및 분석 제한 사항."""
+
+    generated_at: datetime
+    limitations: list[str]
+
+
+class StrategyAnalysisInputRead(BaseModel):
+    """LLM에 바로 넘길 수 있는 strategy_version 분석 입력 payload."""
+
+    strategy: AnalysisInputStrategyMeta
+    performance: StrategyVersionPerformanceRead
+    market_data: AnalysisInputMarketData
+    recent_signals: list[AnalysisInputRecentSignal]
+    analysis_context: AnalysisInputContext
+
+
+# ---------------------------------------------------------------------------
 # Market Data
 # ---------------------------------------------------------------------------
 
