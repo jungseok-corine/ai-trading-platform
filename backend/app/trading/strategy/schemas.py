@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.models.enums import PauseSource, SchedulerRunStatus, StrategyVersionStatus, TradeSide
 
@@ -94,25 +94,80 @@ class StrategyRead(BaseModel):
     version_count: int = 0
 
 
+class StrategyParameterMeta(BaseModel):
+    """단일 파라미터의 메타데이터 (프론트 폼 생성에 사용)."""
+
+    name: str
+    type: str
+    default: str | int | float | bool | None
+    min: int | float | None = None
+    max: int | float | None = None
+    description: str
+    required: bool = False
+
+
+class StrategyTypeMeta(BaseModel):
+    """전략 타입의 메타데이터 (GET /strategy-types 응답 항목)."""
+
+    strategy_type: str
+    display_name: str
+    display_name_ko: str
+    parameters: list[StrategyParameterMeta]
+
+
+STRATEGY_TYPES_METADATA: list[StrategyTypeMeta] = [
+    StrategyTypeMeta(
+        strategy_type="moving_average_cross",
+        display_name="Moving Average Cross",
+        display_name_ko="이동평균 교차",
+        parameters=[
+            StrategyParameterMeta(name="short_window", type="int", default=5, min=1, description="단기 이동평균 기간"),
+            StrategyParameterMeta(name="long_window", type="int", default=20, min=2, description="장기 이동평균 기간 (short_window 초과)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
+    StrategyTypeMeta(
+        strategy_type="volume_confirmed_ma_cross",
+        display_name="Volume Confirmed MA Cross",
+        display_name_ko="거래량 확인 MA 교차",
+        parameters=[
+            StrategyParameterMeta(name="short_window", type="int", default=5, min=1, description="단기 이동평균 기간"),
+            StrategyParameterMeta(name="long_window", type="int", default=20, min=2, description="장기 이동평균 기간 (short_window 초과)"),
+            StrategyParameterMeta(name="volume_window", type="int", default=20, min=1, description="거래량 SMA 계산 기간"),
+            StrategyParameterMeta(name="volume_multiplier", type="float", default=1.5, min=0.01, description="거래량 spike 판단 배수 (volume_sma 대비 배수)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
+]
+
+
 class StrategyVersionParameters(BaseModel):
     """strategy_versions.parameters JSONB에 저장되는 구조.
 
-    StrategyRunnerService가 그대로 읽는 키(strategy_type, symbol_code, short_window,
-    long_window, quantity, account_id, enabled, auto_trade_enabled)와 일치한다.
+    StrategyRunnerService가 그대로 읽는 공통 키 + 전략 타입별 추가 키를 포함한다.
+    volume_window/volume_multiplier는 volume_confirmed_ma_cross 전용이지만,
+    기존 moving_average_cross 버전의 하위호환을 위해 모두 optional with defaults.
     """
 
     strategy_type: str = "moving_average_cross"
     symbol_code: str
-    short_window: int = 5
-    long_window: int = 20
-    quantity: int = 1
+    short_window: int = Field(default=5, gt=0)
+    long_window: int = Field(default=20, gt=0)
+    quantity: int = Field(default=1, gt=0)
     timeframe: str = "1m"
     account_id: int | None = None
     enabled: bool = True
     auto_trade_enabled: bool = False
+    # volume_confirmed_ma_cross 전용 파라미터 (moving_average_cross에서는 무시됨)
+    volume_window: int = Field(default=20, gt=0)
+    volume_multiplier: float = Field(default=1.5, gt=0)
 
     @model_validator(mode="after")
-    def _validate_auto_trade_requires_account(self) -> "StrategyVersionParameters":
+    def _validate(self) -> "StrategyVersionParameters":
+        if self.long_window <= self.short_window:
+            raise ValueError(
+                f"long_window({self.long_window})은 short_window({self.short_window})보다 커야 합니다."
+            )
         if self.auto_trade_enabled and self.account_id is None:
             raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
         return self

@@ -357,6 +357,24 @@ export interface Translations {
     providerMissingConfig: (provider: string) => string;
     lengthWarningImpact: (role: string) => string;
   };
+  strategyParams: {
+    labelStrategyType: string;
+    labelSymbolCode: string;
+    labelShortWindow: string;
+    labelLongWindow: string;
+    labelQuantity: string;
+    labelTimeframe: string;
+    labelAccountId: string;
+    labelEnabled: string;
+    labelVolumeWindow: string;
+    labelVolumeMultiplier: string;
+    strategyTypeMovingAverage: string;
+    strategyTypeVolumeConfirmed: string;
+    errorLongWindowGtShort: string;
+    errorVolumeWindowGt0: string;
+    errorVolumeMultiplierGt0: string;
+    hintAutoTrade: string;
+  };
 }
 
 export const translations: Record<Language, Translations> = {
@@ -793,6 +811,25 @@ export const translations: Record<Language, Translations> = {
       providerMissingConfig: (provider: string) => `${provider} API 키가 설정되지 않았습니다. .env를 확인하세요.`,
       lengthWarningImpact: (role: string) => `${role} 응답이 토큰 제한으로 잘렸습니다. critique/synthesis 품질이 낮아질 수 있습니다.`,
     },
+    strategyParams: {
+      labelStrategyType: "전략 타입",
+      labelSymbolCode: "종목 코드",
+      labelShortWindow: "단기 이동평균 기간",
+      labelLongWindow: "장기 이동평균 기간",
+      labelQuantity: "주문 수량",
+      labelTimeframe: "타임프레임",
+      labelAccountId: "계정 ID",
+      labelEnabled: "활성화",
+      labelVolumeWindow: "거래량 SMA 기간",
+      labelVolumeMultiplier: "거래량 배수",
+      strategyTypeMovingAverage: "이동평균 교차",
+      strategyTypeVolumeConfirmed: "거래량 확인 MA 교차",
+      errorLongWindowGtShort: "장기 기간은 단기 기간보다 커야 합니다.",
+      errorVolumeWindowGt0: "거래량 기간은 1 이상이어야 합니다.",
+      errorVolumeMultiplierGt0: "거래량 배수는 0보다 커야 합니다.",
+      hintAutoTrade:
+        "auto_trade_enabled가 OFF이면 신호(Signal)만 생성되어 기록되고, 실제 KIS 주문은 실행되지 않습니다. ON으로 설정하면 RiskManager 검증을 통과한 신호에 한해 자동으로 주문이 전송됩니다.",
+    },
   },
   en: {
     nav: {
@@ -1225,6 +1262,25 @@ export const translations: Record<Language, Translations> = {
       requestMayStillBeRunning: "The analysis may still be running on the server. Refresh the run list to check.",
       providerMissingConfig: (provider: string) => `${provider} API key is not configured. Check your .env file.`,
       lengthWarningImpact: (role: string) => `${role} response was cut off by the token limit. This may reduce critique/synthesis quality.`,
+    },
+    strategyParams: {
+      labelStrategyType: "Strategy Type",
+      labelSymbolCode: "Symbol Code",
+      labelShortWindow: "Short Window",
+      labelLongWindow: "Long Window",
+      labelQuantity: "Quantity",
+      labelTimeframe: "Timeframe",
+      labelAccountId: "Account ID",
+      labelEnabled: "Enabled",
+      labelVolumeWindow: "Volume SMA Period",
+      labelVolumeMultiplier: "Volume Multiplier",
+      strategyTypeMovingAverage: "Moving Average Cross",
+      strategyTypeVolumeConfirmed: "Volume Confirmed MA Cross",
+      errorLongWindowGtShort: "Long window must be greater than short window.",
+      errorVolumeWindowGt0: "Volume window must be at least 1.",
+      errorVolumeMultiplierGt0: "Volume multiplier must be greater than 0.",
+      hintAutoTrade:
+        "When auto_trade_enabled is OFF, only signals are generated and recorded; no KIS orders are placed. When ON, orders are sent automatically for signals that pass RiskManager validation.",
     },
   },
 };

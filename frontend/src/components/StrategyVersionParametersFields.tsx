@@ -1,3 +1,4 @@
+import { useSettings } from "../i18n/SettingsContext";
 import type { StrategyVersionParameters } from "../types";
 import AutoTradeToggle from "./AutoTradeToggle";
 
@@ -7,29 +8,52 @@ interface StrategyVersionParametersFieldsProps {
   idPrefix: string;
 }
 
+const STRATEGY_TYPES = [
+  { value: "moving_average_cross", labelKey: "strategyTypeMovingAverage" as const },
+  { value: "volume_confirmed_ma_cross", labelKey: "strategyTypeVolumeConfirmed" as const },
+];
+
+function getValidationErrors(p: StrategyVersionParameters, t: ReturnType<typeof useSettings>["t"]) {
+  const errors: string[] = [];
+  if (p.long_window <= p.short_window) errors.push(t.strategyParams.errorLongWindowGtShort);
+  if (p.volume_window <= 0) errors.push(t.strategyParams.errorVolumeWindowGt0);
+  if (p.volume_multiplier <= 0) errors.push(t.strategyParams.errorVolumeMultiplierGt0);
+  return errors;
+}
+
 export default function StrategyVersionParametersFields({
   parameters,
   onChange,
   idPrefix,
 }: StrategyVersionParametersFieldsProps) {
+  const { t } = useSettings();
+  const sp = t.strategyParams;
+
   const update = <K extends keyof StrategyVersionParameters>(key: K, value: StrategyVersionParameters[K]) => {
     onChange({ ...parameters, [key]: value });
   };
 
+  const isVolumeType = parameters.strategy_type === "volume_confirmed_ma_cross";
+  const validationErrors = getValidationErrors(parameters, t);
+
   return (
     <div className="parameters-form">
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-strategy-type`}>strategy_type</label>
+        <label htmlFor={`${idPrefix}-strategy-type`}>{sp.labelStrategyType}</label>
         <select
           id={`${idPrefix}-strategy-type`}
           value={parameters.strategy_type}
           onChange={(e) => update("strategy_type", e.target.value)}
         >
-          <option value="moving_average_cross">moving_average_cross</option>
+          {STRATEGY_TYPES.map(({ value, labelKey }) => (
+            <option key={value} value={value}>
+              {sp[labelKey]}
+            </option>
+          ))}
         </select>
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-symbol-code`}>symbol_code</label>
+        <label htmlFor={`${idPrefix}-symbol-code`}>{sp.labelSymbolCode}</label>
         <input
           id={`${idPrefix}-symbol-code`}
           type="text"
@@ -39,7 +63,7 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-short-window`}>short_window</label>
+        <label htmlFor={`${idPrefix}-short-window`}>{sp.labelShortWindow}</label>
         <input
           id={`${idPrefix}-short-window`}
           type="number"
@@ -49,7 +73,7 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-long-window`}>long_window</label>
+        <label htmlFor={`${idPrefix}-long-window`}>{sp.labelLongWindow}</label>
         <input
           id={`${idPrefix}-long-window`}
           type="number"
@@ -58,8 +82,33 @@ export default function StrategyVersionParametersFields({
           onChange={(e) => update("long_window", Number(e.target.value) || 0)}
         />
       </div>
+      {isVolumeType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-volume-window`}>{sp.labelVolumeWindow}</label>
+            <input
+              id={`${idPrefix}-volume-window`}
+              type="number"
+              min={1}
+              value={parameters.volume_window}
+              onChange={(e) => update("volume_window", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-volume-multiplier`}>{sp.labelVolumeMultiplier}</label>
+            <input
+              id={`${idPrefix}-volume-multiplier`}
+              type="number"
+              min={0.01}
+              step={0.1}
+              value={parameters.volume_multiplier}
+              onChange={(e) => update("volume_multiplier", Number(e.target.value) || 0)}
+            />
+          </div>
+        </>
+      )}
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-quantity`}>quantity</label>
+        <label htmlFor={`${idPrefix}-quantity`}>{sp.labelQuantity}</label>
         <input
           id={`${idPrefix}-quantity`}
           type="number"
@@ -69,7 +118,7 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-timeframe`}>timeframe</label>
+        <label htmlFor={`${idPrefix}-timeframe`}>{sp.labelTimeframe}</label>
         <input
           id={`${idPrefix}-timeframe`}
           type="text"
@@ -78,7 +127,7 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-account-id`}>account_id</label>
+        <label htmlFor={`${idPrefix}-account-id`}>{sp.labelAccountId}</label>
         <input
           id={`${idPrefix}-account-id`}
           type="number"
@@ -87,7 +136,7 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-enabled`}>enabled</label>
+        <label htmlFor={`${idPrefix}-enabled`}>{sp.labelEnabled}</label>
         <input
           id={`${idPrefix}-enabled`}
           type="checkbox"
@@ -103,10 +152,16 @@ export default function StrategyVersionParametersFields({
           onChange={(next) => update("auto_trade_enabled", next)}
         />
       </div>
-      <p className="section-description">
-        auto_trade_enabled가 OFF이면 신호(Signal)만 생성되어 기록되고, 실제 KIS 주문은 실행되지 않습니다.
-        ON으로 설정하면 RiskManager 검증을 통과한 신호에 한해 자동으로 주문이 전송됩니다.
-      </p>
+      {validationErrors.length > 0 && (
+        <ul className="validation-errors">
+          {validationErrors.map((msg) => (
+            <li key={msg} className="validation-error">
+              {msg}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="section-description">{sp.hintAutoTrade}</p>
     </div>
   );
 }

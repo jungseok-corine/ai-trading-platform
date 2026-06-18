@@ -18,6 +18,7 @@ import type {
   SignalOutcomeSummary,
   Strategy,
   StrategyRunResult,
+  StrategyTypeMeta,
   StrategyVersion,
   StrategyVersionCreateRequest,
   StrategyVersionPerformanceRead,
@@ -133,6 +134,11 @@ export async function syncPositionsFromBroker(accountId: number): Promise<Broker
   const { data } = await apiClient.post<BrokerSyncResult>("/positions/sync-from-broker", null, {
     params: { account_id: accountId },
   });
+  return data;
+}
+
+export async function getStrategyTypes(): Promise<StrategyTypeMeta[]> {
+  const { data } = await apiClient.get<StrategyTypeMeta[]>("/strategies/strategy-types");
   return data;
 }
 

@@ -18,10 +18,12 @@ from app.services.strategy_service import (
     StrategyVersionNotFoundError,
 )
 from app.trading.strategy.schemas import (
+    STRATEGY_TYPES_METADATA,
     StrategyAnalysisInputRead,
     StrategyAnalysisPromptRead,
     StrategyCreateRequest,
     StrategyRead,
+    StrategyTypeMeta,
     StrategyVersionCreateRequest,
     StrategyVersionPerformanceRead,
     StrategyVersionRead,
@@ -55,6 +57,15 @@ def get_analysis_run_service(
     session: AsyncSession = Depends(get_db),
 ) -> AnalysisRunService:
     return AnalysisRunService(session)
+
+
+@router.get("/strategy-types", response_model=list[StrategyTypeMeta])
+async def list_strategy_types() -> list[StrategyTypeMeta]:
+    """등록된 전략 타입과 파라미터 메타데이터를 반환한다.
+
+    프론트엔드 폼 동적 생성에 사용된다.
+    """
+    return STRATEGY_TYPES_METADATA
 
 
 @router.get("", response_model=list[StrategyRead])

@@ -210,6 +210,25 @@ export interface StrategyVersionParameters {
   account_id: number | null;
   enabled: boolean;
   auto_trade_enabled: boolean;
+  volume_window: number;
+  volume_multiplier: number;
+}
+
+export interface StrategyParameterMeta {
+  name: string;
+  type: string;
+  default: string | number | boolean | null;
+  min?: number | null;
+  max?: number | null;
+  description: string;
+  required: boolean;
+}
+
+export interface StrategyTypeMeta {
+  strategy_type: string;
+  display_name: string;
+  display_name_ko: string;
+  parameters: StrategyParameterMeta[];
 }
 
 export interface StrategyVersion {
@@ -483,4 +502,6 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   account_id: null,
   enabled: true,
   auto_trade_enabled: false,
+  volume_window: 20,
+  volume_multiplier: 1.5,
 };
