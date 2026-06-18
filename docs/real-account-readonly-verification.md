@@ -102,6 +102,61 @@ python scripts/kis_real_readonly_smoke_test.py --confirm-readonly
            real_trading_enabled=False → RealTradingDisabledError
 ```
 
+## C-2.14: 실전 계좌 DB 등록 방법
+
+### 등록 스크립트 실행
+
+```bash
+cd backend
+
+# 기본 등록 (DB 등록 + 안전 상태 초기화, KIS API 미호출)
+.venv/bin/python scripts/register_live_account_readonly.py --alias "실전계좌"
+
+# 등록 후 read-only KIS 조회 검증
+.venv/bin/python scripts/register_live_account_readonly.py --alias "실전계좌" --verify-readonly
+
+# 계좌번호 직접 지정 시
+.venv/bin/python scripts/register_live_account_readonly.py --broker-account-no 12345678-01
+```
+
+### 등록 후 기본 안전 상태
+
+| 항목 | 값 | 의미 |
+|------|-----|------|
+| `account_type` | `LIVE` | 실전 계좌로 분류 |
+| `TradingGuardState.is_paused` | `True` | 신규 주문 차단 |
+| `TradingGuardState.pause_source` | `MANUAL` | 수동 등록 |
+| `RiskConfig.emergency_stop` | `True` | EmergencyStopRule 즉시 거부 |
+| `KIS_REAL_TRADING_ENABLED` | `false` | broker.place_order 차단 |
+
+### emergency_stop=True 의미
+
+`RiskConfig.emergency_stop=True`이면 `EmergencyStopRule`이 모든 주문을 거부한다.
+Trading guard resume 후에도 emergency_stop이 True이면 주문 불가.
+해제는 `POST /api/v1/risk-config/{account_id}/emergency-stop {"enabled": false}`.
+
+### trading_guard paused 의미
+
+`TradingGuardState.is_paused=True`이면 `TradeService`와 `StrategyRunner` 모두 주문 차단.
+해제는 `POST /api/v1/accounts/{account_id}/trading-guard/resume`.
+**AI 분석 결과가 자동으로 resume을 호출해서는 안 된다.**
+
+### 절대 커밋하면 안 되는 파일
+
+- `.env` (KIS_REAL_APP_KEY, KIS_REAL_APP_SECRET, KIS_REAL_ACCOUNT_NO 포함)
+- `.cache/kis_real_token.json` (실전 access token)
+- `.cache/kis_token.json` (모의 access token)
+- 계좌번호/app secret이 포함된 모든 파일
+
+위 파일들은 `.gitignore`로 추적 제외되어 있다.
+
+### 멱등성 보장
+
+같은 계좌번호로 스크립트를 여러 번 실행해도 안전하다:
+- Account 중복 생성 없음
+- TradingGuardState가 resume 상태였어도 pause로 되돌림
+- RiskConfig의 emergency_stop=False였어도 True로 되돌림
+
 ## 실전 주문 전환 전 체크리스트
 
 실전 자동매매를 시작하려면 **모든 항목을 검토한 후 사람이 명시적으로** 진행해야 한다.
