@@ -90,7 +90,7 @@ def _make_execution(
         unfilled_quantity=total_quantity - filled_quantity,
         filled_price=filled_price,
         cancelled=cancelled,
-        recorded_at=datetime(2026, 6, 17, 9, 5, 0, tzinfo=KST),
+        recorded_at=datetime.now(KST).replace(hour=9, minute=5, second=0, microsecond=0),
         raw={
             "odno": broker_order_id,
             "tot_ccld_qty": str(filled_quantity),

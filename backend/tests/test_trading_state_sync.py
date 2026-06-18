@@ -114,7 +114,7 @@ async def _create_account(factory, account_type: AccountType = AccountType.PAPER
 
 
 async def _create_pending_trade(factory, account_id: int) -> int:
-    yesterday = datetime.now(KST) - timedelta(days=1)
+    today_open = datetime.now(KST).replace(hour=9, minute=0, second=0, microsecond=0)
     async with factory() as session:
         trade = Trade(
             account_id=account_id,
@@ -123,7 +123,7 @@ async def _create_pending_trade(factory, account_id: int) -> int:
             quantity=1,
             order_status=OrderStatus.PENDING,
             broker_order_id="0000000099",
-            entry_time=yesterday,
+            entry_time=today_open,
         )
         session.add(trade)
         await session.commit()

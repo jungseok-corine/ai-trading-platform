@@ -55,10 +55,36 @@ def _upgrade_to_head() -> None:
     command.upgrade(config, "head")
 
 
+async def _truncate_all_tables(database_url: str) -> None:
+    """테스트 DB의 모든 데이터 테이블을 비운다.
+
+    alembic_version은 제외한다. RESTART IDENTITY로 시퀀스도 초기화한다.
+    이전 pytest 세션에서 남은 잔여 데이터를 제거해 테스트 격리를 보장한다.
+    """
+    engine = create_async_engine(database_url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname='public' AND tablename != 'alembic_version'"
+                "ORDER BY tablename"
+            ))
+            tables = [row[0] for row in result.fetchall()]
+            if tables:
+                table_list = ", ".join(f'"{t}"' for t in tables)
+                await conn.execute(text(
+                    f"TRUNCATE TABLE {table_list} RESTART IDENTITY CASCADE"
+                ))
+            await conn.commit()
+    finally:
+        await engine.dispose()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _prepare_test_database():
     """세션 시작 시 1회: 테스트 DB(trading_platform_test)를 생성하고 스키마를 최신화한다.
 
+    모든 데이터 테이블을 비워 이전 세션 잔여 데이터로 인한 테스트 오염을 방지한다.
     dev DB(trading_platform)의 strategies/trades/signal_logs/scheduler_runs 등은
     전혀 조회·수정하지 않는다.
     """
@@ -68,6 +94,7 @@ def _prepare_test_database():
     db_name = _require_test_database(settings.database_url)
     asyncio.run(_ensure_database_exists(settings.database_url, db_name))
     _upgrade_to_head()
+    asyncio.run(_truncate_all_tables(settings.database_url))
 
 
 @pytest_asyncio.fixture
