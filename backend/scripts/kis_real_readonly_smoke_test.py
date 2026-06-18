@@ -33,6 +33,13 @@ _BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
+# .env 파일을 자동으로 로드한다 (shell에서 export하지 않아도 동작).
+# 민감정보는 이 파일을 통해 process 환경변수에 주입되며, 출력하지 않는다.
+_ENV_FILE = _BACKEND_DIR / ".env"
+if _ENV_FILE.exists():
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=_ENV_FILE, override=False)
+
 
 def _mask(value: str | None, visible: int = 4) -> str:
     """민감정보 마스킹 — 앞 visible자만 남기고 나머지는 ***로 대체."""
