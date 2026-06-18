@@ -23,11 +23,13 @@ class SignalLogRepository(BaseRepository[SignalLog]):
 
     async def list_filtered(
         self,
-        limit: int = 100,
+        limit: int = 50,
         offset: int = 0,
         signal_type: TradeSide | None = None,
         symbol_code: str | None = None,
         strategy_version_id: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> list[SignalLog]:
         stmt = select(SignalLog).order_by(SignalLog.generated_at.desc(), SignalLog.id.desc())
         if signal_type is not None:
@@ -36,6 +38,10 @@ class SignalLogRepository(BaseRepository[SignalLog]):
             stmt = stmt.where(SignalLog.symbol_code == symbol_code)
         if strategy_version_id is not None:
             stmt = stmt.where(SignalLog.strategy_version_id == strategy_version_id)
+        if date_from is not None:
+            stmt = stmt.where(SignalLog.generated_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(SignalLog.generated_at <= date_to)
         stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

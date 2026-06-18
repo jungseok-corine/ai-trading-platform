@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -71,11 +73,24 @@ async def get_outcomes_summary(
 
 @router.get("", response_model=list[SignalLogRead])
 async def list_signals(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    signal_type: TradeSide | None = Query(default=None),
+    symbol_code: str | None = Query(default=None),
+    strategy_version_id: int | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     service: SignalService = Depends(get_signal_service),
 ) -> list[SignalLogRead]:
-    return await service.list_signals(limit, offset)
+    return await service.list_signals(
+        limit=limit,
+        offset=offset,
+        signal_type=signal_type,
+        symbol_code=symbol_code,
+        strategy_version_id=strategy_version_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @router.get("/{signal_id}/outcome", response_model=SignalOutcomeRead)

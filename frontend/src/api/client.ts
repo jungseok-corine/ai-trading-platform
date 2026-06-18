@@ -72,8 +72,22 @@ export async function updateSchedulerSettings(
   return data;
 }
 
-export async function getSignals(): Promise<SignalLog[]> {
-  const { data } = await apiClient.get<SignalLog[]>("/signals");
+export interface SignalListParams {
+  limit?: number;
+  offset?: number;
+  signal_type?: "buy" | "sell" | null;
+  symbol_code?: string | null;
+  strategy_version_id?: number | null;
+  date_from?: string | null;
+  date_to?: string | null;
+}
+
+export async function getSignals(params?: SignalListParams): Promise<SignalLog[]> {
+  const { data } = await apiClient.get<SignalLog[]>("/signals", {
+    params: params
+      ? Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined))
+      : undefined,
+  });
   return data;
 }
 

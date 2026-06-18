@@ -100,7 +100,8 @@ class PositionReconciliationService:
             raise ValueError(f"account {account_id} not found")
 
         broker_positions = await self._broker.get_broker_positions()
-        db_positions = await self._position_repo.list_by_account(account_id)
+        # 비교 시 qty=0 포지션도 포함 — MISSING_BUY 케이스에서 row가 이미 존재하는지 확인 필요
+        db_positions = await self._position_repo.list_by_account(account_id, include_closed=True)
 
         result = ReconciliationResult(
             account_id=account_id,

@@ -109,10 +109,21 @@ export interface Translations {
     colId: string;
     colSymbol: string;
     colType: string;
+    colSignalPrice: string;
     colShortMa: string;
     colLongMa: string;
     colReason: string;
     colGeneratedAt: string;
+    filterSymbol: string;
+    filterType: string;
+    filterDateFrom: string;
+    filterDateTo: string;
+    filterAll: string;
+    filterBuy: string;
+    filterSell: string;
+    pagePrev: string;
+    pageNext: string;
+    pageInfo: (page: number, total: number) => string;
   };
   trades: {
     title: string;
@@ -417,8 +428,9 @@ export const translations: Record<Language, Translations> = {
       colErrors: "오류",
       colSummary: "요약",
       jobLabels: {
-        strategy_runner: "전략 실행 작업",
-        order_sync: "주문 체결 동기화 작업",
+        strategy_runner: "전략 실행기",
+        order_sync: "주문/체결 동기화",
+        trading_state_sync: "거래 상태 동기화",
       } as Record<string, string>,
       summaryKeyLabels: {
         versions_run: "실행 전략 수",
@@ -529,10 +541,21 @@ export const translations: Record<Language, Translations> = {
       colId: "ID",
       colSymbol: "종목코드",
       colType: "신호유형",
+      colSignalPrice: "시그널 발생가",
       colShortMa: "단기 이동평균",
       colLongMa: "장기 이동평균",
       colReason: "이유",
       colGeneratedAt: "생성 시각",
+      filterSymbol: "종목 필터",
+      filterType: "신호유형",
+      filterDateFrom: "시작일",
+      filterDateTo: "종료일",
+      filterAll: "전체",
+      filterBuy: "매수",
+      filterSell: "매도",
+      pagePrev: "이전",
+      pageNext: "다음",
+      pageInfo: (page: number, total: number) => `${page}페이지 · ${total}건`,
     },
     trades: {
       title: "주문/거래 기록",
@@ -571,14 +594,14 @@ export const translations: Record<Language, Translations> = {
     },
     portfolio: {
       title: "포트폴리오 요약",
-      positionCount: "총 보유 종목 수",
-      totalQuantity: "총 보유 수량",
-      totalCostAmount: "총 매입금액",
-      totalEvalAmount: "총 평가금액",
-      totalUnrealizedPnl: "총 평가손익",
-      totalUnrealizedPnlPct: "총 평가손익률",
-      totalRealizedPnl: "총 실현손익",
-      totalPnl: "총 손익",
+      positionCount: "보유 종목 수",
+      totalQuantity: "보유 수량 합계",
+      totalCostAmount: "보유 매입금액",
+      totalEvalAmount: "보유 평가금액",
+      totalUnrealizedPnl: "보유 평가손익",
+      totalUnrealizedPnlPct: "보유 평가손익률",
+      totalRealizedPnl: "누적 실현손익",
+      totalPnl: "총 거래손익",
       refreshPrices: "현재가 갱신",
       refreshing: "갱신 중...",
       lastRefreshedAt: "마지막 갱신",
@@ -839,7 +862,8 @@ export const translations: Record<Language, Translations> = {
       colSummary: "Summary",
       jobLabels: {
         strategy_runner: "Strategy Runner",
-        order_sync: "Order Sync",
+        order_sync: "Order/Fill Sync",
+        trading_state_sync: "Trading State Sync",
       } as Record<string, string>,
       summaryKeyLabels: {
         versions_run: "Versions Run",
@@ -950,10 +974,21 @@ export const translations: Record<Language, Translations> = {
       colId: "ID",
       colSymbol: "Symbol",
       colType: "Type",
+      colSignalPrice: "Signal Price",
       colShortMa: "Short MA",
       colLongMa: "Long MA",
       colReason: "Reason",
       colGeneratedAt: "Generated At",
+      filterSymbol: "Symbol filter",
+      filterType: "Signal type",
+      filterDateFrom: "From",
+      filterDateTo: "To",
+      filterAll: "All",
+      filterBuy: "Buy",
+      filterSell: "Sell",
+      pagePrev: "Prev",
+      pageNext: "Next",
+      pageInfo: (page: number, total: number) => `Page ${page} · ${total} items`,
     },
     trades: {
       title: "Trades",
@@ -992,13 +1027,13 @@ export const translations: Record<Language, Translations> = {
     },
     portfolio: {
       title: "Portfolio Summary",
-      positionCount: "Total Positions",
-      totalQuantity: "Total Quantity",
-      totalCostAmount: "Total Cost Amount",
-      totalEvalAmount: "Total Eval Amount",
-      totalUnrealizedPnl: "Total Unrealized PnL",
-      totalUnrealizedPnlPct: "Total Unrealized PnL %",
-      totalRealizedPnl: "Total Realized PnL",
+      positionCount: "Open Positions",
+      totalQuantity: "Total Quantity (Held)",
+      totalCostAmount: "Cost Basis (Held)",
+      totalEvalAmount: "Market Value (Held)",
+      totalUnrealizedPnl: "Unrealized PnL",
+      totalUnrealizedPnlPct: "Unrealized PnL %",
+      totalRealizedPnl: "Realized PnL (Cumulative)",
       totalPnl: "Total PnL",
       refreshPrices: "Refresh Prices",
       refreshing: "Refreshing...",

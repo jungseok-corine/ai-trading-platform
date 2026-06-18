@@ -173,6 +173,7 @@ export interface SignalLog {
   short_ma: string | null;
   long_ma: string | null;
   price: string | null;
+  signal_price: string | null;
   quantity: number | null;
   created_at: string;
 }

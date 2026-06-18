@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.enums import TradeSide
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.watchlist import WatchlistSymbol
 from app.domain.repositories.signal_log import SignalLogRepository
@@ -57,6 +58,7 @@ class SignalService:
             short_ma=metadata.get("short_ma"),
             long_ma=metadata.get("long_ma"),
             price=signal.price,
+            signal_price=signal.price,
             quantity=signal.quantity,
         )
         await self._session.commit()
@@ -87,8 +89,25 @@ class SignalService:
             update={"symbol_name": symbol_name, "symbol_display": symbol_display}
         )
 
-    async def list_signals(self, limit: int = 100, offset: int = 0) -> list[SignalLogRead]:
-        logs = await self._signal_log_repo.list(limit, offset)
+    async def list_signals(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        signal_type: TradeSide | None = None,
+        symbol_code: str | None = None,
+        strategy_version_id: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[SignalLogRead]:
+        logs = await self._signal_log_repo.list_filtered(
+            limit=limit,
+            offset=offset,
+            signal_type=signal_type,
+            symbol_code=symbol_code,
+            strategy_version_id=strategy_version_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
         name_map = await self._fetch_symbol_name_map({log.symbol_code for log in logs})
         return [self._to_read(log, name_map) for log in logs]
 

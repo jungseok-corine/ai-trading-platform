@@ -16,9 +16,15 @@ class PositionRepository(BaseRepository[Position]):
         )
         return result.scalar_one_or_none()
 
-    async def list_by_account(self, account_id: int | None = None) -> list[Position]:
+    async def list_by_account(
+        self,
+        account_id: int | None = None,
+        include_closed: bool = False,
+    ) -> list[Position]:
         stmt = select(Position).order_by(Position.id)
         if account_id is not None:
             stmt = stmt.where(Position.account_id == account_id)
+        if not include_closed:
+            stmt = stmt.where(Position.quantity != 0)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

@@ -74,6 +74,7 @@ class SignalLogRead(BaseModel):
     short_ma: Decimal | None
     long_ma: Decimal | None
     price: Decimal | None
+    signal_price: Decimal | None = None
     quantity: int | None
     created_at: datetime
 

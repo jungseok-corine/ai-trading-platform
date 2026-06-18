@@ -181,7 +181,8 @@ class PositionService:
         holdings = await self._broker.get_account_positions()
         holdings_by_symbol = {h.symbol_code: h for h in holdings}
 
-        existing = await self._position_repo.list_by_account(account_id)
+        # qty=0 포지션도 포함 — 이미 row가 있는데 새로 create하면 unique constraint 위반
+        existing = await self._position_repo.list_by_account(account_id, include_closed=True)
         existing_by_symbol = {p.symbol_code: p for p in existing}
 
         result = BrokerPositionSyncResult()
@@ -281,7 +282,7 @@ class PositionService:
         position_events 기록 없이 positions이 직접 수정된 경우(예: 과거 broker sync)를 감지한다.
         반환 목록이 비어 있으면 position_events로 현재 수량이 완전히 설명된다.
         """
-        positions = await self._position_repo.list_by_account(account_id)
+        positions = await self._position_repo.list_by_account(account_id, include_closed=True)
         mismatches: list[PositionMismatch] = []
         for position in positions:
             events = await self._position_event_repo.list_by_position(position.id, limit=10000)

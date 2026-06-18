@@ -46,6 +46,7 @@ class SignalLog(Base):
     short_ma: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     long_ma: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    signal_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     quantity: Mapped[int | None] = mapped_column(Integer)
     trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id", ondelete="SET NULL"))
     trade_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_broker_client
@@ -33,10 +33,11 @@ def get_position_service(
 @router.get("/positions", response_model=list[PositionRead])
 async def list_positions(
     account_id: int | None = None,
+    include_closed: bool = Query(default=False),
     session: AsyncSession = Depends(get_db),
 ) -> list[PositionRead]:
     repo = PositionRepository(session)
-    return await repo.list_by_account(account_id=account_id)
+    return await repo.list_by_account(account_id=account_id, include_closed=include_closed)
 
 
 @router.post("/positions/refresh-prices", response_model=RefreshPricesResultRead)

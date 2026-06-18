@@ -105,7 +105,11 @@ export default function EngineStatusCard() {
         </div>
         <div className="status-item">
           <span className="label">{t.engineStatus.registeredJobs}</span>
-          <span className="value">{data.registered_jobs.join(", ") || "-"}</span>
+          <span className="value">
+            {data.registered_jobs.length > 0
+              ? data.registered_jobs.map((id) => t.scheduler.jobLabels[id] ?? id).join(", ")
+              : "-"}
+          </span>
         </div>
         <div className="status-item">
           <span className="label">{t.engineStatus.activeStrategies}</span>
