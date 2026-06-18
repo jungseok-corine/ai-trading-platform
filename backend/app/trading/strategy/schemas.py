@@ -159,6 +159,30 @@ class SchedulerSettingsUpdateRequest(BaseModel):
     order_sync_scheduler_interval_seconds: int | None = None
 
 
+# ---------------------------------------------------------------------------
+# Trading State Sync (C-2.11)
+# ---------------------------------------------------------------------------
+
+
+class TradingStateSyncResultRead(BaseModel):
+    account_id: int
+    broker_mode: str
+    started_at: datetime
+    completed_at: datetime
+    orders_checked: int
+    orders_updated: int
+    orders_cancelled: int
+    order_sync_errors: list[str]
+    order_sync_error_category: str | None = None
+    order_sync_skipped_reason: str | None = None
+    positions_compared: int
+    mismatches_count: int
+    risk_events_created: int
+    positions_synced_to_db: bool
+    position_errors: list[str]
+    warnings: list[str]
+
+
 class SchedulerRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

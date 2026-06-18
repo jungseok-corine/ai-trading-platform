@@ -8,6 +8,7 @@ from app.domain.repositories.position_event import PositionEventRepository
 from app.services.portfolio_service import PortfolioService
 from app.services.position_reconciliation_service import PositionReconciliationService
 from app.services.position_service import PositionService
+from app.services.trading_state_sync_service import TradingStateSyncService
 from app.trading.broker.base import BrokerClient
 from app.trading.position.schemas import (
     BrokerSyncResultRead,
@@ -17,6 +18,7 @@ from app.trading.position.schemas import (
     ReconciliationResultRead,
     RefreshPricesResultRead,
 )
+from app.trading.strategy.schemas import TradingStateSyncResultRead
 
 router = APIRouter(tags=["positions"])
 
@@ -104,6 +106,44 @@ async def reconcile_positions(
     svc = PositionReconciliationService(session, broker)
     result = await svc.reconcile(account_id)
     return ReconciliationResultRead.from_result(result)
+
+
+@router.post("/accounts/{account_id}/trading-state/sync", response_model=TradingStateSyncResultRead)
+async def sync_trading_state(
+    account_id: int,
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> TradingStateSyncResultRead:
+    """pending 주문 체결 동기화 + 포지션 정합성 검사를 한 번에 실행한다 (수동 실행용).
+
+    실행 순서:
+    1. OrderSyncService: pending/partial 주문을 KIS 체결조회로 동기화 (VTTC0081R/TTTC0081R)
+    2. PositionReconciliationService: 브로커 잔고와 DB 포지션 비교
+       - paper 계좌: mismatch 시 DB 자동 보정
+       - real 계좌: mismatch 시 risk_event 생성
+
+    order sync 실패 시에도 reconciliation을 계속 시도하며, 결과의 warnings에 기록한다.
+    """
+    svc = TradingStateSyncService(session, broker)
+    result = await svc.sync_account_trading_state(account_id)
+    return TradingStateSyncResultRead(
+        account_id=result.account_id,
+        broker_mode=result.broker_mode,
+        started_at=result.started_at,
+        completed_at=result.completed_at,
+        orders_checked=result.orders_checked,
+        orders_updated=result.orders_updated,
+        orders_cancelled=result.orders_cancelled,
+        order_sync_errors=result.order_sync_errors,
+        order_sync_error_category=result.order_sync_error_category,
+        order_sync_skipped_reason=result.order_sync_skipped_reason,
+        positions_compared=result.positions_compared,
+        mismatches_count=result.mismatches_count,
+        risk_events_created=result.risk_events_created,
+        positions_synced_to_db=result.positions_synced_to_db,
+        position_errors=result.position_errors,
+        warnings=result.warnings,
+    )
 
 
 @router.get("/positions/{account_id}/{symbol_code}", response_model=PositionRead)

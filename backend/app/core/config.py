@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     order_sync_scheduler_enabled: bool = True
     order_sync_scheduler_interval_seconds: int = 60
 
+    # 통합 trading state sync 스케줄러 (order sync + position reconciliation)
+    # order_sync_job과 중복 KIS 호출을 막기 위해 기본값은 False.
+    # order_sync_job을 비활성화하고 이 job만 활성화하거나, 독립 주기로 운영한다.
+    trading_state_sync_scheduler_enabled: bool = False
+    trading_state_sync_scheduler_interval_seconds: int = 180
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

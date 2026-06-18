@@ -37,8 +37,11 @@ _LIMITATIONS: list[str] = [
     "Actual trading PnL may be incomplete when pnl_amount is null.",
     "Paper trading order status may lag or differ from real trading."
     " Fill status is synchronized via VTTC0081R daily order execution inquiry when available.",
-    "Broker balance reconciliation (POST /accounts/{account_id}/positions/reconcile)"
-    " is available to verify position accuracy against the broker's actual holdings.",
+    "A unified sync pipeline (C-2.11) runs order fill sync then broker balance reconciliation."
+    " Trigger manually via POST /accounts/{account_id}/trading-state/sync"
+    " or enable the trading_state_sync scheduler job."
+    " Paper mode mismatches are auto-corrected against broker holdings;"
+    " real mode mismatches generate risk_events.",
     "This is not financial advice.",
 ]
 

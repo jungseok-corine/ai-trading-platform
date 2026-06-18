@@ -6,7 +6,14 @@ from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.db.session import async_session_factory
-from app.scheduler.jobs import ORDER_SYNC_JOB_ID, STRATEGY_RUNNER_JOB_ID, order_sync_job, run_strategy_job
+from app.scheduler.jobs import (
+    ORDER_SYNC_JOB_ID,
+    STRATEGY_RUNNER_JOB_ID,
+    TRADING_STATE_SYNC_JOB_ID,
+    order_sync_job,
+    run_strategy_job,
+    sync_trading_state_job,
+)
 from app.services.scheduler_settings_service import SchedulerSettingsService
 
 logger = logging.getLogger(__name__)
@@ -34,6 +41,9 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
     app.state.order_sync_last_run_at = None
     app.state.order_sync_last_error = None
     app.state.order_sync_last_error_category = None
+    app.state.trading_state_sync_last_run_at = None
+    app.state.trading_state_sync_last_error = None
+    app.state.trading_state_sync_last_error_category = None
 
     scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
@@ -57,6 +67,16 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
             replace_existing=True,
         )
 
+    if settings.trading_state_sync_scheduler_enabled:
+        scheduler.add_job(
+            sync_trading_state_job,
+            trigger=IntervalTrigger(seconds=settings.trading_state_sync_scheduler_interval_seconds),
+            id=TRADING_STATE_SYNC_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
     scheduler.start()
     app.state.scheduler = scheduler
     return scheduler
@@ -73,6 +93,7 @@ def reschedule_jobs(
     app: FastAPI,
     strategy_scheduler_interval_seconds: int | None = None,
     order_sync_scheduler_interval_seconds: int | None = None,
+    trading_state_sync_scheduler_interval_seconds: int | None = None,
 ) -> None:
     """실행 중인 scheduler job의 주기를 변경한다 (해당 job이 등록되어 있는 경우에만)."""
     scheduler: AsyncIOScheduler | None = getattr(app.state, "scheduler", None)
@@ -87,4 +108,9 @@ def reschedule_jobs(
     if order_sync_scheduler_interval_seconds is not None and scheduler.get_job(ORDER_SYNC_JOB_ID) is not None:
         scheduler.reschedule_job(
             ORDER_SYNC_JOB_ID, trigger=IntervalTrigger(seconds=order_sync_scheduler_interval_seconds)
+        )
+
+    if trading_state_sync_scheduler_interval_seconds is not None and scheduler.get_job(TRADING_STATE_SYNC_JOB_ID) is not None:
+        scheduler.reschedule_job(
+            TRADING_STATE_SYNC_JOB_ID, trigger=IntervalTrigger(seconds=trading_state_sync_scheduler_interval_seconds)
         )

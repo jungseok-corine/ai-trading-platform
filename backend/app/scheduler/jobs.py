@@ -13,6 +13,7 @@ from app.services.scheduler_run_service import SchedulerRunService
 from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
+from app.services.trading_state_sync_service import TradingStateSyncService
 from app.trading.broker.error_classifier import classify_exception, exc_message
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ KST = ZoneInfo("Asia/Seoul")
 
 STRATEGY_RUNNER_JOB_ID = "strategy_runner"
 ORDER_SYNC_JOB_ID = "order_sync"
+TRADING_STATE_SYNC_JOB_ID = "trading_state_sync"
 
 
 async def _record_run(
@@ -195,3 +197,87 @@ async def order_sync_job(app: FastAPI) -> None:
         finished_at = datetime.now(KST)
         app.state.order_sync_last_run_at = finished_at
         await _record_run(ORDER_SYNC_JOB_ID, started_at, finished_at, status, error_message, summary)
+
+
+async def sync_trading_state_job(app: FastAPI) -> None:
+    """전체 계좌에 대해 order sync + position reconciliation을 순서대로 실행한다.
+
+    1단계: OrderSyncService로 pending/partial 주문 체결 동기화 (VTTC0081R/TTTC0081R)
+    2단계: 각 계좌의 PositionReconciliationService로 잔고 정합성 검사
+    - paper 계좌: mismatch 시 DB 자동 보정 + warning
+    - real 계좌: mismatch 시 risk_event 기록 (자동 trading pause는 다음 phase)
+
+    order sync 실패 시 reconciliation을 계속 진행하며 결과 summary에 warning을 남긴다.
+    어느 한 계좌의 오류가 다른 계좌 처리나 scheduler 전체를 죽이지 않는다.
+    """
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    summary: dict = {}
+
+    try:
+        async with async_session_factory() as session:
+            broker = app.state.broker_client
+            svc = TradingStateSyncService(session, broker)
+            results = await svc.sync_all_accounts()
+
+        total_orders_checked = sum(r.orders_checked for r in results)
+        total_orders_updated = sum(r.orders_updated for r in results)
+        total_mismatches = sum(r.mismatches_count for r in results)
+        total_risk_events = sum(r.risk_events_created for r in results)
+        all_warnings = [w for r in results for w in r.warnings]
+        all_order_errors = [e for r in results for e in r.order_sync_errors]
+        all_position_errors = [e for r in results for e in r.position_errors]
+        order_sync_error_categories = list({r.order_sync_error_category for r in results if r.order_sync_error_category})
+
+        summary = {
+            "accounts_synced": len(results),
+            "orders_checked": total_orders_checked,
+            "orders_updated": total_orders_updated,
+            "mismatches_count": total_mismatches,
+            "risk_events_created": total_risk_events,
+            "order_sync_error_categories": order_sync_error_categories,
+            "warnings": all_warnings,
+            "errors": all_order_errors + all_position_errors,
+            "per_account": [
+                {
+                    "account_id": r.account_id,
+                    "broker_mode": r.broker_mode,
+                    "orders_checked": r.orders_checked,
+                    "orders_updated": r.orders_updated,
+                    "mismatches_count": r.mismatches_count,
+                    "risk_events_created": r.risk_events_created,
+                    "positions_synced_to_db": r.positions_synced_to_db,
+                    "warnings": r.warnings,
+                }
+                for r in results
+            ],
+        }
+
+        if not results:
+            status = SchedulerRunStatus.SKIPPED
+        elif all_order_errors or all_position_errors:
+            logger.warning(
+                "trading state sync: completed with errors — order_errors=%d, position_errors=%d",
+                len(all_order_errors), len(all_position_errors),
+            )
+        elif total_mismatches:
+            logger.info(
+                "trading state sync: %d mismatch(es) found across %d account(s)",
+                total_mismatches, len(results),
+            )
+
+        app.state.trading_state_sync_last_error = None
+        app.state.trading_state_sync_last_error_category = None
+    except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
+        logger.exception("trading state sync job failed")
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        error_category = classify_exception(exc)
+        summary = {"errors": [{"message": error_message, "category": error_category}]}
+        app.state.trading_state_sync_last_error = error_message
+        app.state.trading_state_sync_last_error_category = error_category
+    finally:
+        finished_at = datetime.now(KST)
+        app.state.trading_state_sync_last_run_at = finished_at
+        await _record_run(TRADING_STATE_SYNC_JOB_ID, started_at, finished_at, status, error_message, summary)
