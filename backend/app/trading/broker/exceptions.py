@@ -13,3 +13,11 @@ class RealTradingDisabledError(Exception):
     C-2.13: KIS_REAL_TRADING_ENABLED=true로 명시적으로 설정하지 않으면 실전 주문은 불가.
     잔고/체결 조회는 이 제약과 무관하게 허용된다.
     """
+
+
+class ProviderUnsupportedError(Exception):
+    """특정 Provider(모의투자 등)에서 지원하지 않는 기능이 호출될 때 발생한다.
+
+    예: KIS 모의투자(VTS) 도메인은 투자자 수급 API(FHPTJ04160001)를 지원하지 않는다.
+    실전 도메인 전용 기능을 paper client에서 호출하면 이 예외가 발생한다.
+    """
