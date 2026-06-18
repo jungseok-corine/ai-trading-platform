@@ -65,6 +65,22 @@ class TradeService:
             reason_source, account_id, signal.symbol_code, signal.side, signal.quantity, signal.price,
         )
 
+        # C-2.13: Real trading disabled guard — defense-in-depth, checked before any DB/broker call.
+        # KISRealBrokerClient exposes real_trading_enabled; paper brokers do not have this attr.
+        if not getattr(self._broker, "real_trading_enabled", True):
+            logger.warning(
+                "execute_signal blocked: real_trading_enabled=False for account=%s", account_id
+            )
+            return OrderPlacementResult(
+                approved=False,
+                trade=None,
+                rule_name="real_trading_disabled",
+                reason=(
+                    "실전 주문이 비활성화되어 있습니다 (real_trading_enabled=False). "
+                    "KIS_REAL_TRADING_ENABLED=true를 설정해야 실전 주문이 가능합니다."
+                ),
+            )
+
         from app.services.trading_guard_service import TradingGuardService  # noqa: PLC0415
 
         if await TradingGuardService(self._session).is_paused(account_id):

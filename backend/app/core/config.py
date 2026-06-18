@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://trading:trading@localhost:5432/trading_platform"
 
-    # KIS Open API
+    # KIS Open API — 모의투자 (paper)
     kis_app_key: str = ""
     kis_app_secret: str = ""
     kis_account_no: str = ""  # 계좌번호 전체, 예: "12345678-01"
@@ -28,12 +28,34 @@ class Settings(BaseSettings):
     kis_real_base_url: str = "https://openapi.koreainvestment.com:9443"
     kis_token_cache_path: str = ".cache/kis_token.json"
 
+    # KIS Open API — 실전투자 (real, C-2.13)
+    # 실전 계좌는 모의 계좌와 별도 app_key/app_secret/account_no를 사용한다.
+    # 미설정이면 실전 브로커가 초기화되지 않는다.
+    kis_real_app_key: str = ""
+    kis_real_app_secret: str = ""
+    kis_real_account_no: str = ""  # 계좌번호 전체, 예: "12345678-01"
+    kis_real_token_cache_path: str = ".cache/kis_real_token.json"
+
+    # C-2.13: 실전 주문 활성화 플래그 — 기본값은 반드시 False (read-only 모드).
+    # True로 변경하는 것은 사람이 명시적으로 해야 한다.
+    # AI 분석 결과, 자동화 코드, 스케줄러는 이 값을 변경해서는 안 된다.
+    kis_real_trading_enabled: bool = False
+
     @field_validator("kis_account_no")
     @classmethod
     def validate_kis_account_no(cls, v: str) -> str:
         if v and not re.match(r"^\d{8}-\d{2}$", v):
             raise ValueError(
                 f"kis_account_no must match NNNNNNNN-NN format (e.g. 50192525-01), got: {v!r}"
+            )
+        return v
+
+    @field_validator("kis_real_account_no")
+    @classmethod
+    def validate_kis_real_account_no(cls, v: str) -> str:
+        if v and not re.match(r"^\d{8}-\d{2}$", v):
+            raise ValueError(
+                f"kis_real_account_no must match NNNNNNNN-NN format (e.g. 50192525-01), got: {v!r}"
             )
         return v
 
