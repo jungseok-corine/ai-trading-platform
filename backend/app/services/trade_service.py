@@ -65,6 +65,19 @@ class TradeService:
             reason_source, account_id, signal.symbol_code, signal.side, signal.quantity, signal.price,
         )
 
+        from app.services.trading_guard_service import TradingGuardService  # noqa: PLC0415
+
+        if await TradingGuardService(self._session).is_paused(account_id):
+            logger.warning(
+                "execute_signal blocked: trading is paused for account=%s", account_id
+            )
+            return OrderPlacementResult(
+                approved=False,
+                trade=None,
+                rule_name="trading_paused",
+                reason="Auto-trading is paused for this account. Resume via POST /api/v1/trading-guard/resume.",
+            )
+
         risk_result = await self._risk_service.validate_signal(account_id, signal)
         if not risk_result.approved:
             logger.info(

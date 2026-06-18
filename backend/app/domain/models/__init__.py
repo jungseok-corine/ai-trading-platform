@@ -9,6 +9,7 @@ from app.domain.models.scheduler_settings import SchedulerSettings
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
 from app.domain.models.trade import Trade
+from app.domain.models.trading_guard import TradingGuardState
 from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "Strategy",
     "StrategyVersion",
     "Trade",
+    "TradingGuardState",
     "Watchlist",
     "WatchlistSymbol",
 ]

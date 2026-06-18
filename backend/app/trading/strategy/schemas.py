@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.domain.models.enums import SchedulerRunStatus, StrategyVersionStatus, TradeSide
+from app.domain.models.enums import PauseSource, SchedulerRunStatus, StrategyVersionStatus, TradeSide
 
 
 class SignalGenerateRequest(BaseModel):
@@ -181,6 +181,33 @@ class TradingStateSyncResultRead(BaseModel):
     positions_synced_to_db: bool
     position_errors: list[str]
     warnings: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Trading Guard (C-2.12)
+# ---------------------------------------------------------------------------
+
+
+class TradingGuardStateRead(BaseModel):
+    account_id: int
+    is_paused: bool
+    pause_reason: str | None = None
+    pause_source: PauseSource | None = None
+    paused_at: datetime | None = None
+    paused_by: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
+    resolution_note: str | None = None
+    related_risk_event_id: int | None = None
+    updated_at: datetime | None = None
+
+
+class PauseRequest(BaseModel):
+    reason: str
+
+
+class ResumeRequest(BaseModel):
+    resolution_note: str | None = None
 
 
 class SchedulerRunRead(BaseModel):
@@ -456,6 +483,8 @@ class AnalysisInputContext(BaseModel):
 
     generated_at: datetime
     limitations: list[str]
+    trading_paused: bool = False
+    pause_reason: str | None = None
 
 
 class StrategyAnalysisInputRead(BaseModel):

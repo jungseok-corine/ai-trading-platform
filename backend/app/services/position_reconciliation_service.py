@@ -21,7 +21,7 @@ from enum import Enum
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.account import Account
-from app.domain.models.enums import AccountType, RiskEventResult
+from app.domain.models.enums import AccountType, PauseSource, RiskEventResult
 from app.domain.repositories.account import AccountRepository
 from app.domain.repositories.position import PositionRepository
 from app.domain.repositories.risk import RiskEventRepository
@@ -70,6 +70,7 @@ class ReconciliationResult:
     comparisons: list[ReconciliationMismatch] = field(default_factory=list)
     synced_to_db: bool = False
     risk_event_created: bool = False
+    auto_paused: bool = False
 
     @property
     def mismatch_count(self) -> int:
@@ -89,6 +90,8 @@ class PositionReconciliationService:
         self._position_repo = PositionRepository(session)
         self._risk_event_repo = RiskEventRepository(session)
         self._position_svc = PositionService(session, broker)
+        # Lazy import to avoid circular dependency
+        self._guard_svc = None
 
     async def reconcile(self, account_id: int) -> ReconciliationResult:
         """account_id 계좌의 포지션을 브로커 잔고와 비교하고 결과를 반환한다."""
@@ -121,22 +124,42 @@ class PositionReconciliationService:
             await self._position_svc.sync_from_broker_positions(account_id)
             result.synced_to_db = True
         else:
-            await self._create_risk_event(account, result)
+            risk_event_id = await self._create_risk_event(account, result)
             result.risk_event_created = True
+            await self._auto_pause_real_mode(account_id, result, risk_event_id)
+            result.auto_paused = True
 
         await self._session.commit()
         return result
 
+    async def _auto_pause_real_mode(
+        self, account_id: int, result: ReconciliationResult, risk_event_id: int | None
+    ) -> None:
+        from app.services.trading_guard_service import TradingGuardService  # noqa: PLC0415
+
+        guard_svc = TradingGuardService(self._session)
+        non_ok = [c for c in result.comparisons if c.mismatch_type != ReconciliationMismatchType.OK]
+        reason = (
+            f"{result.mismatch_count} position mismatch(es) in real mode: "
+            + "; ".join(f"{c.symbol_code}:{c.mismatch_type.value}" for c in non_ok[:5])
+        )
+        await guard_svc.auto_pause(
+            account_id=account_id,
+            reason=reason,
+            source=PauseSource.RECONCILIATION,
+            risk_event_id=risk_event_id,
+        )
+
     async def _create_risk_event(
         self, account: Account, result: ReconciliationResult
-    ) -> None:
+    ) -> int | None:
         non_ok = [c for c in result.comparisons if c.mismatch_type != ReconciliationMismatchType.OK]
         summary = "; ".join(
             f"{c.symbol_code}:{c.mismatch_type.value}"
             f"(db={c.db_quantity},broker={c.broker_quantity})"
             for c in non_ok[:10]  # cap to keep the reason concise
         )
-        await self._risk_event_repo.create(
+        risk_event = await self._risk_event_repo.create(
             account_id=account.id,
             strategy_version_id=None,
             signal_snapshot={"source": "position_reconciliation"},
@@ -160,6 +183,7 @@ class PositionReconciliationService:
             rule_name="position_reconciliation_mismatch",
             reason=f"{result.mismatch_count} position mismatch(es) detected: {summary}",
         )
+        return risk_event.id if risk_event is not None else None
 
 
 def _compare_positions(

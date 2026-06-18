@@ -140,6 +140,17 @@ class StrategyRunnerService:
             logger.warning("strategy_version_id=%s: %s", version.id, result.error)
             return
 
+        from app.services.trading_guard_service import TradingGuardService  # noqa: PLC0415
+
+        if await TradingGuardService(self._session).is_paused(account_id):
+            result.error = f"자동매매가 일시 중지되어 있습니다 (account_id={account_id}). API로 수동 재개 필요."
+            result.trade_attempted = False
+            logger.info(
+                "strategy_version_id=%s: auto-trade skipped — trading guard is paused for account=%s",
+                version.id, account_id,
+            )
+            return
+
         if self._trade_service is None:
             result.error = "TradeService가 설정되지 않아 자동 주문을 실행할 수 없습니다."
             logger.warning("strategy_version_id=%s: %s", version.id, result.error)

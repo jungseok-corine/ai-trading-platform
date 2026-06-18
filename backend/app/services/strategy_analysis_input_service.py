@@ -22,6 +22,7 @@ from app.domain.repositories.strategy import StrategyRepository, StrategyVersion
 from app.domain.repositories.trade import TradeRepository
 from app.services.signal_outcome_service import SignalOutcomeService
 from app.services.strategy_performance_service import StrategyPerformanceService
+from app.services.trading_guard_service import TradingGuardService
 from app.trading.strategy.schemas import (
     AnalysisInputContext,
     AnalysisInputMarketData,
@@ -44,6 +45,10 @@ _LIMITATIONS: list[str] = [
     " real mode mismatches generate risk_events.",
     "This is not financial advice.",
 ]
+_PAUSE_SAFETY_NOTE = (
+    "IMPORTANT: If trading_paused is true, the AI MUST NOT recommend immediate resumption."
+    " Resumption requires human review via POST /api/v1/accounts/{account_id}/trading-guard/resume."
+)
 
 
 class StrategyAnalysisInputService:
@@ -56,6 +61,7 @@ class StrategyAnalysisInputService:
         self._trade_repo = TradeRepository(session)
         self._perf_svc = StrategyPerformanceService(session)
         self._outcome_svc = SignalOutcomeService(session)
+        self._guard_svc = TradingGuardService(session)
 
     # ------------------------------------------------------------------
     # public
@@ -91,6 +97,16 @@ class StrategyAnalysisInputService:
                 " Run order sync (VTTC0081R) to update fill status."
             )
 
+        account_id: int | None = version.parameters.get("account_id")
+        trading_paused = False
+        pause_reason: str | None = None
+        if account_id is not None:
+            guard_state = await self._guard_svc.get_state(account_id)
+            if guard_state is not None and guard_state.is_paused:
+                trading_paused = True
+                pause_reason = guard_state.pause_reason
+                limitations.append(_PAUSE_SAFETY_NOTE)
+
         return StrategyAnalysisInputRead(
             strategy=AnalysisInputStrategyMeta(
                 strategy_id=strategy_id,
@@ -106,6 +122,8 @@ class StrategyAnalysisInputService:
             analysis_context=AnalysisInputContext(
                 generated_at=datetime.now(tz=timezone.utc),
                 limitations=limitations,
+                trading_paused=trading_paused,
+                pause_reason=pause_reason,
             ),
         )
 

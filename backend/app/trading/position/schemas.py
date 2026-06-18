@@ -82,6 +82,7 @@ class ReconciliationResultRead(BaseModel):
     comparisons: list[ReconciliationMismatchRead]
     synced_to_db: bool
     risk_event_created: bool
+    auto_paused: bool = False
 
     @classmethod
     def from_result(cls, r: ReconciliationResult) -> "ReconciliationResultRead":
@@ -93,6 +94,7 @@ class ReconciliationResultRead(BaseModel):
             comparisons=[ReconciliationMismatchRead.from_mismatch(c) for c in r.comparisons],
             synced_to_db=r.synced_to_db,
             risk_event_created=r.risk_event_created,
+            auto_paused=r.auto_paused,
         )
 
 

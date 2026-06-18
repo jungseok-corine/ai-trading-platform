@@ -69,3 +69,10 @@ class AnalysisTargetType(str, enum.Enum):
 class AnalysisRunMode(str, enum.Enum):
     SINGLE = "single"
     DUAL = "dual"
+
+
+class PauseSource(str, enum.Enum):
+    RECONCILIATION = "reconciliation"
+    ORDER_SYNC = "order_sync"
+    MANUAL = "manual"
+    RISK_LIMIT = "risk_limit"
