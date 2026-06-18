@@ -12,6 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -48,6 +49,7 @@ class SignalLog(Base):
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     signal_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     quantity: Mapped[int | None] = mapped_column(Integer)
+    indicators: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id", ondelete="SET NULL"))
     trade_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     trade_attempt_status: Mapped[TradeAttemptStatus] = mapped_column(

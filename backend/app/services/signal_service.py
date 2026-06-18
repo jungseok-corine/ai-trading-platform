@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -11,6 +12,29 @@ from app.domain.repositories.signal_log import SignalLogRepository
 from app.services.market_data_service import MarketDataService
 from app.trading.strategy.base import Strategy
 from app.trading.strategy.schemas import SignalLogRead
+
+_METADATA_SKIP_KEYS = frozenset({"candle_ts", "short_ma", "long_ma"})
+
+
+def _build_indicators(metadata: dict) -> dict | None:
+    """Signal.metadata에서 indicators JSONB에 저장할 지표 dict를 만든다.
+
+    candle_ts, short_ma, long_ma는 전용 컬럼에 이미 저장되므로 제외한다.
+    Decimal/datetime 값은 JSON 직렬화를 위해 str로 변환한다.
+    """
+    indicators: dict = {}
+    for k, v in metadata.items():
+        if k in _METADATA_SKIP_KEYS:
+            continue
+        if v is None:
+            continue
+        if isinstance(v, Decimal):
+            indicators[k] = str(v)
+        elif isinstance(v, datetime):
+            indicators[k] = v.isoformat()
+        else:
+            indicators[k] = v
+    return indicators or None
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -60,6 +84,7 @@ class SignalService:
             price=signal.price,
             signal_price=signal.price,
             quantity=signal.quantity,
+            indicators=_build_indicators(metadata),
         )
         await self._session.commit()
         return log

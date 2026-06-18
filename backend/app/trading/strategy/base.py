@@ -27,6 +27,12 @@ class Strategy(ABC):
     매매 조건을 만족하지 않으면 None을 반환한다. 아직 주문을 실행하지 않는다.
     """
 
+    @classmethod
+    @abstractmethod
+    def from_params(cls, params: dict) -> "Strategy":
+        """strategy_versions.parameters dict에서 전략 인스턴스를 생성한다."""
+        ...
+
     @abstractmethod
     def generate_signal(
         self,

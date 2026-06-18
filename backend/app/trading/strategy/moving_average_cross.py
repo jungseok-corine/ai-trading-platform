@@ -14,6 +14,14 @@ class MovingAverageCrossStrategy(Strategy):
 
     name = "moving_average_cross"
 
+    @classmethod
+    def from_params(cls, params: dict) -> "MovingAverageCrossStrategy":
+        return cls(
+            short_window=params.get("short_window", 5),
+            long_window=params.get("long_window", 20),
+            quantity=params.get("quantity", 1),
+        )
+
     def __init__(self, short_window: int = 5, long_window: int = 20, quantity: int = 1) -> None:
         self._short_window = short_window
         self._long_window = long_window

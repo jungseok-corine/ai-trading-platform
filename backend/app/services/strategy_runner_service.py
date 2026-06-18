@@ -14,13 +14,11 @@ from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
 from app.trading.broker.error_classifier import classify_exception, exc_message
 from app.trading.strategy.base import Signal
-from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
+from app.trading.strategy.registry import create_strategy
 
 logger = logging.getLogger(__name__)
 
 KST = ZoneInfo("Asia/Seoul")
-
-STRATEGY_TYPE_MOVING_AVERAGE_CROSS = "moving_average_cross"
 
 
 @dataclass
@@ -75,7 +73,10 @@ class StrategyRunnerService:
 
         if not params.get("enabled", True):
             return None
-        if params.get("strategy_type") != STRATEGY_TYPE_MOVING_AVERAGE_CROSS:
+
+        strategy_type = params.get("strategy_type", "")
+        strategy = create_strategy(strategy_type, params)
+        if strategy is None:
             return None
 
         symbol_code = params.get("symbol_code")
@@ -89,12 +90,6 @@ class StrategyRunnerService:
             signal_id=None,
             auto_trade_enabled=bool(params.get("auto_trade_enabled", False)),
             trade_attempted=False,
-        )
-
-        strategy = MovingAverageCrossStrategy(
-            short_window=params.get("short_window", 5),
-            long_window=params.get("long_window", 20),
-            quantity=params.get("quantity", 1),
         )
 
         try:

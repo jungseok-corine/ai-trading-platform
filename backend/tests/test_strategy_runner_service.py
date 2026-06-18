@@ -305,3 +305,115 @@ async def test_market_data_save_failure_does_not_break_strategy_execution(
     # 저장은 실패했으므로 market_data는 0건
     rows = (await db_session.execute(select(MarketData))).scalars().all()
     assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# C-2.16: Registry 통합 테스트
+# ---------------------------------------------------------------------------
+
+
+VOLUME_CONFIRMED_PARAMS = {
+    "strategy_type": "volume_confirmed_ma_cross",
+    "symbol_code": "005930",
+    "short_window": 5,
+    "long_window": 20,
+    "volume_window": 20,
+    "volume_multiplier": 1.5,
+    "quantity": 1,
+    "enabled": True,
+}
+
+
+def _make_candles_with_volume(
+    closes: list[int], volumes: list[int]
+) -> list[MinuteCandle]:
+    candles = []
+    for i, (close, vol) in enumerate(zip(closes, volumes)):
+        price = Decimal(close)
+        candles.append(
+            MinuteCandle(
+                business_date="20260610",
+                trade_time=f"{900 + i:04d}00",
+                open_price=price,
+                high_price=price,
+                low_price=price,
+                close_price=price,
+                volume=vol,
+            )
+        )
+    return candles
+
+
+async def test_runner_uses_registry_for_moving_average_cross(db_session: AsyncSession) -> None:
+    """strategy_runner가 registry를 통해 moving_average_cross를 실행한다 (하드코딩 제거 확인)."""
+    await _create_strategy_version(db_session, GOLDEN_CROSS_PARAMS)
+    closes = [100] * 20 + [200]
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert len(results) == 1
+    assert results[0].signal_created is True
+
+
+async def test_runner_executes_volume_confirmed_ma_cross_strategy(db_session: AsyncSession) -> None:
+    """volume_confirmed_ma_cross 전략이 runner(registry)를 통해 실행된다."""
+    closes = [100] * 20 + [200]
+    volumes = [1000] * 20 + [2000]  # 2000 >= 1000*1.5=1500 → volume_confirmed
+    candles = _make_candles_with_volume(closes, volumes)
+
+    await _create_strategy_version(db_session, VOLUME_CONFIRMED_PARAMS)
+    broker = FakeBrokerClient({"005930": candles})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert len(results) == 1
+    assert results[0].signal_created is True
+    assert results[0].symbol_code == "005930"
+
+
+async def test_runner_volume_confirmed_no_signal_when_volume_low(db_session: AsyncSession) -> None:
+    """거래량 조건 미충족 시 volume_confirmed_ma_cross는 신호를 생성하지 않는다."""
+    closes = [100] * 20 + [200]
+    volumes = [1000] * 20 + [500]  # 500 < 1000*1.5=1500 → volume_confirmed=False
+    candles = _make_candles_with_volume(closes, volumes)
+
+    await _create_strategy_version(db_session, VOLUME_CONFIRMED_PARAMS)
+    broker = FakeBrokerClient({"005930": candles})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert len(results) == 1
+    assert results[0].signal_created is False
+
+
+async def test_runner_unknown_strategy_type_is_skipped(db_session: AsyncSession) -> None:
+    """알 수 없는 strategy_type은 결과 목록에 포함되지 않는다."""
+    closes = [100] * 20 + [200]
+    await _create_strategy_version(
+        db_session, {**GOLDEN_CROSS_PARAMS, "strategy_type": "unknown_future_strategy"}
+    )
+    broker = FakeBrokerClient({"005930": _make_candles(closes)})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert results == []
+
+
+async def test_runner_place_order_not_called(db_session: AsyncSession) -> None:
+    """auto_trade_enabled=False인 전략에서 broker.place_order가 절대 호출되지 않는다."""
+    import unittest.mock as mock
+
+    closes = [100] * 20 + [200]
+    volumes = [1000] * 20 + [2000]
+    candles = _make_candles_with_volume(closes, volumes)
+
+    broker = FakeBrokerClient({"005930": candles})
+    broker.place_order = mock.AsyncMock(side_effect=AssertionError("place_order 호출 금지"))
+
+    await _create_strategy_version(db_session, VOLUME_CONFIRMED_PARAMS)
+    results = await _runner(db_session, broker).run_once()
+
+    # place_order가 호출됐으면 AssertionError가 발생했을 것
+    assert len(results) == 1
+    assert results[0].trade_attempted is False

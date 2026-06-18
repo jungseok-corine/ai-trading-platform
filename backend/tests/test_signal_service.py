@@ -18,6 +18,7 @@ from app.trading.broker.schemas import (
     PriceQuote,
 )
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
+from app.trading.strategy.volume_confirmed_ma_cross import VolumeConfirmedMovingAverageCrossStrategy
 
 
 def _make_candles(closes: list[int]) -> list[MinuteCandle]:
@@ -197,3 +198,82 @@ async def test_symbol_code_is_preserved_in_all_cases(db_session: AsyncSession) -
     logs = await service.list_signals()
     assert len(logs) == 1
     assert logs[0].symbol_code == "000660"
+
+
+# ---------------------------------------------------------------------------
+# 테스트 #13: signal_logs.indicators 지표 영속화 (A안)
+# ---------------------------------------------------------------------------
+
+
+async def test_indicators_saved_for_volume_confirmed_strategy(db_session: AsyncSession) -> None:
+    """VolumeConfirmedMovingAverageCrossStrategy 신호가 저장될 때
+    indicators JSONB 컬럼에 volume 지표가 포함되어야 한다."""
+    # 골든크로스 + 거래량 spike 조건: close 급등 + volume 2000 >= 1000*1.5=1500
+    closes = [100] * 20 + [200]
+    volumes = [1000] * 20 + [2000]
+    candles = []
+    for i, (close, vol) in enumerate(zip(closes, volumes)):
+        price = Decimal(str(close))
+        candles.append(
+            MinuteCandle(
+                business_date="20260610",
+                trade_time=f"{900 + i:04d}00",
+                open_price=price,
+                high_price=price,
+                low_price=price,
+                close_price=price,
+                volume=vol,
+            )
+        )
+
+    broker = FakeBrokerClient(candles)
+    service = SignalService(db_session, MarketDataService(broker))
+    strategy = VolumeConfirmedMovingAverageCrossStrategy(
+        short_window=5, long_window=20, volume_window=20, volume_multiplier=Decimal("1.5")
+    )
+
+    log = await service.generate_and_log_signal(strategy, "005930")
+
+    assert log is not None
+    assert log.signal_type == TradeSide.BUY
+    # indicators 컬럼 확인
+    assert log.indicators is not None
+    assert "volume_ratio" in log.indicators
+    assert "volume_sma" in log.indicators
+    assert "volume_confirmed" in log.indicators
+    assert log.indicators["volume_confirmed"] is True
+    # short_sma/long_sma도 저장됨
+    assert "short_sma" in log.indicators
+    assert "long_sma" in log.indicators
+
+
+async def test_indicators_none_for_moving_average_cross_strategy(db_session: AsyncSession) -> None:
+    """기존 MovingAverageCrossStrategy 신호는 indicators가 None이거나 빈 dict여야 한다.
+
+    MA cross metadata에는 short_ma, long_ma, candle_ts만 있으므로
+    모두 skip되어 indicators=None이 된다.
+    """
+    closes = [100] * 20 + [200]
+    candles = []
+    for i, close in enumerate(closes):
+        price = Decimal(str(close))
+        candles.append(
+            MinuteCandle(
+                business_date="20260610",
+                trade_time=f"{900 + i:04d}00",
+                open_price=price,
+                high_price=price,
+                low_price=price,
+                close_price=price,
+                volume=1000,
+            )
+        )
+
+    broker = FakeBrokerClient(candles)
+    service = SignalService(db_session, MarketDataService(broker))
+
+    log = await service.generate_and_log_signal(MovingAverageCrossStrategy(), "005930")
+
+    assert log is not None
+    # MA cross는 volume 지표 없음 → indicators=None (하위호환 유지)
+    assert log.indicators is None
