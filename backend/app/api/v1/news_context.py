@@ -13,12 +13,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
 from app.services.news_context_service import NewsContextService
+from app.services.us_market_refresh_service import UsMarketRefreshService
 
 router = APIRouter(tags=["news-context"])
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> NewsContextService:
     return NewsContextService(session)
+
+
+def get_us_refresh_service(
+    session: AsyncSession = Depends(get_db),
+) -> UsMarketRefreshService:
+    return UsMarketRefreshService(session)
 
 
 # --- news ------------------------------------------------------------------
@@ -124,6 +131,26 @@ async def upsert_us_snapshot(
         data=payload.data,
     )
     return UsSnapshotRead.model_validate(snapshot)
+
+
+class UsRefreshResultRead(BaseModel):
+    provider: str
+    updated: bool
+    session_date: date | None
+    reason: str | None
+
+
+@router.post("/us-market-snapshots/refresh", response_model=UsRefreshResultRead)
+async def refresh_us_snapshot(
+    session_date: date | None = Query(default=None),
+    service: UsMarketRefreshService = Depends(get_us_refresh_service),
+) -> UsRefreshResultRead:
+    """설정된 provider에서 미국장 스냅샷을 가져와 upsert한다.
+
+    기본 provider("manual")는 외부 호출 없이 updated=False를 반환한다(수동 입력 보존).
+    """
+    result = await service.refresh(session_date)
+    return UsRefreshResultRead(**result.to_dict())
 
 
 @router.get("/us-market-snapshots", response_model=list[UsSnapshotRead])

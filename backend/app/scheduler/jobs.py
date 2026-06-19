@@ -29,6 +29,26 @@ DATA_REFRESH_JOB_ID = "data_refresh"
 RESEARCH_PIPELINE_JOB_ID = "research_pipeline"
 SCANNER_REVIEW_JOB_ID = "scanner_review"
 STRATEGY_REVIEW_JOB_ID = "strategy_review"
+US_MARKET_REFRESH_JOB_ID = "us_market_refresh"
+
+
+async def run_us_market_refresh_job(app: FastAPI) -> None:
+    """설정된 provider에서 미국장 일별 스냅샷을 가져와 upsert한다 (C-2.44).
+
+    기본 provider("manual")는 외부 호출 없이 no-op이다. read-only 수집으로 주문과 무관하다.
+    """
+    from app.services.us_market_refresh_service import UsMarketRefreshService
+
+    try:
+        async with async_session_factory() as session:
+            result = await UsMarketRefreshService(session).refresh()
+        logger.info(
+            "us market refresh: provider=%s updated=%s", result.provider, result.updated
+        )
+        app.state.us_market_refresh_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
+        logger.error("us market refresh job failed: %s", exc_message(exc))
+        app.state.us_market_refresh_last_error = exc_message(exc)
 
 
 async def run_strategy_review_job(app: FastAPI) -> None:
