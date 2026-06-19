@@ -35,6 +35,7 @@ class PipelineSummaryRead(BaseModel):
     symbols: int
     candidates: int
     assignments: int
+    context_snapshot_id: int | None = None
     per_version: list[VersionRunRead]
 
 
@@ -52,6 +53,7 @@ async def run_pipeline(
         symbols=summary.symbols,
         candidates=summary.candidates,
         assignments=summary.assignments,
+        context_snapshot_id=summary.context_snapshot_id,
         per_version=[
             VersionRunRead(
                 scanner_rule_version_id=v.scanner_rule_version_id,
