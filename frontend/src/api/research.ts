@@ -267,6 +267,19 @@ export async function rejectScannerProposal(
   return data;
 }
 
+// --- Strategy review (C-2.42) ----------------------------------------------
+export interface StrategyReviewSummary {
+  versions_reviewed: number;
+  proposals_created: number;
+  skipped_existing: number;
+  created_proposal_ids: number[];
+}
+
+export async function runStrategyReview(): Promise<StrategyReviewSummary> {
+  const { data } = await apiClient.post<StrategyReviewSummary>("/strategy-review/run");
+  return data;
+}
+
 // --- Scanner review (C-2.40) -----------------------------------------------
 export interface ScannerReviewSummary {
   versions_reviewed: number;
