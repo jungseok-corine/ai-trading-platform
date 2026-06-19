@@ -9,9 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.candidate_event import CandidateEvent
 from app.domain.models.daily_report import DailyResearchReport
-from app.domain.models.enums import MarketCode, StrategyVersionStatus, TradeSide
+from app.domain.models.enums import (
+    MarketCode,
+    ProposalStatus,
+    StrategyVersionStatus,
+    TradeSide,
+)
+from app.domain.models.scanner_proposal import ScannerRuleProposal
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
+from app.domain.models.strategy_proposal import StrategyProposal
 from app.domain.models.trade import Trade
 from app.domain.repositories.daily_report import DailyResearchReportRepository
 from app.domain.repositories.news_context import UsMarketSnapshotRepository
@@ -44,6 +51,7 @@ class DailyReportService:
         trade_stats = await self._trade_stats(start, end)
         candidates = await self._count(CandidateEvent, CandidateEvent.triggered_at, start, end)
         active_strategies = await self._active_strategy_count()
+        proposal_activity = await self._proposal_stats(start, end)
         us_prev = await self._us_repo.get_latest()
 
         sections = {
@@ -57,6 +65,7 @@ class DailyReportService:
             },
             "trade_summary": trade_stats,
             "scanner_activity": {"candidates": candidates},
+            "proposal_activity": proposal_activity,
             "us_previous_session": (
                 {
                     "session_date": us_prev.session_date.isoformat(),
@@ -137,6 +146,34 @@ class DailyReportService:
             "realized_pnl": str(realized),
         }
 
+    async def _proposal_stats(self, start: datetime, end: datetime) -> dict:
+        """AI 제안 활동을 집계한다: 당일 생성 건수 + 검토 대기(pending) 총계.
+
+        전략 제안(C-2.27/2.32)과 스캐너 제안(C-2.39)을 함께 본다. pending은 사람이
+        검토해야 할 작업량이므로 당일 외 누적분도 포함한다(read-only 집계).
+        """
+        strategy_created = await self._count(
+            StrategyProposal, StrategyProposal.created_at, start, end
+        )
+        scanner_created = await self._count(
+            ScannerRuleProposal, ScannerRuleProposal.created_at, start, end
+        )
+        strategy_pending = await self._count_status(StrategyProposal, ProposalStatus.PENDING)
+        scanner_pending = await self._count_status(ScannerRuleProposal, ProposalStatus.PENDING)
+        return {
+            "strategy_created": strategy_created,
+            "scanner_created": scanner_created,
+            "strategy_pending": strategy_pending,
+            "scanner_pending": scanner_pending,
+            "pending_total": strategy_pending + scanner_pending,
+        }
+
+    async def _count_status(self, model, status: ProposalStatus) -> int:
+        result = await self._session.execute(
+            select(func.count(model.id)).where(model.status == status)
+        )
+        return result.scalar() or 0
+
     async def _active_strategy_count(self) -> int:
         result = await self._session.execute(
             select(func.count(StrategyVersion.id)).where(
@@ -151,10 +188,12 @@ class DailyReportService:
     def _build_summary(report_date: date, sections: dict) -> str:
         sig = sections["signal_activity"]
         trade = sections["trade_summary"]
+        prop = sections["proposal_activity"]
         return (
             f"[{report_date.isoformat()}] "
             f"활성 전략 {sections['active_strategies']}개, "
             f"신호 {sig['total']}건(매수 {sig['buy']}/매도 {sig['sell']}), "
             f"체결 {trade['trades']}건(실현손익 {trade['realized_pnl']}), "
-            f"후보 종목 {sections['scanner_activity']['candidates']}건."
+            f"후보 종목 {sections['scanner_activity']['candidates']}건, "
+            f"검토 대기 제안 {prop['pending_total']}건."
         )
