@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     scanner_review_scheduler_minute: int = 10
     scanner_review_horizon_minutes: int = 30
 
+    # 전략 버전 자동 점검 (C-2.42). 기본 비활성 — 거래 성과 분석→파라미터 조정 제안(pending).
+    # 장마감/일일 리포트 이후 16:20에 돌린다.
+    strategy_review_scheduler_enabled: bool = False
+    strategy_review_scheduler_hour: int = 16
+    strategy_review_scheduler_minute: int = 20
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

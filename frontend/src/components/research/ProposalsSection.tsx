@@ -6,6 +6,7 @@ import {
   getProposal,
   getProposals,
   rejectProposal,
+  runStrategyReview,
 } from "../../api/research";
 import type { ProposalStatus } from "../../types/research";
 
@@ -74,6 +75,16 @@ export default function ProposalsSection() {
     },
     onError: (e) => setGenMsg((e as Error)?.message ?? "생성 실패"),
   });
+  const reviewMut = useMutation({
+    mutationFn: () => runStrategyReview(),
+    onSuccess: (s) => {
+      setGenMsg(
+        `전체 점검 완료: ${s.versions_reviewed}개 버전 중 ${s.proposals_created}건 제안 생성, ${s.skipped_existing}건 건너뜀.`,
+      );
+      invalidate();
+    },
+    onError: (e) => setGenMsg((e as Error)?.message ?? "점검 실패"),
+  });
 
   return (
     <div className="card">
@@ -93,6 +104,9 @@ export default function ProposalsSection() {
           <button className="primary" disabled={!genStrategyId || !genVersionId || generateMut.isPending}
             onClick={() => generateMut.mutate()}>
             성과 분석 → 제안 생성
+          </button>
+          <button disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+            전체 전략 자동 점검
           </button>
         </div>
         {genMsg && <p className="action-result value">{genMsg}</p>}
