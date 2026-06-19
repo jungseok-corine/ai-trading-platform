@@ -102,6 +102,13 @@ class Settings(BaseSettings):
     research_pipeline_scheduler_enabled: bool = False
     research_pipeline_interval_seconds: int = 300
 
+    # 스캐너 룰 자동 점검 (C-2.40). 기본 비활성 — 후보 성과 분석→조건 강화 제안(pending).
+    # data_refresh(16:00) 이후에 돌려 성과 데이터가 갱신된 상태로 점검한다.
+    scanner_review_scheduler_enabled: bool = False
+    scanner_review_scheduler_hour: int = 16
+    scanner_review_scheduler_minute: int = 10
+    scanner_review_horizon_minutes: int = 30
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

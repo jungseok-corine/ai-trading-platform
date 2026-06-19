@@ -267,6 +267,21 @@ export async function rejectScannerProposal(
   return data;
 }
 
+// --- Scanner review (C-2.40) -----------------------------------------------
+export interface ScannerReviewSummary {
+  versions_reviewed: number;
+  proposals_created: number;
+  skipped_existing: number;
+  created_proposal_ids: number[];
+}
+
+export async function runScannerReview(horizonMinutes = 30): Promise<ScannerReviewSummary> {
+  const { data } = await apiClient.post<ScannerReviewSummary>("/scanner-review/run", {
+    horizon_minutes: horizonMinutes,
+  });
+  return data;
+}
+
 // --- News / US market ------------------------------------------------------
 export async function getNews(params?: {
   market?: MarketCode;

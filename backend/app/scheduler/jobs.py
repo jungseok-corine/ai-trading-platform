@@ -27,6 +27,31 @@ TRADING_STATE_SYNC_JOB_ID = "trading_state_sync"
 DAILY_REPORT_JOB_ID = "daily_report"
 DATA_REFRESH_JOB_ID = "data_refresh"
 RESEARCH_PIPELINE_JOB_ID = "research_pipeline"
+SCANNER_REVIEW_JOB_ID = "scanner_review"
+
+
+async def run_scanner_review_job(app: FastAPI) -> None:
+    """active/testing 스캐너 버전을 점검해 조건 강화 제안(pending)을 생성한다 (C-2.40).
+
+    후보 성과 분석만 사용하는 메타 작업으로 주문/외부 API 호출이 없다.
+    """
+    from app.core.config import get_settings
+    from app.services.scanner_review_service import ScannerReviewService
+
+    settings = get_settings()
+    try:
+        async with async_session_factory() as session:
+            summary = await ScannerReviewService(session).review_and_record(
+                horizon_minutes=settings.scanner_review_horizon_minutes
+            )
+        logger.info(
+            "scanner review: versions=%s proposals=%s skipped=%s",
+            summary.versions_reviewed, summary.proposals_created, summary.skipped_existing,
+        )
+        app.state.scanner_review_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 점검 실패가 스케줄러를 중단시키지 않도록
+        logger.error("scanner review job failed: %s", exc_message(exc))
+        app.state.scanner_review_last_error = exc_message(exc)
 
 
 async def run_research_pipeline_job(app: FastAPI) -> None:
