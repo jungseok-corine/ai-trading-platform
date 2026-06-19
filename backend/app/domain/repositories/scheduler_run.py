@@ -23,6 +23,15 @@ class SchedulerRunRepository(BaseRepository[SchedulerRun]):
         )
         return list(result.scalars().all())
 
+    async def latest_by_job(self, job_id: str) -> SchedulerRun | None:
+        result = await self.session.execute(
+            select(SchedulerRun)
+            .where(SchedulerRun.job_id == job_id)
+            .order_by(SchedulerRun.started_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def has_recent_failure(self, limit: int = 20) -> bool:
         recent = await self.list_recent(limit)
         return any(run.status == SchedulerRunStatus.FAILED for run in recent)

@@ -267,6 +267,26 @@ export async function rejectScannerProposal(
   return data;
 }
 
+// --- Research status (C-2.43) ----------------------------------------------
+export interface ResearchJobStatus {
+  job_id: string;
+  last_run_at: string | null;
+  status: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+}
+
+export interface ResearchStatus {
+  jobs: ResearchJobStatus[];
+  pending: { strategy: number; scanner: number; total: number };
+  active: { scanner_versions: number; strategy_versions: number };
+}
+
+export async function getResearchStatus(): Promise<ResearchStatus> {
+  const { data } = await apiClient.get<ResearchStatus>("/research-status");
+  return data;
+}
+
 // --- Strategy review (C-2.42) ----------------------------------------------
 export interface StrategyReviewSummary {
   versions_reviewed: number;
