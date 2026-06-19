@@ -3,6 +3,7 @@ import { apiClient } from "./client";
 import type {
   AssignmentLog,
   AssignmentRule,
+  CandidateAnalysis,
   CandidateEvent,
   ComparisonResult,
   DailyReport,
@@ -102,6 +103,13 @@ export async function getCandidates(params?: {
 export async function assignCandidate(candidateId: number): Promise<AssignmentLog | null> {
   const res = await apiClient.post(`/candidates/${candidateId}/assign`);
   return res.status === 204 ? null : (res.data as AssignmentLog);
+}
+
+export async function getCandidateAnalysis(horizonMinutes = 30): Promise<CandidateAnalysis> {
+  const { data } = await apiClient.get<CandidateAnalysis>("/candidates/analysis", {
+    params: { horizon_minutes: horizonMinutes },
+  });
+  return data;
 }
 
 // --- Assignment rules ------------------------------------------------------

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
+from app.services.candidate_outcome_service import CandidateOutcomeService
 from app.services.candidate_service import CandidateService
 from app.services.scanner_scan_service import ScannerScanService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
@@ -25,6 +26,19 @@ def get_service(session: AsyncSession = Depends(get_db)) -> CandidateService:
 
 def get_scan_service(session: AsyncSession = Depends(get_db)) -> ScannerScanService:
     return ScannerScanService(session)
+
+
+def get_outcome_service(session: AsyncSession = Depends(get_db)) -> CandidateOutcomeService:
+    return CandidateOutcomeService(session)
+
+
+class CandidateAnalysisRead(BaseModel):
+    horizon_minutes: int
+    total: int
+    analyzed: int
+    overall: dict
+    by_time_bucket: dict
+    by_condition: dict
 
 
 class ScanRequest(BaseModel):
@@ -126,6 +140,26 @@ async def scan_market(
         scanned=result.scanned,
         matched=result.matched,
         candidates=[CandidateRead.model_validate(c) for c in result.candidates],
+    )
+
+
+@router.get("/candidates/analysis", response_model=CandidateAnalysisRead)
+async def analyze_candidates(
+    scanner_rule_version_id: int | None = Query(default=None),
+    horizon_minutes: int = Query(default=30, ge=1, le=1440),
+    service: CandidateOutcomeService = Depends(get_outcome_service),
+) -> CandidateAnalysisRead:
+    """후보 발견 이후 forward 수익률을 계산해 조건·시간대별 성과를 집계한다."""
+    result = await service.analyze(
+        scanner_rule_version_id=scanner_rule_version_id, horizon_minutes=horizon_minutes
+    )
+    return CandidateAnalysisRead(
+        horizon_minutes=result.horizon_minutes,
+        total=result.total,
+        analyzed=result.analyzed,
+        overall=result.overall,
+        by_time_bucket=result.by_time_bucket,
+        by_condition=result.by_condition,
     )
 
 
