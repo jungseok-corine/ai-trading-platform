@@ -1,6 +1,11 @@
 from app.domain.models.account import Account
 from app.domain.models.ai_analysis import AiAnalysisRun, AiModelResponse
 from app.domain.models.candidate_event import CandidateEvent
+from app.domain.models.experiment import (
+    Experiment,
+    ExperimentResult,
+    ExperimentVariant,
+)
 from app.domain.models.investor_flow import InvestorFlow
 from app.domain.models.market_context import (
     MarketContextSnapshot,
@@ -29,6 +34,9 @@ __all__ = [
     "AiAnalysisRun",
     "AiModelResponse",
     "CandidateEvent",
+    "Experiment",
+    "ExperimentResult",
+    "ExperimentVariant",
     "InvestorFlow",
     "MarketContextSnapshot",
     "MarketData",

@@ -11,6 +11,7 @@ from app.api.v1 import analysis_runs as analysis_runs_api
 from app.api.v1 import assignments as assignments_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import engine as engine_api
+from app.api.v1 import experiments as experiments_api
 from app.api.v1 import investor_flows as investor_flows_api
 from app.api.v1 import market_context as market_context_api
 from app.api.v1 import market_data as market_data_api
@@ -100,6 +101,7 @@ app.include_router(market_context_api.router, prefix="/api/v1")
 app.include_router(scanner_rules_api.router, prefix="/api/v1")
 app.include_router(candidates_api.router, prefix="/api/v1")
 app.include_router(assignments_api.router, prefix="/api/v1")
+app.include_router(experiments_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

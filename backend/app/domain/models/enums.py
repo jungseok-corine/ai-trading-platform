@@ -95,6 +95,22 @@ class ScannerRuleStatus(str, enum.Enum):
     ARCHIVED = "archived"
 
 
+class ExperimentStatus(str, enum.Enum):
+    """Paper 실험의 상태."""
+
+    DRAFT = "draft"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ARCHIVED = "archived"
+
+
+class VariantRole(str, enum.Enum):
+    """실험 내 전략 버전의 역할 (챔피언/챌린저)."""
+
+    CHAMPION = "champion"
+    CHALLENGER = "challenger"
+
+
 class ScannerConditionType(str, enum.Enum):
     """스캐너 감시 조건 타입. 실제 파라미터는 conditions JSONB에 저장된다."""
 
