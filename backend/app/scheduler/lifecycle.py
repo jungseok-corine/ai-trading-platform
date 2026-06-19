@@ -1,16 +1,19 @@
 import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.db.session import async_session_factory
 from app.scheduler.jobs import (
+    DAILY_REPORT_JOB_ID,
     ORDER_SYNC_JOB_ID,
     STRATEGY_RUNNER_JOB_ID,
     TRADING_STATE_SYNC_JOB_ID,
     order_sync_job,
+    run_daily_report_job,
     run_strategy_job,
     sync_trading_state_job,
 )
@@ -72,6 +75,19 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
             sync_trading_state_job,
             trigger=IntervalTrigger(seconds=settings.trading_state_sync_scheduler_interval_seconds),
             id=TRADING_STATE_SYNC_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
+    if settings.daily_report_scheduler_enabled:
+        scheduler.add_job(
+            run_daily_report_job,
+            trigger=CronTrigger(
+                hour=settings.daily_report_scheduler_hour,
+                minute=settings.daily_report_scheduler_minute,
+            ),
+            id=DAILY_REPORT_JOB_ID,
             args=[app],
             max_instances=1,
             replace_existing=True,

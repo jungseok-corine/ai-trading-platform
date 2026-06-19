@@ -24,6 +24,24 @@ KST = ZoneInfo("Asia/Seoul")
 STRATEGY_RUNNER_JOB_ID = "strategy_runner"
 ORDER_SYNC_JOB_ID = "order_sync"
 TRADING_STATE_SYNC_JOB_ID = "trading_state_sync"
+DAILY_REPORT_JOB_ID = "daily_report"
+
+
+async def run_daily_report_job(app: FastAPI) -> None:
+    """매일 장마감 후 일일 리서치 리포트를 생성한다 (C-2.29).
+
+    주문/외부 API 호출 없이 DB 집계만 수행하므로 안전하다.
+    """
+    from app.services.daily_report_service import DailyReportService
+
+    try:
+        async with async_session_factory() as session:
+            report = await DailyReportService(session).generate()
+        logger.info("daily report generated: %s", report.summary)
+        app.state.daily_report_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 리포트 실패가 스케줄러를 중단시키지 않도록
+        logger.error("daily report job failed: %s", exc_message(exc))
+        app.state.daily_report_last_error = exc_message(exc)
 
 
 async def _record_run(

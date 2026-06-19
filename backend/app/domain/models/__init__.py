@@ -1,6 +1,7 @@
 from app.domain.models.account import Account
 from app.domain.models.ai_analysis import AiAnalysisRun, AiModelResponse
 from app.domain.models.candidate_event import CandidateEvent
+from app.domain.models.daily_report import DailyResearchReport
 from app.domain.models.experiment import (
     Experiment,
     ExperimentResult,
@@ -36,6 +37,7 @@ __all__ = [
     "AiAnalysisRun",
     "AiModelResponse",
     "CandidateEvent",
+    "DailyResearchReport",
     "Experiment",
     "ExperimentResult",
     "ExperimentVariant",
