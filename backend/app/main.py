@@ -10,6 +10,7 @@ from app.api.v1 import ai_providers as ai_providers_api
 from app.api.v1 import analysis_runs as analysis_runs_api
 from app.api.v1 import assignments as assignments_api
 from app.api.v1 import candidates as candidates_api
+from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import engine as engine_api
 from app.api.v1 import experiments as experiments_api
 from app.api.v1 import investor_flows as investor_flows_api
@@ -106,6 +107,7 @@ app.include_router(assignments_api.router, prefix="/api/v1")
 app.include_router(experiments_api.router, prefix="/api/v1")
 app.include_router(strategy_proposals_api.router, prefix="/api/v1")
 app.include_router(news_context_api.router, prefix="/api/v1")
+app.include_router(daily_reports_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

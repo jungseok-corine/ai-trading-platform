@@ -84,6 +84,11 @@ class Settings(BaseSettings):
     trading_state_sync_scheduler_enabled: bool = False
     trading_state_sync_scheduler_interval_seconds: int = 180
 
+    # 일일 AI 리서치 리포트 (C-2.29). 기본 비활성 — 명시적으로 켤 때만 매일 장마감 후 생성.
+    daily_report_scheduler_enabled: bool = False
+    daily_report_scheduler_hour: int = 15
+    daily_report_scheduler_minute: int = 45
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"
