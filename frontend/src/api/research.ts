@@ -315,6 +315,39 @@ export async function runScannerReview(horizonMinutes = 30): Promise<ScannerRevi
   return data;
 }
 
+// --- Bulk review (C-2.45) --------------------------------------------------
+export interface BulkReviewResult {
+  action: string;
+  succeeded: number[];
+  failed: { id: number; reason: string }[];
+}
+
+export async function bulkReviewScannerProposals(
+  proposalIds: number[],
+  action: "approve" | "reject",
+  reviewedBy = "user",
+): Promise<BulkReviewResult> {
+  const { data } = await apiClient.post<BulkReviewResult>("/scanner-proposals/bulk-review", {
+    proposal_ids: proposalIds,
+    action,
+    reviewed_by: reviewedBy,
+  });
+  return data;
+}
+
+export async function bulkReviewStrategyProposals(
+  proposalIds: number[],
+  action: "approve" | "reject",
+  reviewedBy = "user",
+): Promise<BulkReviewResult> {
+  const { data } = await apiClient.post<BulkReviewResult>("/strategy-proposals/bulk-review", {
+    proposal_ids: proposalIds,
+    action,
+    reviewed_by: reviewedBy,
+  });
+  return data;
+}
+
 // --- News / US market ------------------------------------------------------
 export async function getNews(params?: {
   market?: MarketCode;

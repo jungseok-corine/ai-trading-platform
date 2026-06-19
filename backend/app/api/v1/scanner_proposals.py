@@ -84,6 +84,13 @@ class ReviewRequest(BaseModel):
     review_note: str | None = None
 
 
+class BulkReviewRequest(BaseModel):
+    proposal_ids: list[int]
+    action: str  # "approve" | "reject"
+    reviewed_by: str | None = None
+    review_note: str | None = None
+
+
 class GenerateRequest(BaseModel):
     version_id: int
     horizon_minutes: int = 30
@@ -139,6 +146,21 @@ async def generate_proposal(
     if proposal is None:
         return Response(status_code=204)
     return ScannerProposalRead.model_validate(proposal)
+
+
+@router.post("/bulk-review")
+async def bulk_review(
+    payload: BulkReviewRequest,
+    service: ScannerProposalService = Depends(get_service),
+) -> dict:
+    """여러 스캐너 제안을 한 번에 승인/거절한다(개별 실패는 결과에 격리)."""
+    try:
+        return await service.bulk_review(
+            payload.proposal_ids, payload.action,
+            reviewed_by=payload.reviewed_by, review_note=payload.review_note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.get("", response_model=list[ScannerProposalRead])

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveScannerProposal,
+  bulkReviewScannerProposals,
   generateScannerProposal,
   getScannerProposal,
   getScannerProposals,
@@ -83,6 +84,15 @@ export default function ScannerProposalsSection() {
     },
     onError: (e) => setGenMsg((e as Error)?.message ?? "점검 실패"),
   });
+  const pendingIds = (data ?? []).filter((p) => p.status === "pending").map((p) => p.id);
+  const bulkMut = useMutation({
+    mutationFn: (action: "approve" | "reject") => bulkReviewScannerProposals(pendingIds, action),
+    onSuccess: (r) => {
+      setGenMsg(`일괄 ${r.action}: 성공 ${r.succeeded.length}건, 실패 ${r.failed.length}건.`);
+      invalidate();
+    },
+    onError: (e) => setGenMsg((e as Error)?.message ?? "일괄 처리 실패"),
+  });
 
   return (
     <div className="card">
@@ -114,6 +124,18 @@ export default function ScannerProposalsSection() {
             {s}
           </button>
         ))}
+        {pendingIds.length > 0 && (
+          <>
+            <button className="primary" disabled={bulkMut.isPending}
+              onClick={() => bulkMut.mutate("approve")}>
+              보이는 pending {pendingIds.length}건 일괄 승인
+            </button>
+            <button className="danger" disabled={bulkMut.isPending}
+              onClick={() => bulkMut.mutate("reject")}>
+              일괄 거절
+            </button>
+          </>
+        )}
       </div>
 
       {isLoading && <p className="muted">불러오는 중...</p>}
