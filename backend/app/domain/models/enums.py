@@ -6,6 +6,13 @@ class AccountType(str, enum.Enum):
     LIVE = "live"
 
 
+class MarketCode(str, enum.Enum):
+    """거래 시장 구분. 멀티마켓(한국장/미국장) 확장을 위해 모든 신규 엔티티에 포함한다."""
+
+    KR = "KR"
+    US = "US"
+
+
 class StrategyVersionStatus(str, enum.Enum):
     DRAFT = "draft"
     TESTING = "testing"
