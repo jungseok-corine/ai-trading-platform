@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.services.research_pipeline_service import ResearchPipelineService
+from app.trading.strategy.schemas import SchedulerRunRead
 
 router = APIRouter(prefix="/research-pipeline", tags=["research-pipeline"])
 
@@ -42,8 +43,8 @@ async def run_pipeline(
     payload: PipelineRunRequest,
     service: ResearchPipelineService = Depends(get_service),
 ) -> PipelineSummaryRead:
-    """active/testing 스캐너 버전을 1회 실행해 후보 발견 + 전략 배정을 수행한다."""
-    summary = await service.run_once(
+    """active/testing 스캐너 버전을 1회 실행해 후보 발견 + 전략 배정을 수행하고 이력을 남긴다."""
+    summary = await service.run_and_record(
         symbol_codes=payload.symbol_codes, auto_assign=payload.auto_assign
     )
     return PipelineSummaryRead(
@@ -61,3 +62,13 @@ async def run_pipeline(
             for v in summary.per_version
         ],
     )
+
+
+@router.get("/runs", response_model=list[SchedulerRunRead])
+async def list_pipeline_runs(
+    limit: int = 20,
+    service: ResearchPipelineService = Depends(get_service),
+) -> list[SchedulerRunRead]:
+    """파이프라인 실행 이력(수동+스케줄)을 최신순으로 반환한다."""
+    runs = await service.list_runs(limit=limit)
+    return [SchedulerRunRead.model_validate(r) for r in runs]

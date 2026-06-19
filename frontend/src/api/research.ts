@@ -11,6 +11,8 @@ import type {
   ExperimentVariant,
   MarketCode,
   NewsEvent,
+  PipelineRun,
+  PipelineSummary,
   PromotionCriteria,
   PromotionEvaluation,
   ProposalDetail,
@@ -291,5 +293,21 @@ export async function evaluatePromotion(
     null,
     { params: { criteria_id: criteriaId, persist } },
   );
+  return data;
+}
+
+// --- Research pipeline ------------------------------------------------------
+export async function runPipeline(payload?: {
+  symbol_codes?: string[] | null;
+  auto_assign?: boolean;
+}): Promise<PipelineSummary> {
+  const { data } = await apiClient.post<PipelineSummary>("/research-pipeline/run", payload ?? {});
+  return data;
+}
+
+export async function getPipelineRuns(limit = 20): Promise<PipelineRun[]> {
+  const { data } = await apiClient.get<PipelineRun[]>("/research-pipeline/runs", {
+    params: { limit },
+  });
   return data;
 }

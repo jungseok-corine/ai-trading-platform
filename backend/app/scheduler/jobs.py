@@ -38,7 +38,7 @@ async def run_research_pipeline_job(app: FastAPI) -> None:
 
     try:
         async with async_session_factory() as session:
-            summary = await ResearchPipelineService(session).run_once()
+            summary = await ResearchPipelineService(session).run_and_record()
         logger.info(
             "research pipeline: versions=%s symbols=%s candidates=%s assignments=%s",
             summary.versions, summary.symbols, summary.candidates, summary.assignments,

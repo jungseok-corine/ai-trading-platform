@@ -39,5 +39,8 @@ class SchedulerRunService:
     async def list_recent(self, limit: int = 20) -> list[SchedulerRun]:
         return await self._repo.list_recent(limit)
 
+    async def list_by_job(self, job_id: str, limit: int = 20) -> list[SchedulerRun]:
+        return await self._repo.list_by_job(job_id, limit)
+
     async def has_recent_failure(self, limit: int = 20) -> bool:
         return await self._repo.has_recent_failure(limit)
