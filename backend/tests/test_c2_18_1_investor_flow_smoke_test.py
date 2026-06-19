@@ -155,12 +155,22 @@ class TestCleanRawPayload:
 
 class TestDryRun:
     def test_dry_run_does_not_call_kis(self, capsys, monkeypatch):
-        """--confirm-readonly 없이 실행 시 KIS API를 호출하지 않는다."""
+        """--confirm-readonly 없이 실행 시 _run_investor_flow_check coroutine 자체가 생성되지 않는다.
+
+        검증 포인트:
+          - _run_investor_flow_check 함수가 호출되지 않으므로 coroutine 객체도 생성되지 않음
+          - asyncio.run도 호출되지 않음
+          - DRY_RUN_OK 반환
+          - RuntimeWarning 없음 (coroutine이 미생성이므로 'never awaited' 경고 발생 조건 자체가 없음)
+        """
         m = _import_smoke()
         monkeypatch.setenv("KIS_REAL_APP_KEY", "FAKE_KEY")
         monkeypatch.setenv("KIS_REAL_APP_SECRET", "FAKE_SECRET")
 
-        with patch("scripts.kis_investor_flow_smoke_test.asyncio.run") as mock_run:
+        # _run_investor_flow_check 자체를 패치해 "coroutine 미생성" 여부를 직접 검증한다.
+        # asyncio.run 패치보다 강한 검증 — 함수 호출이 없으면 coroutine 객체도 없다.
+        with patch.object(m, "_run_investor_flow_check") as mock_check, \
+             patch("scripts.kis_investor_flow_smoke_test.asyncio.run") as mock_run:
             config = m._check_env_config()
             verdict = m._print_report(
                 config=config,
@@ -170,7 +180,8 @@ class TestDryRun:
                 confirm_readonly=False,
                 store=False,
             )
-            mock_run.assert_not_called()
+            mock_check.assert_not_called()  # coroutine 자체가 생성되지 않았음
+            mock_run.assert_not_called()    # asyncio.run도 호출되지 않았음
 
         assert verdict == "DRY_RUN_OK"
         out = capsys.readouterr().out
@@ -178,13 +189,18 @@ class TestDryRun:
         assert "FAKE_KEY" not in out  # 민감정보 미출력
 
     def test_dry_run_exits_zero(self, monkeypatch):
+        """dry-run main() 경로: coroutine 미생성 + 정상 종료(exit 0) 검증."""
         m = _import_smoke()
         monkeypatch.setenv("KIS_REAL_APP_KEY", "FAKE_KEY")
         monkeypatch.setenv("KIS_REAL_APP_SECRET", "FAKE_SECRET")
         monkeypatch.setattr("sys.argv", ["smoke"])  # --confirm-readonly 없음
 
-        with pytest.raises(SystemExit) as exc_info:
-            m.main()
+        # _run_investor_flow_check를 패치해 coroutine이 생성되지 않음을 명시적으로 검증한다.
+        with patch.object(m, "_run_investor_flow_check") as mock_check:
+            with pytest.raises(SystemExit) as exc_info:
+                m.main()
+            mock_check.assert_not_called()  # coroutine 자체가 생성되지 않았음
+
         assert exc_info.value.code == 0
 
     def test_dry_run_shows_order_api_not_called(self, capsys, monkeypatch):
@@ -564,7 +580,15 @@ class TestMain:
         assert captured.get("symbol_code") == "000660"
 
     def test_confirm_readonly_calls_api_mock(self, monkeypatch):
-        """--confirm-readonly 시 _run_investor_flow_check가 호출된다."""
+        """--confirm-readonly 시 _run_investor_flow_check coroutine이 생성되고 await된다.
+
+        검증 포인트:
+          - asyncio.run이 정확히 1회 호출됨 (coroutine이 생성되고 전달됨)
+          - asyncio.run mock이 coroutine을 close()하여 RuntimeWarning 방지
+            ('never awaited' 경고는 coroutine이 GC 전에 close되지 않을 때 발생)
+          - 반환된 fake_result가 _print_report에 전달되어 출력/반환값으로 관측 가능
+          - exit code 0
+        """
         m = _import_smoke()
         monkeypatch.setenv("KIS_REAL_APP_KEY", "FAKE_KEY")
         monkeypatch.setenv("KIS_REAL_APP_SECRET", "FAKE_SECRET")
@@ -584,9 +608,24 @@ class TestMain:
             "errors": [],
         }
 
-        with patch("scripts.kis_investor_flow_smoke_test.asyncio.run", return_value=fake_result) as mock_run:
+        def _consuming_asyncio_run(coro):
+            """coroutine을 close()한 후 fake_result를 반환한다.
+
+            close()를 호출하지 않으면 Python GC가 coroutine을 수거할 때
+            RuntimeWarning: coroutine '_run_investor_flow_check' was never awaited
+            경고가 발생한다. close()는 GeneratorExit를 throw해 coroutine을 정상 종료한다.
+            """
+            coro.close()
+            return fake_result
+
+        with patch(
+            "scripts.kis_investor_flow_smoke_test.asyncio.run",
+            side_effect=_consuming_asyncio_run,
+        ) as mock_run:
             monkeypatch.setattr("sys.argv", ["smoke", "--confirm-readonly"])
             with pytest.raises(SystemExit) as exc_info:
                 m.main()
+            # coroutine이 생성되어 asyncio.run에 전달됐음을 확인
             mock_run.assert_called_once()
+
         assert exc_info.value.code == 0
