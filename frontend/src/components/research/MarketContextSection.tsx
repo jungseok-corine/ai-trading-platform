@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createNews, getNews, getUsSnapshots, upsertUsSnapshot } from "../../api/research";
+import { createNews, getNews, getUsSnapshots, refreshUsSnapshot, upsertUsSnapshot } from "../../api/research";
 
 export default function MarketContextSection() {
   const queryClient = useQueryClient();
@@ -31,6 +31,18 @@ export default function MarketContextSection() {
   const usMut = useMutation({
     mutationFn: () => upsertUsSnapshot({ session_date: usDate, nasdaq_change_pct: nasdaq || null }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["us-snapshots"] }),
+  });
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const refreshMut = useMutation({
+    mutationFn: () => refreshUsSnapshot(),
+    onSuccess: (r) => {
+      setRefreshMsg(
+        r.updated
+          ? `provider(${r.provider})에서 ${r.session_date} 스냅샷 수집됨.`
+          : `provider(${r.provider}): 수집할 데이터 없음 (${r.reason ?? "manual 모드"}).`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["us-snapshots"] });
+    },
   });
 
   return (
@@ -74,7 +86,12 @@ export default function MarketContextSection() {
           <input type="date" value={usDate} onChange={(e) => setUsDate(e.target.value)} />
           <input placeholder="나스닥 변화율%" value={nasdaq} onChange={(e) => setNasdaq(e.target.value)} style={{ width: 140 }} />
           <button className="primary" disabled={!usDate || usMut.isPending} onClick={() => usMut.mutate()}>저장</button>
+          <button disabled={refreshMut.isPending} onClick={() => refreshMut.mutate()}>provider로 수집</button>
         </div>
+        <p className="muted">
+          기본 provider는 "manual"(외부 호출 없음). API 키를 설정하고 벤더 어댑터를 붙이면 자동 수집됩니다.
+        </p>
+        {refreshMsg && <p className="action-result value">{refreshMsg}</p>}
       </div>
       {usSnaps && usSnaps.length > 0 && (
         <div className="table-wrapper">

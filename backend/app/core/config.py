@@ -115,6 +115,14 @@ class Settings(BaseSettings):
     strategy_review_scheduler_hour: int = 16
     strategy_review_scheduler_minute: int = 20
 
+    # 미국장 스냅샷 수집 (C-2.44). 기본 provider는 "manual"(외부 호출 없음, 수동 입력 보존).
+    # 벤더 어댑터(alphavantage/finnhub/twelvedata)는 API 키가 준비되면 붙인다.
+    us_market_provider: str = "manual"
+    us_market_api_key: str | None = None
+    us_market_refresh_scheduler_enabled: bool = False
+    us_market_refresh_scheduler_hour: int = 7  # KST 아침(미국장 마감 후)
+    us_market_refresh_scheduler_minute: int = 0
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

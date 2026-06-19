@@ -351,6 +351,18 @@ export async function upsertUsSnapshot(payload: {
   return data;
 }
 
+export interface UsRefreshResult {
+  provider: string;
+  updated: boolean;
+  session_date: string | null;
+  reason: string | null;
+}
+
+export async function refreshUsSnapshot(): Promise<UsRefreshResult> {
+  const { data } = await apiClient.post<UsRefreshResult>("/us-market-snapshots/refresh");
+  return data;
+}
+
 // --- Daily reports ---------------------------------------------------------
 export async function getDailyReports(): Promise<DailyReport[]> {
   const { data } = await apiClient.get<DailyReport[]>("/daily-reports");
