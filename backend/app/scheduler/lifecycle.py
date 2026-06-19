@@ -11,11 +11,13 @@ from app.scheduler.jobs import (
     DAILY_REPORT_JOB_ID,
     DATA_REFRESH_JOB_ID,
     ORDER_SYNC_JOB_ID,
+    RESEARCH_PIPELINE_JOB_ID,
     STRATEGY_RUNNER_JOB_ID,
     TRADING_STATE_SYNC_JOB_ID,
     order_sync_job,
     run_daily_report_job,
     run_data_refresh_job,
+    run_research_pipeline_job,
     run_strategy_job,
     sync_trading_state_job,
 )
@@ -103,6 +105,16 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
                 minute=settings.data_refresh_scheduler_minute,
             ),
             id=DATA_REFRESH_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
+    if settings.research_pipeline_scheduler_enabled:
+        scheduler.add_job(
+            run_research_pipeline_job,
+            trigger=IntervalTrigger(seconds=settings.research_pipeline_interval_seconds),
+            id=RESEARCH_PIPELINE_JOB_ID,
             args=[app],
             max_instances=1,
             replace_existing=True,
