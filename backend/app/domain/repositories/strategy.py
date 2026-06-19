@@ -34,12 +34,14 @@ class StrategyVersionRepository(BaseRepository[StrategyVersion]):
         )
         return list(result.scalars().all())
 
-    async def list_by_strategy(self, strategy_id: int) -> list[StrategyVersion]:
-        result = await self.session.execute(
-            select(StrategyVersion)
-            .where(StrategyVersion.strategy_id == strategy_id)
-            .order_by(StrategyVersion.version_no)
-        )
+    async def list_by_strategy(
+        self, strategy_id: int, include_archived: bool = False
+    ) -> list[StrategyVersion]:
+        stmt = select(StrategyVersion).where(StrategyVersion.strategy_id == strategy_id)
+        if not include_archived:
+            stmt = stmt.where(StrategyVersion.status != StrategyVersionStatus.ARCHIVED)
+        stmt = stmt.order_by(StrategyVersion.version_no)
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_max_version_no(self, strategy_id: int) -> int:

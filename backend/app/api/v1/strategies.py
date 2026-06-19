@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -15,6 +15,7 @@ from app.services.strategy_performance_service import StrategyPerformanceService
 from app.services.strategy_service import (
     StrategyNotFoundError,
     StrategyService,
+    StrategyVersionNotDeletableError,
     StrategyVersionNotFoundError,
 )
 from app.trading.strategy.schemas import (
@@ -101,10 +102,15 @@ async def create_strategy(
 @router.get("/{strategy_id}/versions", response_model=list[StrategyVersionRead])
 async def list_strategy_versions(
     strategy_id: int,
+    include_archived: bool = Query(default=False),
     service: StrategyService = Depends(get_strategy_service),
 ) -> list[StrategyVersionRead]:
+    """전략 버전 목록. 기본적으로 ARCHIVED 버전은 제외한다.
+
+    include_archived=true 이면 아카이브된 버전도 함께 반환한다.
+    """
     try:
-        return await service.list_versions(strategy_id)
+        return await service.list_versions(strategy_id, include_archived=include_archived)
     except StrategyNotFoundError as e:
         raise HTTPException(status_code=404, detail="strategy not found") from e
 
@@ -267,3 +273,43 @@ async def update_strategy_version(
         return await service.update_version(strategy_id, version_id, **fields)
     except (StrategyNotFoundError, StrategyVersionNotFoundError) as e:
         raise HTTPException(status_code=404, detail="strategy version not found") from e
+
+
+@router.post(
+    "/{strategy_id}/versions/{version_id}/archive",
+    response_model=StrategyVersionRead,
+)
+async def archive_strategy_version(
+    strategy_id: int,
+    version_id: int,
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyVersionRead:
+    """버전을 ARCHIVED 상태로 전환한다 (soft delete).
+
+    참조 데이터가 있거나 TESTING/ACTIVE 상태여서 hard delete가 불가능한 버전을
+    안전하게 목록에서 숨기기 위해 사용한다.
+    """
+    try:
+        return await service.archive_version(strategy_id, version_id)
+    except StrategyVersionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="strategy version not found") from e
+
+
+@router.delete("/{strategy_id}/versions/{version_id}", status_code=204)
+async def delete_strategy_version(
+    strategy_id: int,
+    version_id: int,
+    service: StrategyService = Depends(get_strategy_service),
+) -> Response:
+    """버전을 hard delete 한다.
+
+    DRAFT 상태이고 signal_log/trade 참조가 없을 때만 허용된다.
+    정책 위반 시 409를 반환하며, 이 경우 archive를 사용해야 한다.
+    """
+    try:
+        await service.delete_version(strategy_id, version_id)
+    except StrategyVersionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="strategy version not found") from e
+    except StrategyVersionNotDeletableError as e:
+        raise HTTPException(status_code=409, detail=e.reason) from e
+    return Response(status_code=204)

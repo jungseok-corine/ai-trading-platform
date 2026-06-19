@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.domain.models.enums import TradeSide
 from app.domain.models.signal_log import SignalLog
@@ -45,6 +45,15 @@ class SignalLogRepository(BaseRepository[SignalLog]):
         stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_by_strategy_version(self, strategy_version_id: int) -> int:
+        """해당 strategy_version_id를 참조하는 signal_log 개수를 반환한다."""
+        result = await self.session.execute(
+            select(func.count(SignalLog.id)).where(
+                SignalLog.strategy_version_id == strategy_version_id
+            )
+        )
+        return result.scalar() or 0
 
     async def exists_for_candle(
         self,

@@ -190,7 +190,7 @@ export interface RiskConfig {
   updated_at: string;
 }
 
-export type StrategyVersionStatus = "draft" | "testing" | "active" | "retired";
+export type StrategyVersionStatus = "draft" | "testing" | "active" | "retired" | "archived";
 
 export interface Strategy {
   id: number;
