@@ -19,6 +19,10 @@ function ControlTower() {
         검토 대기 제안 {data.pending.total}건 (전략 {data.pending.strategy} / 스캐너 {data.pending.scanner}) ·
         활성 스캐너 버전 {data.active.scanner_versions}개 · 활성 전략 버전 {data.active.strategy_versions}개
       </p>
+      <p className="muted">
+        제안 회고 {data.retrospective.total}건 — 개선 {data.retrospective.improved} ·
+        악화 {data.retrospective.worse} · 판단보류 {data.retrospective.inconclusive}
+      </p>
       <div className="table-wrapper">
         <table>
           <thead><tr><th>잡</th><th>최근 실행</th><th>상태</th><th>소요(ms)</th></tr></thead>

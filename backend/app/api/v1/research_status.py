@@ -29,6 +29,7 @@ class ResearchStatusRead(BaseModel):
     jobs: list[JobStatusRead]
     pending: dict
     active: dict
+    retrospective: dict
 
 
 @router.get("", response_model=ResearchStatusRead)
