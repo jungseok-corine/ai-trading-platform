@@ -228,3 +228,31 @@ export interface PromotionEvaluation {
   max_drawdown: string;
   checks: PromotionCheck[];
 }
+
+// --- Research pipeline ------------------------------------------------------
+export interface PipelineVersionRun {
+  scanner_rule_version_id: number;
+  scanned: number;
+  matched: number;
+  assigned: number;
+}
+
+export interface PipelineSummary {
+  versions: number;
+  symbols: number;
+  candidates: number;
+  assignments: number;
+  per_version: PipelineVersionRun[];
+}
+
+export interface PipelineRun {
+  id: number;
+  job_id: string;
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  summary: PipelineSummary | null;
+  created_at: string;
+}

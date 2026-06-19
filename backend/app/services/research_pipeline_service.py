@@ -2,14 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.enums import SchedulerRunStatus
 from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 from app.domain.repositories.scanner import ScannerRuleVersionRepository
 from app.services.assignment_service import AssignmentService
 from app.services.scanner_scan_service import ScannerScanService
+from app.services.scheduler_run_service import SchedulerRunService
+
+KST = ZoneInfo("Asia/Seoul")
+PIPELINE_JOB_ID = "research_pipeline"
 
 
 @dataclass
@@ -30,6 +36,24 @@ class PipelineSummary:
     assignments: int
     per_version: list[VersionRunResult] = field(default_factory=list)
 
+    def to_summary_dict(self) -> dict:
+        """scheduler_runs.summary(JSONB)에 저장할 dict로 직렬화한다."""
+        return {
+            "versions": self.versions,
+            "symbols": self.symbols,
+            "candidates": self.candidates,
+            "assignments": self.assignments,
+            "per_version": [
+                {
+                    "scanner_rule_version_id": v.scanner_rule_version_id,
+                    "scanned": v.scanned,
+                    "matched": v.matched,
+                    "assigned": v.assigned,
+                }
+                for v in self.per_version
+            ],
+        }
+
 
 class ResearchPipelineService:
     """연구 루프를 한 번에 자동으로 돌린다 (C-2.35).
@@ -45,6 +69,40 @@ class ResearchPipelineService:
         self._version_repo = ScannerRuleVersionRepository(session)
         self._scan_service = ScannerScanService(session)
         self._assignment_service = AssignmentService(session)
+        self._run_service = SchedulerRunService(session)
+
+    async def run_and_record(
+        self,
+        symbol_codes: list[str] | None = None,
+        auto_assign: bool = True,
+    ) -> PipelineSummary:
+        """run_once를 실행하고 결과를 scheduler_runs(job_id=research_pipeline)에 기록한다.
+
+        수동 API 실행과 스케줄 잡 모두 이 메서드를 통해 이력을 남긴다.
+        """
+        started_at = datetime.now(KST)
+        try:
+            summary = await self.run_once(symbol_codes=symbol_codes, auto_assign=auto_assign)
+        except Exception as exc:  # noqa: BLE001 - 실패도 이력으로 남긴다
+            await self._run_service.record_run(
+                job_id=PIPELINE_JOB_ID,
+                started_at=started_at,
+                finished_at=datetime.now(KST),
+                status=SchedulerRunStatus.FAILED,
+                error_message=str(exc),
+            )
+            raise
+        await self._run_service.record_run(
+            job_id=PIPELINE_JOB_ID,
+            started_at=started_at,
+            finished_at=datetime.now(KST),
+            status=SchedulerRunStatus.SUCCESS,
+            summary=summary.to_summary_dict(),
+        )
+        return summary
+
+    async def list_runs(self, limit: int = 20):
+        return await self._run_service.list_by_job(PIPELINE_JOB_ID, limit)
 
     async def _watchlist_symbols(self) -> list[str]:
         result = await self._session.execute(

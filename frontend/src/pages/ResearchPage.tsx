@@ -7,8 +7,10 @@ import ProposalsSection from "../components/research/ProposalsSection";
 import ReportsSection from "../components/research/ReportsSection";
 import PromotionsSection from "../components/research/PromotionsSection";
 import MarketContextSection from "../components/research/MarketContextSection";
+import PipelineSection from "../components/research/PipelineSection";
 
 type Section =
+  | "pipeline"
   | "proposals"
   | "scanners"
   | "candidates"
@@ -19,6 +21,7 @@ type Section =
   | "context";
 
 const SECTIONS: { key: Section; label: string }[] = [
+  { key: "pipeline", label: "파이프라인" },
   { key: "proposals", label: "AI 제안" },
   { key: "scanners", label: "스캐너" },
   { key: "candidates", label: "후보 종목" },
@@ -30,7 +33,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 ];
 
 export default function ResearchPage() {
-  const [section, setSection] = useState<Section>("proposals");
+  const [section, setSection] = useState<Section>("pipeline");
 
   return (
     <div className="app">
@@ -47,6 +50,7 @@ export default function ResearchPage() {
         ))}
       </div>
 
+      {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
       {section === "scanners" && <ScannersSection />}
       {section === "candidates" && <CandidatesSection />}
