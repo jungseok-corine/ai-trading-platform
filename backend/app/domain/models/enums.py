@@ -11,6 +11,7 @@ class StrategyVersionStatus(str, enum.Enum):
     TESTING = "testing"
     ACTIVE = "active"
     RETIRED = "retired"
+    ARCHIVED = "archived"
 
 
 class TradeSide(str, enum.Enum):

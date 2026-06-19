@@ -816,3 +816,55 @@ tr.selected {
 .create-error-block button {
   margin-top: 6px;
 }
+
+/* C-2.21 Strategy Management Cleanup */
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.include-archived-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #555;
+}
+.param-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.param-chip {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f1f3f5;
+  font-size: 0.78rem;
+}
+.param-chip-key {
+  color: #868e96;
+}
+.param-chip-val {
+  font-weight: 600;
+}
+.param-chip-val.danger {
+  color: #e03131;
+}
+.param-chip-val.ok {
+  color: #2f9e44;
+}
+.parameters-details > summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #868e96;
+  margin-top: 4px;
+}
+.version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}

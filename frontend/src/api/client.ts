@@ -155,8 +155,13 @@ export async function createStrategy(payload: {
   return data;
 }
 
-export async function getStrategyVersions(strategyId: number): Promise<StrategyVersion[]> {
-  const { data } = await apiClient.get<StrategyVersion[]>(`/strategies/${strategyId}/versions`);
+export async function getStrategyVersions(
+  strategyId: number,
+  includeArchived = false,
+): Promise<StrategyVersion[]> {
+  const { data } = await apiClient.get<StrategyVersion[]>(`/strategies/${strategyId}/versions`, {
+    params: { include_archived: includeArchived },
+  });
   return data;
 }
 
@@ -188,6 +193,23 @@ export async function updateStrategyVersion(
     payload,
   );
   return data;
+}
+
+export async function archiveStrategyVersion(
+  strategyId: number,
+  versionId: number,
+): Promise<StrategyVersion> {
+  const { data } = await apiClient.post<StrategyVersion>(
+    `/strategies/${strategyId}/versions/${versionId}/archive`,
+  );
+  return data;
+}
+
+export async function deleteStrategyVersion(
+  strategyId: number,
+  versionId: number,
+): Promise<void> {
+  await apiClient.delete(`/strategies/${strategyId}/versions/${versionId}`);
 }
 
 export async function getWatchlists(): Promise<Watchlist[]> {

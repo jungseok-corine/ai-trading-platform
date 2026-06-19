@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.domain.models.enums import OrderStatus
 from app.domain.models.trade import Trade
@@ -36,6 +36,15 @@ class TradeRepository(BaseRepository[Trade]):
             .order_by(Trade.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def count_by_strategy_version(self, strategy_version_id: int) -> int:
+        """해당 strategy_version_id를 참조하는 trade 개수를 반환한다."""
+        result = await self.session.execute(
+            select(func.count(Trade.id)).where(
+                Trade.strategy_version_id == strategy_version_id
+            )
+        )
+        return result.scalar() or 0
 
     async def list_pending_or_partial(self) -> list[Trade]:
         result = await self.session.execute(
