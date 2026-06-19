@@ -16,7 +16,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from zoneinfo import ZoneInfo
+
+# 테스트가 어느 머신에서 실행되든 동작하도록 repo 상대경로를 사용한다.
+# (tests → backend → repo root)
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _BACKEND_ROOT.parent
+_FRONTEND_ROOT = _REPO_ROOT / "frontend"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -115,7 +122,7 @@ def test_scheduler_job_label_ko_has_trading_state_sync() -> None:
          "const src=fs.readFileSync('src/i18n/translations.ts','utf8');"
          "const match=src.match(/jobLabels:[\\s\\S]*?} as Record/);"
          "console.log(match ? 'found' : 'not_found');"],
-        cwd="/Users/ojung/Documents/Dev/ai-trading-platform/frontend",
+        cwd=str(_FRONTEND_ROOT),
         capture_output=True,
         text=True,
     )
@@ -124,7 +131,7 @@ def test_scheduler_job_label_ko_has_trading_state_sync() -> None:
 
 def test_scheduler_job_label_ko_content() -> None:
     """ko jobLabels에 strategy_runner, order_sync, trading_state_sync가 모두 있어야 한다."""
-    src = open("/Users/ojung/Documents/Dev/ai-trading-platform/frontend/src/i18n/translations.ts").read()
+    src = open(_FRONTEND_ROOT / "src/i18n/translations.ts").read()
     assert "strategy_runner" in src
     assert "order_sync" in src
     assert "trading_state_sync" in src
@@ -135,7 +142,7 @@ def test_scheduler_job_label_ko_content() -> None:
 
 def test_scheduler_job_label_en_content() -> None:
     """en jobLabels에 영문 번역이 있어야 한다."""
-    src = open("/Users/ojung/Documents/Dev/ai-trading-platform/frontend/src/i18n/translations.ts").read()
+    src = open(_FRONTEND_ROOT / "src/i18n/translations.ts").read()
     assert "Strategy Runner" in src
     assert "Order/Fill Sync" in src
     assert "Trading State Sync" in src
@@ -330,17 +337,13 @@ async def test_positions_api_include_closed_shows_zero_qty(db_session: AsyncSess
 def test_backfill_script_does_not_call_place_order() -> None:
     """backfill 스크립트에 place_order 호출이 없어야 한다."""
     import ast
-    src = open(
-        "/Users/ojung/Documents/Dev/ai-trading-platform/backend/scripts/backfill_legacy_order_statuses.py"
-    ).read()
+    src = open(_BACKEND_ROOT / "scripts/backfill_legacy_order_statuses.py").read()
     assert "place_order" not in src or "place_order를 호출하지 않는다" in src
 
 
 def test_backfill_script_order_api_called_always_false() -> None:
     """backfill 스크립트의 BackfillReport.order_api_called는 항상 False여야 한다."""
-    src = open(
-        "/Users/ojung/Documents/Dev/ai-trading-platform/backend/scripts/backfill_legacy_order_statuses.py"
-    ).read()
+    src = open(_BACKEND_ROOT / "scripts/backfill_legacy_order_statuses.py").read()
     assert "order_api_called: bool = False" in src
 
 
@@ -580,9 +583,7 @@ async def test_signal_price_null_in_api_response(db_session: AsyncSession) -> No
 
 def test_signal_service_saves_signal_price() -> None:
     """signal_service.py가 signal_price=signal.price를 repo.create에 전달해야 한다."""
-    src = open(
-        "/Users/ojung/Documents/Dev/ai-trading-platform/backend/app/services/signal_service.py"
-    ).read()
+    src = open(_BACKEND_ROOT / "app/services/signal_service.py").read()
     assert "signal_price=signal.price" in src
 
 
