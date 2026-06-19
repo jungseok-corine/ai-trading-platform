@@ -53,6 +53,21 @@ export interface ScanResponse {
   candidates: CandidateEvent[];
 }
 
+export interface BucketStat {
+  count: number;
+  win_rate: number | null;
+  avg_return_pct: number | null;
+}
+
+export interface CandidateAnalysis {
+  horizon_minutes: number;
+  total: number;
+  analyzed: number;
+  overall: BucketStat;
+  by_time_bucket: Record<string, BucketStat>;
+  by_condition: Record<string, BucketStat>;
+}
+
 // --- Assignment ------------------------------------------------------------
 export interface AssignmentRule {
   id: number;
