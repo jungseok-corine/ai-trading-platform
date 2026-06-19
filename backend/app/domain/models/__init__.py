@@ -25,6 +25,7 @@ from app.domain.models.strategy_assignment import (
     StrategyAssignmentLog,
     StrategyAssignmentRule,
 )
+from app.domain.models.strategy_proposal import StrategyProposal
 from app.domain.models.trade import Trade
 from app.domain.models.trading_guard import TradingGuardState
 from app.domain.models.watchlist import Watchlist, WatchlistSymbol
@@ -54,6 +55,7 @@ __all__ = [
     "Strategy",
     "StrategyAssignmentLog",
     "StrategyAssignmentRule",
+    "StrategyProposal",
     "StrategyVersion",
     "Trade",
     "TradingGuardState",
