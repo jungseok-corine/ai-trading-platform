@@ -84,3 +84,22 @@ class PauseSource(str, enum.Enum):
     ORDER_SYNC = "order_sync"
     MANUAL = "manual"
     RISK_LIMIT = "risk_limit"
+
+
+class ScannerRuleStatus(str, enum.Enum):
+    """스캐너 룰 버전의 상태. 전략 버전과 동일한 라이프사이클(버전 비교 원칙)을 따른다."""
+
+    DRAFT = "draft"
+    TESTING = "testing"
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+
+class ScannerConditionType(str, enum.Enum):
+    """스캐너 감시 조건 타입. 실제 파라미터는 conditions JSONB에 저장된다."""
+
+    VOLUME_SPIKE = "volume_spike"  # 거래량 급증 (volume_ratio >= multiplier)
+    TURNOVER_RANK = "turnover_rank"  # 거래대금 상위 (rank <= max_rank)
+    PRICE_CHANGE_PCT = "price_change_pct"  # 상승률 (change_pct >= min_pct)
+    INVESTOR_FLOW = "investor_flow"  # 수급 (외국인/기관/개인 순매수·순매도)
+    TIME_BUCKET = "time_bucket"  # 시간대 (장초반/오전/오후 등)

@@ -12,6 +12,7 @@ from app.api.v1 import engine as engine_api
 from app.api.v1 import investor_flows as investor_flows_api
 from app.api.v1 import market_context as market_context_api
 from app.api.v1 import market_data as market_data_api
+from app.api.v1 import scanner_rules as scanner_rules_api
 from app.api.v1 import trading_guard as trading_guard_api
 from app.core.config import get_settings
 from app.core.logging import setup_logging
@@ -94,6 +95,7 @@ app.include_router(ai_providers_api.router, prefix="/api/v1")
 app.include_router(trading_guard_api.router, prefix="/api/v1")
 app.include_router(investor_flows_api.router, prefix="/api/v1")
 app.include_router(market_context_api.router, prefix="/api/v1")
+app.include_router(scanner_rules_api.router, prefix="/api/v1")
 
 
 @app.get("/health")
