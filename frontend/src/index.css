@@ -868,3 +868,28 @@ tr.selected {
   gap: 4px;
   margin-top: 4px;
 }
+
+/* C-2.33 Research Lab */
+.sub-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-pending { background: #fff3bf; color: #856404; }
+.badge-approved { background: #d3f9d8; color: #2b8a3e; }
+.badge-rejected { background: #ffe3e3; color: #c92a2a; }
+.winner-row { background: #ebfbee; font-weight: 600; }

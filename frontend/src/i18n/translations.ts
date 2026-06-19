@@ -5,6 +5,7 @@ export interface Translations {
     dashboard: string;
     strategies: string;
     watchlists: string;
+    research: string;
   };
   common: {
     loading: string;
@@ -394,6 +395,7 @@ export const translations: Record<Language, Translations> = {
       dashboard: "대시보드",
       strategies: "전략 관리",
       watchlists: "관심종목",
+      research: "연구소",
     },
     common: {
       loading: "불러오는 중...",
@@ -859,6 +861,7 @@ export const translations: Record<Language, Translations> = {
       dashboard: "Dashboard",
       strategies: "Strategies",
       watchlists: "Watchlists",
+      research: "Research Lab",
     },
     common: {
       loading: "Loading...",
