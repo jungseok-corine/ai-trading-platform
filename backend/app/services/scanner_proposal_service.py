@@ -186,3 +186,31 @@ class ScannerProposalService:
         proposal.reviewed_at = datetime.now(KST)
         await self._session.commit()
         return proposal
+
+    async def bulk_review(
+        self,
+        proposal_ids: list[int],
+        action: str,
+        reviewed_by: str | None = None,
+        review_note: str | None = None,
+    ) -> dict:
+        """여러 제안을 한 번에 승인/거절한다. 개별 실패는 격리해 결과에 모은다.
+
+        action: "approve" | "reject". 승인 시 각 제안마다 새 DRAFT 룰 버전이 생성된다.
+        """
+        if action not in ("approve", "reject"):
+            raise ValueError(f"invalid action: {action!r} (expected approve/reject)")
+        succeeded: list[int] = []
+        failed: list[dict] = []
+        for pid in proposal_ids:
+            try:
+                if action == "approve":
+                    await self.approve(pid, reviewed_by=reviewed_by, review_note=review_note)
+                else:
+                    await self.reject(pid, reviewed_by=reviewed_by, review_note=review_note)
+                succeeded.append(pid)
+            except ScannerProposalNotFoundError:
+                failed.append({"id": pid, "reason": "not found"})
+            except ScannerProposalNotPendingError:
+                failed.append({"id": pid, "reason": "already reviewed"})
+        return {"action": action, "succeeded": succeeded, "failed": failed}
