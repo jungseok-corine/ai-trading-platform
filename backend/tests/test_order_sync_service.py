@@ -85,9 +85,9 @@ async def _create_live_account(session: AsyncSession) -> Account:
 
 
 async def _create_trade(session: AsyncSession, account_id: int, **overrides) -> Trade:
-    from datetime import date as _date
-
-    today = _date.today()
+    # "오늘"은 서비스(order_sync_service)와 동일하게 KST 기준으로 잡아야
+    # KST 자정 경계에서 entry_time이 어제로 잡혀 stale 오판되는 flake를 막을 수 있다.
+    today = datetime.now(KST).date()
     defaults = dict(
         account_id=account_id,
         symbol_code="005930",
@@ -494,7 +494,7 @@ async def test_stale_pending_order_is_auto_cancelled(db_session: AsyncSession) -
     from datetime import date, timedelta
 
     account = await _create_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     trade = await _create_trade(
         db_session,
         account.id,
@@ -525,7 +525,7 @@ async def test_stale_orders_excluded_from_broker_query_active_orders_matched(db_
     from datetime import date, timedelta
 
     account = await _create_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     stale_trade = await _create_trade(
         db_session,
         account.id,
@@ -578,7 +578,7 @@ async def test_date_range_passed_to_broker_covers_earliest_active_trade(db_sessi
             return []
 
     account = await _create_account(db_session)
-    today = date.today()
+    today = datetime.now(KST).date()
     await _create_trade(db_session, account.id, broker_order_id="0000000001")
 
     await OrderSyncService(db_session, RecordingBrokerClient()).sync_pending_orders()
@@ -598,7 +598,7 @@ async def test_stale_pending_live_account_is_not_cancelled(db_session: AsyncSess
     from datetime import date, timedelta
 
     account = await _create_live_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     trade = await _create_trade(
         db_session,
         account.id,
@@ -619,7 +619,7 @@ async def test_stale_pending_live_account_records_stale_warning(db_session: Asyn
     from datetime import date, timedelta
 
     account = await _create_live_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     trade = await _create_trade(
         db_session,
         account.id,
@@ -646,7 +646,7 @@ async def test_stale_pending_live_account_can_be_matched_by_kis(db_session: Asyn
     from datetime import date, timedelta
 
     account = await _create_live_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     trade = await _create_trade(
         db_session,
         account.id,
@@ -682,7 +682,7 @@ async def test_mixed_paper_stale_cancelled_live_stale_warned(db_session: AsyncSe
 
     paper_account = await _create_account(db_session)
     live_account = await _create_live_account(db_session)
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = datetime.now(KST).date() - timedelta(days=1)
     stale_entry = datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, tzinfo=KST)
 
     paper_trade = await _create_trade(
