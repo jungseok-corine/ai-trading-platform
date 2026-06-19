@@ -111,6 +111,14 @@ class VariantRole(str, enum.Enum):
     CHALLENGER = "challenger"
 
 
+class ProposalStatus(str, enum.Enum):
+    """AI/수동 제안의 상태. 승인 시에만 새 전략 버전이 생성된다."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class ScannerConditionType(str, enum.Enum):
     """스캐너 감시 조건 타입. 실제 파라미터는 conditions JSONB에 저장된다."""
 
