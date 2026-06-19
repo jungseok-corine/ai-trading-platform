@@ -54,7 +54,7 @@ async def _create_account(session: AsyncSession) -> Account:
 async def _create_trade(session: AsyncSession, account_id: int, **overrides) -> Trade:
     from datetime import date as _date
 
-    today = _date.today()
+    today = datetime.now(KST).date()
     defaults = dict(
         account_id=account_id,
         symbol_code="005930",
@@ -180,7 +180,7 @@ async def test_org_no_persisted_via_trade_repo(db_session: AsyncSession) -> None
     account = await _create_account(db_session)
     from datetime import date
 
-    today = date.today()
+    today = datetime.now(KST).date()
     trade = await TradeRepository(db_session).create(
         account_id=account.id,
         symbol_code="005930",
