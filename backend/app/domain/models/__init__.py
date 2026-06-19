@@ -1,6 +1,11 @@
 from app.domain.models.account import Account
 from app.domain.models.ai_analysis import AiAnalysisRun, AiModelResponse
 from app.domain.models.investor_flow import InvestorFlow
+from app.domain.models.market_context import (
+    MarketContextSnapshot,
+    SymbolThemeMembership,
+    Theme,
+)
 from app.domain.models.market_data import MarketData
 from app.domain.models.position import Position
 from app.domain.models.position_event import PositionEvent
@@ -18,7 +23,10 @@ __all__ = [
     "AiAnalysisRun",
     "AiModelResponse",
     "InvestorFlow",
+    "MarketContextSnapshot",
     "MarketData",
+    "SymbolThemeMembership",
+    "Theme",
     "Position",
     "PositionEvent",
     "RiskConfig",

@@ -36,6 +36,9 @@ class Trade(Base):
     entry_reason: Mapped[str | None] = mapped_column(Text)
     exit_reason: Mapped[str | None] = mapped_column(Text)
     market_condition: Mapped[dict | None] = mapped_column(JSONB)
+    context_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_context_snapshots.id", ondelete="SET NULL")
+    )
     ai_analysis_id: Mapped[int | None] = mapped_column(Integer)
 
     order_status: Mapped[OrderStatus] = mapped_column(
