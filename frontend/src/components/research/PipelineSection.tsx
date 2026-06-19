@@ -1,6 +1,42 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPipelineRuns, runPipeline } from "../../api/research";
+import { getPipelineRuns, getResearchStatus, runPipeline } from "../../api/research";
 import type { PipelineSummary } from "../../types/research";
+
+const JOB_LABELS: Record<string, string> = {
+  research_pipeline: "스캔·후보·배정",
+  scanner_review: "스캐너 점검",
+  strategy_review: "전략 점검",
+  daily_report: "일일 리포트",
+};
+
+function ControlTower() {
+  const { data } = useQuery({ queryKey: ["research-status"], queryFn: getResearchStatus });
+  if (!data) return null;
+  return (
+    <div className="card" style={{ background: "#f8f9fa" }}>
+      <strong>자율 운영 현황 (관제탑)</strong>
+      <p className="muted">
+        검토 대기 제안 {data.pending.total}건 (전략 {data.pending.strategy} / 스캐너 {data.pending.scanner}) ·
+        활성 스캐너 버전 {data.active.scanner_versions}개 · 활성 전략 버전 {data.active.strategy_versions}개
+      </p>
+      <div className="table-wrapper">
+        <table>
+          <thead><tr><th>잡</th><th>최근 실행</th><th>상태</th><th>소요(ms)</th></tr></thead>
+          <tbody>
+            {data.jobs.map((j) => (
+              <tr key={j.job_id}>
+                <td>{JOB_LABELS[j.job_id] ?? j.job_id}</td>
+                <td>{j.last_run_at ? new Date(j.last_run_at).toLocaleString() : "—"}</td>
+                <td>{j.status ?? "미실행"}</td>
+                <td>{j.duration_ms ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function PipelineSection() {
   const queryClient = useQueryClient();
@@ -23,6 +59,8 @@ export default function PipelineSection() {
       <p className="muted">
         스캔 → 후보 발견 → 전략 배정을 한 번에 실행합니다. (watchlist 종목 대상, 주문은 발생하지 않음)
       </p>
+
+      <ControlTower />
 
       <div className="form-row">
         <button className="primary" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
