@@ -16,6 +16,7 @@ from app.domain.models.market_context import (
 from app.domain.models.market_data import MarketData
 from app.domain.models.news_context import NewsEvent, UsMarketSnapshot
 from app.domain.models.position import Position
+from app.domain.models.promotion import PromotionCriteria, PromotionEvaluation
 from app.domain.models.position_event import PositionEvent
 from app.domain.models.risk import RiskConfig, RiskEvent
 from app.domain.models.scanner import ScannerRule, ScannerRuleVersion
@@ -50,6 +51,8 @@ __all__ = [
     "Theme",
     "Position",
     "PositionEvent",
+    "PromotionCriteria",
+    "PromotionEvaluation",
     "RiskConfig",
     "RiskEvent",
     "ScannerRule",
