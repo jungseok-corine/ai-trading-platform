@@ -13,6 +13,7 @@ from app.domain.models.market_context import (
     Theme,
 )
 from app.domain.models.market_data import MarketData
+from app.domain.models.news_context import NewsEvent, UsMarketSnapshot
 from app.domain.models.position import Position
 from app.domain.models.position_event import PositionEvent
 from app.domain.models.risk import RiskConfig, RiskEvent
@@ -41,7 +42,9 @@ __all__ = [
     "InvestorFlow",
     "MarketContextSnapshot",
     "MarketData",
+    "NewsEvent",
     "SymbolThemeMembership",
+    "UsMarketSnapshot",
     "Theme",
     "Position",
     "PositionEvent",
