@@ -6,25 +6,33 @@ AI/수동 제안을 저장하고, 사람이 승인할 때만 새 strategy_versio
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.domain.models.enums import ProposalStatus
+from app.services.proposal_generator import ProposalGeneratorService
 from app.services.proposal_service import (
     InvalidProposalError,
     ProposalNotFoundError,
     ProposalNotPendingError,
     ProposalService,
 )
-from app.services.strategy_service import StrategyNotFoundError
+from app.services.strategy_service import (
+    StrategyNotFoundError,
+    StrategyVersionNotFoundError,
+)
 
 router = APIRouter(prefix="/strategy-proposals", tags=["strategy-proposals"])
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> ProposalService:
     return ProposalService(session)
+
+
+def get_generator(session: AsyncSession = Depends(get_db)) -> ProposalGeneratorService:
+    return ProposalGeneratorService(session)
 
 
 # --- schemas ---------------------------------------------------------------
@@ -78,6 +86,12 @@ class ReviewRequest(BaseModel):
     review_note: str | None = None
 
 
+class GenerateRequest(BaseModel):
+    strategy_id: int
+    version_id: int
+    ai_analysis_run_id: int | None = None
+
+
 class ApproveResponse(BaseModel):
     proposal: ProposalRead
     created_version_id: int
@@ -105,6 +119,28 @@ async def create_proposal(
         raise HTTPException(status_code=404, detail="strategy not found") from e
     except InvalidProposalError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    return ProposalRead.model_validate(proposal)
+
+
+@router.post("/generate", response_model=ProposalRead)
+async def generate_proposal(
+    payload: GenerateRequest,
+    generator: ProposalGeneratorService = Depends(get_generator),
+):
+    """전략 버전 성과를 분석해 개선 제안을 자동 생성한다(pending).
+
+    제안할 변경이 없으면(데이터 부족 또는 기대값 양수) 204를 반환한다.
+    """
+    try:
+        proposal = await generator.generate_for_version(
+            payload.strategy_id, payload.version_id, payload.ai_analysis_run_id
+        )
+    except StrategyNotFoundError as e:
+        raise HTTPException(status_code=404, detail="strategy not found") from e
+    except StrategyVersionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="strategy version not found") from e
+    if proposal is None:
+        return Response(status_code=204)
     return ProposalRead.model_validate(proposal)
 
 
