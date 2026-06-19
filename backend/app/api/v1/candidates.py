@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
 from app.services.candidate_service import CandidateService
+from app.services.scanner_scan_service import ScannerScanService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 
 router = APIRouter(tags=["candidates"])
@@ -22,9 +23,21 @@ def get_service(session: AsyncSession = Depends(get_db)) -> CandidateService:
     return CandidateService(session)
 
 
+def get_scan_service(session: AsyncSession = Depends(get_db)) -> ScannerScanService:
+    return ScannerScanService(session)
+
+
 class ScanRequest(BaseModel):
     symbol_facts: dict[str, dict[str, Any]]
     triggered_at: datetime | None = None
+    context_snapshot_id: int | None = None
+
+
+class ScanMarketRequest(BaseModel):
+    symbol_codes: list[str]
+    timeframe: str = "1m"
+    volume_window: int = 20
+    lookback: int = 60
     context_snapshot_id: int | None = None
 
 
@@ -70,6 +83,40 @@ async def scan(
             version_id,
             symbol_facts=payload.symbol_facts,
             triggered_at=payload.triggered_at,
+            context_snapshot_id=payload.context_snapshot_id,
+        )
+    except ScannerRuleVersionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="scanner rule version not found") from e
+    return ScanResponse(
+        scanner_rule_version_id=result.scanner_rule_version_id,
+        scanned=result.scanned,
+        matched=result.matched,
+        candidates=[CandidateRead.model_validate(c) for c in result.candidates],
+    )
+
+
+@router.post(
+    "/scanner-rules/{rule_id}/versions/{version_id}/scan-market",
+    response_model=ScanResponse,
+    status_code=201,
+)
+async def scan_market(
+    rule_id: int,
+    version_id: int,
+    payload: ScanMarketRequest,
+    service: ScannerScanService = Depends(get_scan_service),
+) -> ScanResponse:
+    """DB의 시장 데이터/수급으로 종목 facts를 계산해 룰을 실행하고 후보를 기록한다.
+
+    수동 facts를 넣는 /scan과 달리, 시스템이 facts를 계산한다(실제 데이터로 도는 경로).
+    """
+    try:
+        result = await service.scan_from_market_data(
+            version_id,
+            symbol_codes=payload.symbol_codes,
+            timeframe=payload.timeframe,
+            volume_window=payload.volume_window,
+            lookback=payload.lookback,
             context_snapshot_id=payload.context_snapshot_id,
         )
     except ScannerRuleVersionNotFoundError as e:
