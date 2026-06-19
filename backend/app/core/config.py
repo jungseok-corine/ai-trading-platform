@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     data_refresh_scheduler_minute: int = 0
     data_refresh_lookback_days: int = 5
 
+    # 자율 연구 파이프라인 (C-2.35). 기본 비활성 — 스캔→후보→배정을 주기적으로 자동 실행.
+    research_pipeline_scheduler_enabled: bool = False
+    research_pipeline_interval_seconds: int = 300
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

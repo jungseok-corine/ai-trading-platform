@@ -26,6 +26,27 @@ ORDER_SYNC_JOB_ID = "order_sync"
 TRADING_STATE_SYNC_JOB_ID = "trading_state_sync"
 DAILY_REPORT_JOB_ID = "daily_report"
 DATA_REFRESH_JOB_ID = "data_refresh"
+RESEARCH_PIPELINE_JOB_ID = "research_pipeline"
+
+
+async def run_research_pipeline_job(app: FastAPI) -> None:
+    """스캔 → 후보 발견 → 전략 배정을 1회 자동 실행한다 (C-2.35).
+
+    DB의 시장/수급 데이터만 사용하며 주문은 발생하지 않는다.
+    """
+    from app.services.research_pipeline_service import ResearchPipelineService
+
+    try:
+        async with async_session_factory() as session:
+            summary = await ResearchPipelineService(session).run_once()
+        logger.info(
+            "research pipeline: versions=%s symbols=%s candidates=%s assignments=%s",
+            summary.versions, summary.symbols, summary.candidates, summary.assignments,
+        )
+        app.state.research_pipeline_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 파이프라인 실패가 스케줄러를 중단시키지 않도록
+        logger.error("research pipeline job failed: %s", exc_message(exc))
+        app.state.research_pipeline_last_error = exc_message(exc)
 
 
 async def run_data_refresh_job(app: FastAPI) -> None:
