@@ -280,6 +280,7 @@ export interface ResearchStatus {
   jobs: ResearchJobStatus[];
   pending: { strategy: number; scanner: number; total: number };
   active: { scanner_versions: number; strategy_versions: number };
+  retrospective: { total: number; improved: number; worse: number; inconclusive: number };
 }
 
 export async function getResearchStatus(): Promise<ResearchStatus> {

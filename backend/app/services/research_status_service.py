@@ -16,6 +16,7 @@ from app.domain.models.scanner_proposal import ScannerRuleProposal
 from app.domain.models.strategy import StrategyVersion
 from app.domain.models.strategy_proposal import StrategyProposal
 from app.domain.repositories.scheduler_run import SchedulerRunRepository
+from app.services.proposal_retrospective_service import ProposalRetrospectiveService
 
 # 자율 연구 루프를 구성하는 잡들. 운영자가 한눈에 보도록 모은다.
 RESEARCH_JOB_IDS = ("research_pipeline", "scanner_review", "strategy_review", "daily_report")
@@ -44,12 +45,14 @@ class ResearchStatus:
     jobs: list[JobStatus]
     pending: dict
     active: dict
+    retrospective: dict
 
     def to_dict(self) -> dict:
         return {
             "jobs": [j.to_dict() for j in self.jobs],
             "pending": self.pending,
             "active": self.active,
+            "retrospective": self.retrospective,
         }
 
 
@@ -64,6 +67,7 @@ class ResearchStatusService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._run_repo = SchedulerRunRepository(session)
+        self._retro_service = ProposalRetrospectiveService(session)
 
     async def status(self) -> ResearchStatus:
         jobs: list[JobStatus] = []
@@ -90,6 +94,8 @@ class ResearchStatusService:
             [StrategyVersionStatus.ACTIVE, StrategyVersionStatus.TESTING],
         )
 
+        retrospective = await self._retro_service.summary()
+
         return ResearchStatus(
             jobs=jobs,
             pending={
@@ -101,6 +107,7 @@ class ResearchStatusService:
                 "scanner_versions": active_scanner,
                 "strategy_versions": active_strategy,
             },
+            retrospective=retrospective,
         )
 
     async def _count_status(self, model, status: ProposalStatus) -> int:
