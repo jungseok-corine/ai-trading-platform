@@ -175,6 +175,36 @@ export interface ProposalDetail extends StrategyProposal {
   diff: ParamDiff[];
 }
 
+// --- Scanner proposal (C-2.39) ---------------------------------------------
+export interface ScannerProposal {
+  id: number;
+  scanner_rule_id: number;
+  base_version_id: number | null;
+  title: string;
+  summary: string | null;
+  rationale: string | null;
+  expected_effect: string | null;
+  risk_notes: string | null;
+  suggested_conditions: ScannerCondition[];
+  source: string;
+  status: ProposalStatus;
+  created_version_id: number | null;
+  reviewed_by: string | null;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ConditionDiff {
+  type: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface ScannerProposalDetail extends ScannerProposal {
+  diff: ConditionDiff[];
+}
+
 // --- News / US market ------------------------------------------------------
 export interface NewsEvent {
   id: number;

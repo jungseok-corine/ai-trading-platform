@@ -20,6 +20,8 @@ import type {
   ProposalStatus,
   ScanResponse,
   ScannerCondition,
+  ScannerProposal,
+  ScannerProposalDetail,
   ScannerRule,
   ScannerRuleStatus,
   ScannerRuleVersion,
@@ -219,6 +221,47 @@ export async function rejectProposal(
 ): Promise<StrategyProposal> {
   const { data } = await apiClient.post<StrategyProposal>(
     `/strategy-proposals/${id}/reject`,
+    payload,
+  );
+  return data;
+}
+
+// --- Scanner proposals (C-2.39) --------------------------------------------
+export async function getScannerProposals(params?: {
+  scanner_rule_id?: number;
+  status?: ProposalStatus;
+}): Promise<ScannerProposal[]> {
+  const { data } = await apiClient.get<ScannerProposal[]>("/scanner-proposals", { params });
+  return data;
+}
+
+export async function getScannerProposal(id: number): Promise<ScannerProposalDetail> {
+  const { data } = await apiClient.get<ScannerProposalDetail>(`/scanner-proposals/${id}`);
+  return data;
+}
+
+export async function generateScannerProposal(payload: {
+  version_id: number;
+  horizon_minutes?: number;
+}): Promise<ScannerProposal | null> {
+  const res = await apiClient.post("/scanner-proposals/generate", payload);
+  return res.status === 204 ? null : (res.data as ScannerProposal);
+}
+
+export async function approveScannerProposal(
+  id: number,
+  payload: { reviewed_by?: string | null; review_note?: string | null },
+): Promise<{ proposal: ScannerProposal; created_version_id: number }> {
+  const { data } = await apiClient.post(`/scanner-proposals/${id}/approve`, payload);
+  return data;
+}
+
+export async function rejectScannerProposal(
+  id: number,
+  payload: { reviewed_by?: string | null; review_note?: string | null },
+): Promise<ScannerProposal> {
+  const { data } = await apiClient.post<ScannerProposal>(
+    `/scanner-proposals/${id}/reject`,
     payload,
   );
   return data;

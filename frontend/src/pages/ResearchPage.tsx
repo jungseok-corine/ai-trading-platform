@@ -4,6 +4,7 @@ import CandidatesSection from "../components/research/CandidatesSection";
 import AssignmentsSection from "../components/research/AssignmentsSection";
 import ExperimentsSection from "../components/research/ExperimentsSection";
 import ProposalsSection from "../components/research/ProposalsSection";
+import ScannerProposalsSection from "../components/research/ScannerProposalsSection";
 import ReportsSection from "../components/research/ReportsSection";
 import PromotionsSection from "../components/research/PromotionsSection";
 import MarketContextSection from "../components/research/MarketContextSection";
@@ -12,6 +13,7 @@ import PipelineSection from "../components/research/PipelineSection";
 type Section =
   | "pipeline"
   | "proposals"
+  | "scanner-proposals"
   | "scanners"
   | "candidates"
   | "assignments"
@@ -22,7 +24,8 @@ type Section =
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "pipeline", label: "파이프라인" },
-  { key: "proposals", label: "AI 제안" },
+  { key: "proposals", label: "AI 전략 제안" },
+  { key: "scanner-proposals", label: "AI 스캐너 제안" },
   { key: "scanners", label: "스캐너" },
   { key: "candidates", label: "후보 종목" },
   { key: "assignments", label: "전략 배정" },
@@ -52,6 +55,7 @@ export default function ResearchPage() {
 
       {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
+      {section === "scanner-proposals" && <ScannerProposalsSection />}
       {section === "scanners" && <ScannersSection />}
       {section === "candidates" && <CandidatesSection />}
       {section === "assignments" && <AssignmentsSection />}
