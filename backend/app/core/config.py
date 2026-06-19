@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
     log_level: str = "INFO"
+    # SQLAlchemy SQL echo. 기본 off — 모든 쿼리를 콘솔에 출력하면 로그가 매우 시끄럽다.
+    # 쿼리 디버깅이 필요할 때만 DB_ECHO=true로 켠다.
+    db_echo: bool = False
 
     database_url: str = "postgresql+asyncpg://trading:trading@localhost:5432/trading_platform"
 
