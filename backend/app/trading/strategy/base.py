@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.domain.models.enums import TradeSide
 from app.trading.broker.schemas import MinuteCandle
+
+if TYPE_CHECKING:
+    from app.trading.strategy.context import StrategyContext
 
 
 @dataclass
@@ -25,6 +30,7 @@ class Strategy(ABC):
 
     구현체는 candles(과거~현재, 오래된 순)을 분석해 Signal을 생성하거나,
     매매 조건을 만족하지 않으면 None을 반환한다. 아직 주문을 실행하지 않는다.
+    context(StrategyContext)는 선택적으로 전달되며, 수급 데이터 등 외부 컨텍스트를 담는다.
     """
 
     @classmethod
@@ -39,4 +45,5 @@ class Strategy(ABC):
         symbol_code: str,
         candles: list[MinuteCandle],
         strategy_version_id: int | None = None,
+        context: StrategyContext | None = None,
     ) -> Signal | None: ...

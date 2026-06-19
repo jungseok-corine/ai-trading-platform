@@ -370,10 +370,21 @@ export interface Translations {
     labelVolumeMultiplier: string;
     strategyTypeMovingAverage: string;
     strategyTypeVolumeConfirmed: string;
+    strategyTypeFlowConfirmed: string;
     errorLongWindowGtShort: string;
     errorVolumeWindowGt0: string;
     errorVolumeMultiplierGt0: string;
     hintAutoTrade: string;
+    labelFlowLookbackDays: string;
+    labelMaxFlowAgeDays: string;
+    labelFlowMode: string;
+    labelRequireFlowData: string;
+    flowModeForeignOrInstitution: string;
+    flowModeForeignAndInstitution: string;
+    flowModeSmartMoneyVsRetail: string;
+    hintFlowData: string;
+    errorFlowLookbackDaysGt0: string;
+    errorMaxFlowAgeDaysGt0: string;
   };
 }
 
@@ -824,11 +835,23 @@ export const translations: Record<Language, Translations> = {
       labelVolumeMultiplier: "거래량 배수",
       strategyTypeMovingAverage: "이동평균 교차",
       strategyTypeVolumeConfirmed: "거래량 확인 MA 교차",
+      strategyTypeFlowConfirmed: "수급 확인 거래량 MA 교차",
       errorLongWindowGtShort: "장기 기간은 단기 기간보다 커야 합니다.",
       errorVolumeWindowGt0: "거래량 기간은 1 이상이어야 합니다.",
       errorVolumeMultiplierGt0: "거래량 배수는 0보다 커야 합니다.",
       hintAutoTrade:
         "auto_trade_enabled가 OFF이면 신호(Signal)만 생성되어 기록되고, 실제 KIS 주문은 실행되지 않습니다. ON으로 설정하면 RiskManager 검증을 통과한 신호에 한해 자동으로 주문이 전송됩니다.",
+      labelFlowLookbackDays: "수급 조회 기간 (일)",
+      labelMaxFlowAgeDays: "수급 최대 허용 경과일",
+      labelFlowMode: "수급 필터 모드",
+      labelRequireFlowData: "수급 데이터 필수 여부",
+      flowModeForeignOrInstitution: "외국인 또는 기관 순매수",
+      flowModeForeignAndInstitution: "외국인 및 기관 순매수",
+      flowModeSmartMoneyVsRetail: "스마트머니 vs 개인 (연구용 휴리스틱)",
+      hintFlowData:
+        "수급 데이터는 일별 확정 데이터이며 실시간 매수세/매도세가 아닙니다. 당일 수급은 장마감 후 확정되므로 전일 이하 데이터만 사용됩니다.",
+      errorFlowLookbackDaysGt0: "수급 조회 기간은 1일 이상이어야 합니다.",
+      errorMaxFlowAgeDaysGt0: "수급 최대 허용 경과일은 1일 이상이어야 합니다.",
     },
   },
   en: {
@@ -1276,11 +1299,23 @@ export const translations: Record<Language, Translations> = {
       labelVolumeMultiplier: "Volume Multiplier",
       strategyTypeMovingAverage: "Moving Average Cross",
       strategyTypeVolumeConfirmed: "Volume Confirmed MA Cross",
+      strategyTypeFlowConfirmed: "Flow Confirmed Volume MA Cross",
       errorLongWindowGtShort: "Long window must be greater than short window.",
       errorVolumeWindowGt0: "Volume window must be at least 1.",
       errorVolumeMultiplierGt0: "Volume multiplier must be greater than 0.",
       hintAutoTrade:
         "When auto_trade_enabled is OFF, only signals are generated and recorded; no KIS orders are placed. When ON, orders are sent automatically for signals that pass RiskManager validation.",
+      labelFlowLookbackDays: "Flow Lookback Days",
+      labelMaxFlowAgeDays: "Max Flow Age Days",
+      labelFlowMode: "Flow Filter Mode",
+      labelRequireFlowData: "Require Flow Data",
+      flowModeForeignOrInstitution: "Foreign or Institution Net Buy",
+      flowModeForeignAndInstitution: "Foreign and Institution Net Buy",
+      flowModeSmartMoneyVsRetail: "Smart Money vs Retail (Research Heuristic)",
+      hintFlowData:
+        "Flow data is daily confirmed data, not real-time buying/selling pressure. Only data from the day before the candle date is used to prevent look-ahead bias.",
+      errorFlowLookbackDaysGt0: "Flow lookback days must be at least 1.",
+      errorMaxFlowAgeDaysGt0: "Max flow age days must be at least 1.",
     },
   },
 };

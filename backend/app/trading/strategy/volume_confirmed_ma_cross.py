@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from app.domain.models.enums import TradeSide
 from app.trading.broker.schemas import MinuteCandle
@@ -9,6 +12,9 @@ from app.trading.strategy.indicators import (
     calculate_volume_sma,
     candle_timestamp,
 )
+
+if TYPE_CHECKING:
+    from app.trading.strategy.context import StrategyContext
 
 
 class VolumeConfirmedMovingAverageCrossStrategy(Strategy):
@@ -51,6 +57,7 @@ class VolumeConfirmedMovingAverageCrossStrategy(Strategy):
         symbol_code: str,
         candles: list[MinuteCandle],
         strategy_version_id: int | None = None,
+        context: StrategyContext | None = None,
     ) -> Signal | None:
         min_required = max(self._long_window, self._volume_window) + 1
         if len(candles) < min_required:

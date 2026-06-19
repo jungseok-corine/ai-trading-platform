@@ -210,8 +210,14 @@ export interface StrategyVersionParameters {
   account_id: number | null;
   enabled: boolean;
   auto_trade_enabled: boolean;
+  // volume_confirmed_ma_cross 전용
   volume_window: number;
   volume_multiplier: number;
+  // flow_confirmed_volume_ma_cross 전용
+  flow_lookback_days: number;
+  max_flow_age_days: number;
+  flow_mode: string;
+  require_flow_data: boolean;
 }
 
 export interface StrategyParameterMeta {
@@ -504,4 +510,8 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   auto_trade_enabled: false,
   volume_window: 20,
   volume_multiplier: 1.5,
+  flow_lookback_days: 5,
+  max_flow_age_days: 5,
+  flow_mode: "foreign_or_institution",
+  require_flow_data: true,
 };

@@ -1,4 +1,6 @@
-from datetime import datetime
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -8,9 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.enums import TradeSide
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.watchlist import WatchlistSymbol
+from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.signal_log import SignalLogRepository
 from app.services.market_data_service import MarketDataService
+from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.base import Strategy
+from app.trading.strategy.context import StrategyContext
 from app.trading.strategy.schemas import SignalLogRead
 
 _METADATA_SKIP_KEYS = frozenset({"candle_ts", "short_ma", "long_ma"})
@@ -20,7 +25,7 @@ def _build_indicators(metadata: dict) -> dict | None:
     """Signal.metadata에서 indicators JSONB에 저장할 지표 dict를 만든다.
 
     candle_ts, short_ma, long_ma는 전용 컬럼에 이미 저장되므로 제외한다.
-    Decimal/datetime 값은 JSON 직렬화를 위해 str로 변환한다.
+    Decimal/datetime/date 값은 JSON 직렬화를 위해 str로 변환한다.
     """
     indicators: dict = {}
     for k, v in metadata.items():
@@ -32,32 +37,103 @@ def _build_indicators(metadata: dict) -> dict | None:
             indicators[k] = str(v)
         elif isinstance(v, datetime):
             indicators[k] = v.isoformat()
+        elif isinstance(v, date):
+            indicators[k] = v.isoformat()
         else:
             indicators[k] = v
     return indicators or None
 
+
 KST = ZoneInfo("Asia/Seoul")
+
+
+def _candle_date(candles: list[MinuteCandle]) -> date | None:
+    """최신 캔들의 business_date("YYYYMMDD")를 date 객체로 변환한다."""
+    if not candles:
+        return None
+    bd = candles[-1].business_date
+    if len(bd) != 8:
+        return None
+    return date(int(bd[:4]), int(bd[4:6]), int(bd[6:8]))
 
 
 class SignalService:
     """Strategy를 실행해 Signal을 생성하고 signal_logs에 기록한다.
 
     아직 주문을 실행하지 않는다 (시장 데이터 → 전략 → Signal 생성 → DB 저장까지).
+    investor_flow_repo가 주입된 경우, strategy_params를 참고해 StrategyContext를 조립해
+    generate_signal에 전달한다. 전략 클래스 안에서는 DB/네트워크 접근을 하지 않는다.
     """
 
-    def __init__(self, session: AsyncSession, market_data_service: MarketDataService) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        market_data_service: MarketDataService,
+        investor_flow_repo: InvestorFlowRepository | None = None,
+    ) -> None:
         self._session = session
         self._market_data_service = market_data_service
+        self._investor_flow_repo = investor_flow_repo
         self._signal_log_repo = SignalLogRepository(session)
+
+    async def _build_strategy_context(
+        self,
+        symbol_code: str,
+        candles: list[MinuteCandle],
+        strategy_params: dict,
+    ) -> StrategyContext:
+        """investor_flows DB에서 look-ahead 방지된 데이터를 조회해 StrategyContext를 조립한다.
+
+        look-ahead 방지: 캔들 당일(business_date)의 수급은 장마감 후 확정되므로
+        trade_date < candle_date 인 데이터만 사용한다.
+        """
+        flow_lookback_days = int(strategy_params.get("flow_lookback_days", 5))
+        max_flow_age_days = int(strategy_params.get("max_flow_age_days", 5))
+
+        candle_date = _candle_date(candles) or date.today()
+        # look-ahead 방지: 캔들 당일 제외, 그 이전 데이터만 사용
+        date_to = candle_date - timedelta(days=1)
+        date_from = date_to - timedelta(days=flow_lookback_days - 1)
+
+        assert self._investor_flow_repo is not None
+        flows = await self._investor_flow_repo.list_by_symbol(
+            symbol_code, date_from=date_from, date_to=date_to
+        )
+
+        latest_flow = flows[0] if flows else None  # list_by_symbol은 최신순 정렬
+
+        flow_data_available = latest_flow is not None
+        flow_data_date = latest_flow.trade_date if latest_flow else None
+        flow_data_staleness_days: int | None = None
+
+        if flow_data_date is not None:
+            flow_data_staleness_days = (candle_date - flow_data_date).days
+            # staleness가 max_flow_age_days 초과이면 flow_data_available=False 표시
+            if flow_data_staleness_days > max_flow_age_days:
+                flow_data_available = False
+
+        return StrategyContext(
+            latest_investor_flow=latest_flow,
+            investor_flows=flows,
+            flow_data_available=flow_data_available,
+            flow_data_date=flow_data_date,
+            flow_data_staleness_days=flow_data_staleness_days,
+        )
 
     async def generate_and_log_signal(
         self,
         strategy: Strategy,
         symbol_code: str,
         strategy_version_id: int | None = None,
+        strategy_params: dict | None = None,
     ) -> SignalLog | None:
         candles = await self._market_data_service.get_recent_candles(symbol_code)
-        signal = strategy.generate_signal(symbol_code, candles, strategy_version_id)
+
+        context: StrategyContext | None = None
+        if self._investor_flow_repo is not None and strategy_params:
+            context = await self._build_strategy_context(symbol_code, candles, strategy_params)
+
+        signal = strategy.generate_signal(symbol_code, candles, strategy_version_id, context=context)
         if signal is None:
             # 시그널 없어도 get_recent_candles에서 flush된 market_data를 커밋한다.
             await self._session.commit()

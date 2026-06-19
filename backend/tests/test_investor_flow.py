@@ -432,18 +432,35 @@ def test_parse_empty_qty_results_in_none() -> None:
 
 
 def test_investor_flow_not_in_strategy_registry() -> None:
-    """InvestorFlowService가 전략 레지스트리와 연결되지 않음을 확인한다."""
-    from app.trading.strategy.registry import registered_types
-    for strategy_type in registered_types():
-        assert "investor" not in strategy_type.lower()
-        assert "flow" not in strategy_type.lower()
+    """전략 레지스트리에 등록된 전략들이 KISInvestorFlowClient를 직접 import하지 않는다.
+
+    C-2.19: flow_confirmed_volume_ma_cross 전략 타입은 허용됨.
+    전략은 DB 조회(InvestorFlowRepository)를 직접 수행하지 않고 context(StrategyContext)로만
+    수급 데이터를 전달받는다. KISInvestorFlowClient 직접 호출은 여전히 금지.
+    """
+    import importlib
+    import inspect
+    from app.trading.strategy.registry import _REGISTRY
+    for strategy_type, strategy_cls in _REGISTRY.items():
+        module = importlib.import_module(strategy_cls.__module__)
+        source = inspect.getsource(module)
+        assert "KISInvestorFlowClient" not in source, (
+            f"전략 모듈 {strategy_cls.__module__}이 KISInvestorFlowClient를 직접 참조하면 안 됩니다"
+        )
+        assert "InvestorFlowService" not in source, (
+            f"전략 모듈 {strategy_cls.__module__}이 InvestorFlowService를 직접 참조하면 안 됩니다"
+        )
 
 
 def test_investor_flow_service_not_in_signal_service() -> None:
-    """SignalService가 InvestorFlowService를 import하지 않음을 확인한다."""
+    """SignalService가 KISInvestorFlowClient를 import하지 않는다.
+
+    C-2.19: InvestorFlowRepository(DB-only 조회)는 합법적으로 주입된다.
+    KIS API 클라이언트(KISInvestorFlowClient)는 여전히 SignalService에서 참조 금지.
+    """
     import importlib
     import inspect
     signal_service_module = importlib.import_module("app.services.signal_service")
     source = inspect.getsource(signal_service_module)
-    assert "InvestorFlow" not in source
-    assert "investor_flow" not in source
+    assert "KISInvestorFlowClient" not in source
+    assert "InvestorFlowService" not in source

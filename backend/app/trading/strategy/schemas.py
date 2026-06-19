@@ -138,15 +138,40 @@ STRATEGY_TYPES_METADATA: list[StrategyTypeMeta] = [
             StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
         ],
     ),
+    StrategyTypeMeta(
+        strategy_type="flow_confirmed_volume_ma_cross",
+        display_name="Flow Confirmed Volume MA Cross",
+        display_name_ko="수급 확인 거래량 MA 교차",
+        parameters=[
+            StrategyParameterMeta(name="short_window", type="int", default=5, min=1, description="단기 이동평균 기간"),
+            StrategyParameterMeta(name="long_window", type="int", default=20, min=2, description="장기 이동평균 기간 (short_window 초과)"),
+            StrategyParameterMeta(name="volume_window", type="int", default=20, min=1, description="거래량 SMA 계산 기간"),
+            StrategyParameterMeta(name="volume_multiplier", type="float", default=1.5, min=0.01, description="거래량 spike 판단 배수"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+            StrategyParameterMeta(name="flow_lookback_days", type="int", default=5, min=1, description="수급 데이터 조회 기간 (일)"),
+            StrategyParameterMeta(name="max_flow_age_days", type="int", default=5, min=1, description="수급 데이터 최대 허용 경과일 (초과 시 stale 처리)"),
+            StrategyParameterMeta(
+                name="flow_mode",
+                type="str",
+                default="foreign_or_institution",
+                description="수급 필터 모드: foreign_or_institution / foreign_and_institution / smart_money_vs_retail",
+            ),
+            StrategyParameterMeta(name="require_flow_data", type="bool", default=True, description="수급 데이터 없을 때 BUY 차단 여부. false면 수급 없이도 volume+MA 조건만으로 BUY 허용"),
+        ],
+    ),
 ]
+
+
+_VALID_FLOW_MODES = frozenset(
+    {"foreign_or_institution", "foreign_and_institution", "smart_money_vs_retail"}
+)
 
 
 class StrategyVersionParameters(BaseModel):
     """strategy_versions.parameters JSONB에 저장되는 구조.
 
     StrategyRunnerService가 그대로 읽는 공통 키 + 전략 타입별 추가 키를 포함한다.
-    volume_window/volume_multiplier는 volume_confirmed_ma_cross 전용이지만,
-    기존 moving_average_cross 버전의 하위호환을 위해 모두 optional with defaults.
+    하위호환을 위해 전략별 전용 파라미터도 optional with defaults로 선언한다.
     """
 
     strategy_type: str = "moving_average_cross"
@@ -158,9 +183,14 @@ class StrategyVersionParameters(BaseModel):
     account_id: int | None = None
     enabled: bool = True
     auto_trade_enabled: bool = False
-    # volume_confirmed_ma_cross 전용 파라미터 (moving_average_cross에서는 무시됨)
+    # volume_confirmed_ma_cross 전용 파라미터
     volume_window: int = Field(default=20, gt=0)
     volume_multiplier: float = Field(default=1.5, gt=0)
+    # flow_confirmed_volume_ma_cross 전용 파라미터
+    flow_lookback_days: int = Field(default=5, gt=0)
+    max_flow_age_days: int = Field(default=5, gt=0)
+    flow_mode: str = "foreign_or_institution"
+    require_flow_data: bool = True
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":
@@ -170,6 +200,11 @@ class StrategyVersionParameters(BaseModel):
             )
         if self.auto_trade_enabled and self.account_id is None:
             raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
+        if self.flow_mode not in _VALID_FLOW_MODES:
+            raise ValueError(
+                f"flow_mode={self.flow_mode!r}은 유효하지 않습니다. "
+                f"허용값: {sorted(_VALID_FLOW_MODES)}"
+            )
         return self
 
 

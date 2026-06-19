@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from app.domain.models.enums import TradeSide
 from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.base import Signal, Strategy
 from app.trading.strategy.indicators import calculate_sma, candle_timestamp
+
+if TYPE_CHECKING:
+    from app.trading.strategy.context import StrategyContext
 
 
 class MovingAverageCrossStrategy(Strategy):
@@ -32,6 +39,7 @@ class MovingAverageCrossStrategy(Strategy):
         symbol_code: str,
         candles: list[MinuteCandle],
         strategy_version_id: int | None = None,
+        context: StrategyContext | None = None,
     ) -> Signal | None:
         # 교차 여부를 판단하려면 직전 시점과 현재 시점의 SMA가 모두 필요하다.
         if len(candles) < self._long_window + 1:

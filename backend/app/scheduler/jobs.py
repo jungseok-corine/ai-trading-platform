@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.db.session import async_session_factory
 from app.domain.models.enums import SchedulerRunStatus
+from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.services.market_data_service import MarketDataService
 from app.services.order_sync_service import OrderSyncService
 from app.services.risk_service import RiskService
@@ -63,7 +64,9 @@ async def run_strategy_job(app: FastAPI) -> None:
     try:
         async with async_session_factory() as session:
             broker = app.state.broker_client
-            signal_service = SignalService(session, MarketDataService(broker, session))
+            signal_service = SignalService(
+                session, MarketDataService(broker, session), InvestorFlowRepository(session)
+            )
             risk_service = RiskService(session, broker)
             trade_service = TradeService(session, broker, risk_service)
             runner = StrategyRunnerService(session, signal_service, trade_service)

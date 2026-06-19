@@ -93,7 +93,9 @@ class StrategyRunnerService:
         )
 
         try:
-            log = await self._signal_service.generate_and_log_signal(strategy, symbol_code, version.id)
+            log = await self._signal_service.generate_and_log_signal(
+                strategy, symbol_code, version.id, strategy_params=params
+            )
         except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
             result.error = f"market data error: {exc_message(exc)}"
             result.error_category = classify_exception(exc)

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_broker_client
 from app.db.session import get_db
+from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.scheduler.lifecycle import reschedule_jobs
 from app.services.market_data_service import MarketDataService
@@ -35,7 +36,9 @@ def get_strategy_runner_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
 ) -> StrategyRunnerService:
-    signal_service = SignalService(session, MarketDataService(broker, session))
+    signal_service = SignalService(
+        session, MarketDataService(broker, session), InvestorFlowRepository(session)
+    )
     risk_service = RiskService(session, broker)
     trade_service = TradeService(session, broker, risk_service)
     return StrategyRunnerService(session, signal_service, trade_service)
