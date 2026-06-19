@@ -11,6 +11,7 @@ from app.domain.models.enums import SchedulerRunStatus
 from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 from app.domain.repositories.scanner import ScannerRuleVersionRepository
 from app.services.assignment_service import AssignmentService
+from app.services.market_context_capture_service import MarketContextCaptureService
 from app.services.scanner_scan_service import ScannerScanService
 from app.services.scheduler_run_service import SchedulerRunService
 
@@ -34,6 +35,7 @@ class PipelineSummary:
     symbols: int
     candidates: int
     assignments: int
+    context_snapshot_id: int | None = None
     per_version: list[VersionRunResult] = field(default_factory=list)
 
     def to_summary_dict(self) -> dict:
@@ -43,6 +45,7 @@ class PipelineSummary:
             "symbols": self.symbols,
             "candidates": self.candidates,
             "assignments": self.assignments,
+            "context_snapshot_id": self.context_snapshot_id,
             "per_version": [
                 {
                     "scanner_rule_version_id": v.scanner_rule_version_id,
@@ -70,6 +73,7 @@ class ResearchPipelineService:
         self._scan_service = ScannerScanService(session)
         self._assignment_service = AssignmentService(session)
         self._run_service = SchedulerRunService(session)
+        self._capture_service = MarketContextCaptureService(session)
 
     async def run_and_record(
         self,
@@ -131,9 +135,15 @@ class ResearchPipelineService:
         total_candidates = 0
         total_assignments = 0
 
+        # 이번 실행의 시장 맥락을 한 번 캡처해 모든 후보에 연결한다(versions가 있을 때만).
+        context_snapshot_id: int | None = None
+        if versions:
+            snapshot = await self._capture_service.capture(now=now)
+            context_snapshot_id = snapshot.id
+
         for version in versions:
             scan_result = await self._scan_service.scan_from_market_data(
-                version.id, symbol_codes, now=now
+                version.id, symbol_codes, now=now, context_snapshot_id=context_snapshot_id
             )
             assigned = 0
             if auto_assign:
@@ -158,5 +168,6 @@ class ResearchPipelineService:
             symbols=len(symbol_codes),
             candidates=total_candidates,
             assignments=total_assignments,
+            context_snapshot_id=context_snapshot_id,
             per_version=per_version,
         )
