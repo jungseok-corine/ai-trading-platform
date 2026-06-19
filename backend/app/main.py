@@ -15,6 +15,7 @@ from app.api.v1 import experiments as experiments_api
 from app.api.v1 import investor_flows as investor_flows_api
 from app.api.v1 import market_context as market_context_api
 from app.api.v1 import market_data as market_data_api
+from app.api.v1 import news_context as news_context_api
 from app.api.v1 import scanner_rules as scanner_rules_api
 from app.api.v1 import strategy_proposals as strategy_proposals_api
 from app.api.v1 import trading_guard as trading_guard_api
@@ -104,6 +105,7 @@ app.include_router(candidates_api.router, prefix="/api/v1")
 app.include_router(assignments_api.router, prefix="/api/v1")
 app.include_router(experiments_api.router, prefix="/api/v1")
 app.include_router(strategy_proposals_api.router, prefix="/api/v1")
+app.include_router(news_context_api.router, prefix="/api/v1")
 
 
 @app.get("/health")
