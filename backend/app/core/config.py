@@ -89,6 +89,12 @@ class Settings(BaseSettings):
     daily_report_scheduler_hour: int = 15
     daily_report_scheduler_minute: int = 45
 
+    # 수급 데이터 자동 수집 (C-2.34). 기본 비활성 — KIS 자격증명이 있을 때만 켠다.
+    data_refresh_scheduler_enabled: bool = False
+    data_refresh_scheduler_hour: int = 16
+    data_refresh_scheduler_minute: int = 0
+    data_refresh_lookback_days: int = 5
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"
