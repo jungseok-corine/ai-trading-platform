@@ -11,8 +11,14 @@ import MarketContextSection from "../components/research/MarketContextSection";
 import PipelineSection from "../components/research/PipelineSection";
 import ChartSection from "../components/research/ChartSection";
 import RetrospectiveSection from "../components/research/RetrospectiveSection";
+import AiCostSection from "../components/research/AiCostSection";
+import FunnelSection from "../components/research/FunnelSection";
+import SafetySection from "../components/research/SafetySection";
+import AnalysisAuditSection from "../components/research/AnalysisAuditSection";
+import OperationsSection from "../components/research/OperationsSection";
 
 type Section =
+  | "ops"
   | "pipeline"
   | "proposals"
   | "scanner-proposals"
@@ -24,9 +30,14 @@ type Section =
   | "promotions"
   | "context"
   | "chart"
-  | "retro";
+  | "retro"
+  | "funnel"
+  | "ai-cost"
+  | "safety"
+  | "analysis-audit";
 
 const SECTIONS: { key: Section; label: string }[] = [
+  { key: "ops", label: "운영 종합" },
   { key: "pipeline", label: "파이프라인" },
   { key: "proposals", label: "AI 전략 제안" },
   { key: "scanner-proposals", label: "AI 스캐너 제안" },
@@ -39,10 +50,14 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "context", label: "시장 맥락" },
   { key: "chart", label: "매매 차트" },
   { key: "retro", label: "제안 회고" },
+  { key: "funnel", label: "제안 퍼널" },
+  { key: "ai-cost", label: "AI 비용" },
+  { key: "safety", label: "안전 점검" },
+  { key: "analysis-audit", label: "분석 감사" },
 ];
 
 export default function ResearchPage() {
-  const [section, setSection] = useState<Section>("pipeline");
+  const [section, setSection] = useState<Section>("ops");
 
   return (
     <div className="app">
@@ -59,6 +74,7 @@ export default function ResearchPage() {
         ))}
       </div>
 
+      {section === "ops" && <OperationsSection />}
       {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
       {section === "scanner-proposals" && <ScannerProposalsSection />}
@@ -71,6 +87,10 @@ export default function ResearchPage() {
       {section === "context" && <MarketContextSection />}
       {section === "chart" && <ChartSection />}
       {section === "retro" && <RetrospectiveSection />}
+      {section === "funnel" && <FunnelSection />}
+      {section === "ai-cost" && <AiCostSection />}
+      {section === "safety" && <SafetySection />}
+      {section === "analysis-audit" && <AnalysisAuditSection />}
     </div>
   );
 }

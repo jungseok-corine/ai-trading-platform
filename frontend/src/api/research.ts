@@ -379,6 +379,141 @@ export async function getResearchStatus(): Promise<ResearchStatus> {
   return data;
 }
 
+// --- AI cost (C-3.1) -------------------------------------------------------
+export interface AiCostModelRow {
+  provider: string;
+  model: string;
+  responses: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  est_cost_usd: number;
+  priced: boolean;
+}
+
+export interface AiCostDayRow {
+  date: string;
+  responses: number;
+  total_tokens: number;
+  est_cost_usd: number;
+}
+
+export interface AiCostSummary {
+  days: number;
+  total: {
+    responses: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    est_cost_usd: number;
+  };
+  by_model: AiCostModelRow[];
+  by_day: AiCostDayRow[];
+  unpriced_models: string[];
+}
+
+export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
+  const { data } = await apiClient.get<AiCostSummary>("/ai-cost/summary", {
+    params: { days },
+  });
+  return data;
+}
+
+// --- Operations overview (C-3.5) -------------------------------------------
+export interface OperationsOverview {
+  days: number;
+  safety: { invariants_ok: boolean; warnings: string[] };
+  research: {
+    pending_total: number;
+    active_strategy_versions: number;
+    active_scanner_versions: number;
+    disclosure_alerts: number;
+    macro_regime: string | null;
+  };
+  funnel: {
+    generated: number;
+    approved: number;
+    versions_created: number;
+    approval_rate: number | null;
+  };
+  retrospective: { total: number; improved: number; worse: number; inconclusive: number };
+  cost: { responses: number; total_tokens: number; est_cost_usd: number };
+}
+
+export async function getOperationsOverview(days = 30): Promise<OperationsOverview> {
+  const { data } = await apiClient.get<OperationsOverview>("/operations-overview", {
+    params: { days },
+  });
+  return data;
+}
+
+// --- Analysis audit (C-3.4) ------------------------------------------------
+export interface AnalysisRunAudit {
+  id: number;
+  created_at: string | null;
+  analysis_type: string;
+  mode: string;
+  provider: string;
+  model: string;
+  prompt_type: string;
+  status: string;
+  strategy_version_id: number | null;
+  truncated: boolean;
+  warnings: number;
+  error_message: string | null;
+  total_tokens: number;
+  est_cost_usd: number;
+  proposals_created: number;
+}
+
+export async function getAnalysisAudit(limit = 20): Promise<AnalysisRunAudit[]> {
+  const { data } = await apiClient.get<AnalysisRunAudit[]>("/analysis-audit", {
+    params: { limit },
+  });
+  return data;
+}
+
+// --- Safety status (C-3.3) -------------------------------------------------
+export interface SafetyStatus {
+  invariants_ok: boolean;
+  real_trading_enabled: boolean;
+  auto_trade_versions: number;
+  guards: { total: number; paused: number };
+  risk: { configs: number; emergency_stops: number };
+  schedulers: Record<string, boolean>;
+  warnings: string[];
+}
+
+export async function getSafetyStatus(): Promise<SafetyStatus> {
+  const { data } = await apiClient.get<SafetyStatus>("/safety-status");
+  return data;
+}
+
+// --- Proposal funnel (C-3.2) -----------------------------------------------
+export interface FunnelStage {
+  generated: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  versions_created: number;
+  approval_rate: number | null;
+}
+
+export interface ProposalFunnel {
+  days: number;
+  strategy: FunnelStage;
+  scanner: FunnelStage;
+  combined: FunnelStage;
+  retrospective: { total: number; improved: number; worse: number; inconclusive: number };
+}
+
+export async function getProposalFunnel(days = 30): Promise<ProposalFunnel> {
+  const { data } = await apiClient.get<ProposalFunnel>("/proposal-funnel", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Strategy review (C-2.42) ----------------------------------------------
 export interface StrategyReviewSummary {
   versions_reviewed: number;

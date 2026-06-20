@@ -185,3 +185,31 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 **모델 운영(합의)**: 매일=Sonnet 4.6 (또는 GPT, 일주일 A/B로 확정) / debate=Claude×현세대
 GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5·gpt-5.4-mini.
 기본 provider는 `fake`(실수 유료호출 방지), 사람이 명시적으로 켠다.
+
+## 8. C-3 — 연구 → 실전 운영 (operator 관제)
+
+> C-2의 buildable 항목 완료 후 시작. **실거래는 여전히 사람만**(안전 불변식 유지).
+> 우선 read-only 관제·가시성부터: "지금 뭐가 돌고, 비용은 얼마고, 무엇을 봐야 하나".
+
+- **C-3.1** ✅: **AI 비용·사용량 대시보드**(비용 가드) — `ai_model_responses`의 토큰을
+  provider/model별·일자별 집계 + 추정 단가(`model_pricing`, USD/1M). 단가 미상 모델은
+  비용 0 + `unpriced` 표기(과소계상 숨기지 않음). `AiCostService` +
+  `GET /ai-cost/summary?days=N` + 'AI 비용' 탭. read-only, 외부 호출 없음.
+
+- **C-3.2** ✅: **제안 퍼널**(연구 루프 ROI) — 전략·스캐너 제안의 생성→승인/거절→버전생성
+  흐름 + 끝단 회고(개선/악화)를 한 화면에. 승인률=승인/(승인+거절), 검토 없으면 None.
+  `ProposalFunnelService.funnel(days)` + `GET /proposal-funnel?days=N` + '제안 퍼널' 탭.
+  승인/거절은 여전히 사람만(여긴 집계만). read-only.
+
+- **C-3.3** ✅: **안전 점검 패널** — 핵심 불변식(실거래 off, 활성/테스트 버전 auto_trade off)이
+  드리프트했는지 한 화면에서 확인 + 가드 pause/비상정지/거래 스케줄러 on/off 표시.
+  `SafetyStatusService.status()`(invariants_ok + warnings) + `GET /safety-status` + '안전 점검' 탭.
+  read-only 점검 — 아무것도 바꾸지 않고 드리프트는 경고로만(해제·변경은 사람이 직접).
+
+- **C-3.4** ✅: **AI 분석 실행 감사** — 최근 `ai_analysis_runs`를 실행 메타 + 토큰/추정비용 +
+  이 run이 만든 제안 수와 함께 나열(N+1 회피, created_at desc·id desc 정렬). `AnalysisAuditService`
+  + `GET /analysis-audit?limit=N` + '분석 감사' 탭. read-only.
+
+- **C-3.5** ✅: **운영 종합 관제**(랜딩) — 안전(C-3.3)·연구 루프(C-2.43)·퍼널(C-3.2)·비용(C-3.1)의
+  핵심 헤드라인만 한 화면에. `OperationsOverviewService`(기존 read-only 서비스 조합) +
+  `GET /operations-overview?days=N` + '운영 종합' 탭(연구소 기본 랜딩). read-only 합본.
