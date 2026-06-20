@@ -31,6 +31,27 @@ SCANNER_REVIEW_JOB_ID = "scanner_review"
 STRATEGY_REVIEW_JOB_ID = "strategy_review"
 US_MARKET_REFRESH_JOB_ID = "us_market_refresh"
 DAILY_ANALYSIS_JOB_ID = "daily_analysis"
+DART_INGEST_JOB_ID = "dart_ingest"
+
+
+async def run_dart_ingest_job(app: FastAPI) -> None:
+    """장중 보유/관심 종목의 중요 공시를 DART에서 가져와 저장한다 (C-2.59).
+
+    중요도 미달 공시는 거른다. read-only 수집으로 주문과 무관하다.
+    """
+    from app.services.dart_ingest_service import DartIngestService
+
+    try:
+        async with async_session_factory() as session:
+            summary = await DartIngestService(session).ingest()
+        logger.info(
+            "dart ingest: fetched=%s matched=%s material=%s created=%s",
+            summary.fetched, summary.matched, summary.material, summary.created,
+        )
+        app.state.dart_ingest_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
+        logger.error("dart ingest job failed: %s", exc_message(exc))
+        app.state.dart_ingest_last_error = exc_message(exc)
 
 
 async def run_daily_analysis_job(app: FastAPI) -> None:

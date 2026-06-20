@@ -11,6 +11,7 @@ from app.scheduler.jobs import (
     DAILY_REPORT_JOB_ID,
     DATA_REFRESH_JOB_ID,
     DAILY_ANALYSIS_JOB_ID,
+    DART_INGEST_JOB_ID,
     ORDER_SYNC_JOB_ID,
     RESEARCH_PIPELINE_JOB_ID,
     SCANNER_REVIEW_JOB_ID,
@@ -22,6 +23,7 @@ from app.scheduler.jobs import (
     run_daily_report_job,
     run_data_refresh_job,
     run_daily_analysis_job,
+    run_dart_ingest_job,
     run_research_pipeline_job,
     run_scanner_review_job,
     run_strategy_job,
@@ -175,6 +177,16 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
                 minute=settings.ai_daily_analysis_scheduler_minute,
             ),
             id=DAILY_ANALYSIS_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
+    if settings.dart_ingest_scheduler_enabled:
+        scheduler.add_job(
+            run_dart_ingest_job,
+            trigger=IntervalTrigger(seconds=settings.dart_ingest_interval_seconds),
+            id=DART_INGEST_JOB_ID,
             args=[app],
             max_instances=1,
             replace_existing=True,

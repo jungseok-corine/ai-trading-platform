@@ -1,0 +1,49 @@
+"""DART 공시 수집 API (C-2.59).
+
+보유/관심 종목의 중요 공시를 가져와 news_events에 저장한다(중요도 미달은 제외).
+read-only 수집이며 주문과 무관하다. 기본 provider 키 없으면 422.
+"""
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.services.dart_ingest_service import DartIngestService
+from app.services.dart_provider import DartProviderError
+
+router = APIRouter(prefix="/dart", tags=["dart"])
+
+
+def get_service(session: AsyncSession = Depends(get_db)) -> DartIngestService:
+    return DartIngestService(session)
+
+
+class DartIngestRequest(BaseModel):
+    # None이면 enabled watchlist 종목을 모니터 대상으로 한다.
+    symbols: list[str] | None = None
+    trading_day: date | None = None
+
+
+class DartIngestSummaryRead(BaseModel):
+    fetched: int
+    matched: int
+    material: int
+    created: int
+    skipped_existing: int
+
+
+@router.post("/ingest", response_model=DartIngestSummaryRead)
+async def ingest_disclosures(
+    payload: DartIngestRequest,
+    service: DartIngestService = Depends(get_service),
+) -> DartIngestSummaryRead:
+    """최근 공시를 가져와 모니터 종목·중요도로 필터해 저장한다."""
+    try:
+        summary = await service.ingest(
+            symbols=payload.symbols, trading_day=payload.trading_day
+        )
+    except DartProviderError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return DartIngestSummaryRead(**summary.to_dict())
