@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.domain.models.enums import MarketCode
+from app.services.analysis_bundle_service import AnalysisBundleService
 from app.services.trade_tape_service import TradeTapeService
 
 router = APIRouter(prefix="/analysis-bundle", tags=["analysis-bundle"])
@@ -16,6 +18,10 @@ router = APIRouter(prefix="/analysis-bundle", tags=["analysis-bundle"])
 
 def get_service(session: AsyncSession = Depends(get_db)) -> TradeTapeService:
     return TradeTapeService(session)
+
+
+def get_bundle_service(session: AsyncSession = Depends(get_db)) -> AnalysisBundleService:
+    return AnalysisBundleService(session)
 
 
 @router.get("/trade-tape")
@@ -34,3 +40,20 @@ async def get_trade_tape(
     if tape is None:
         raise HTTPException(status_code=404, detail="strategy version not found")
     return tape
+
+
+@router.get("/full")
+async def get_full_bundle(
+    strategy_version_id: int = Query(...),
+    trading_day: date = Query(..., description="KST 거래일 (YYYY-MM-DD)"),
+    market: MarketCode = Query(default=MarketCode.KR),
+    analyst_note: str | None = Query(default=None, description="사람이 직접 주입하는 분석 노트"),
+    service: AnalysisBundleService = Depends(get_bundle_service),
+) -> dict:
+    """전략 입력 + 매매 테이프 + 매크로 + 뉴스 + 수동노트를 합친 전체 분석 번들(온디맨드)."""
+    bundle = await service.build_full(
+        strategy_version_id, trading_day, market=market, analyst_note=analyst_note
+    )
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="strategy version not found")
+    return bundle
