@@ -53,6 +53,8 @@ async def test_overview_composes_sections(db_session: AsyncSession) -> None:
     assert out["safety"]["invariants_ok"] is True
     # 연구: pending 1건
     assert out["research"]["pending_total"] == 1
+    # 승격 기준 미등록 → ready 0
+    assert out["research"]["promotion_ready"] == 0
     # 퍼널: 생성 2, 승인 1, 버전 1
     assert out["funnel"]["generated"] == 2
     assert out["funnel"]["approved"] == 1

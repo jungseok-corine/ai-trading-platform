@@ -553,6 +553,29 @@ export async function getDataFreshness(): Promise<DataFreshness> {
   return data;
 }
 
+// --- Operations snapshot trend (C-3.17) ------------------------------------
+export interface OperationsSnapshot {
+  snapshot_date: string;
+  invariants_ok: boolean;
+  pending_total: number;
+  promotion_ready: number;
+  est_cost_usd: number;
+  total_pnl: number;
+  win_rate: number | null;
+}
+
+export async function getOperationsTrend(days = 30): Promise<OperationsSnapshot[]> {
+  const { data } = await apiClient.get<OperationsSnapshot[]>("/operations-snapshot/trend", {
+    params: { days },
+  });
+  return data;
+}
+
+export async function recordOperationsSnapshot(): Promise<OperationsSnapshot> {
+  const { data } = await apiClient.post<OperationsSnapshot>("/operations-snapshot/record");
+  return data;
+}
+
 // --- Operations digest (C-3.8) ---------------------------------------------
 export interface DigestAlert {
   level: "alert" | "attention";
@@ -614,6 +637,7 @@ export interface OperationsOverview {
     active_scanner_versions: number;
     disclosure_alerts: number;
     macro_regime: string | null;
+    promotion_ready: number;
   };
   funnel: {
     generated: number;
@@ -684,6 +708,30 @@ export interface SafetyStatus {
 
 export async function getSafetyStatus(): Promise<SafetyStatus> {
   const { data } = await apiClient.get<SafetyStatus>("/safety-status");
+  return data;
+}
+
+// --- Scheduler health (C-3.18) ---------------------------------------------
+export interface SchedulerJobHealth {
+  job_id: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  age_hours: number | null;
+  stale_hours: number;
+  healthy: boolean;
+  reason: string | null;
+}
+
+export interface SchedulerHealth {
+  checked_at: string;
+  unhealthy_count: number;
+  unhealthy_jobs: string[];
+  jobs: SchedulerJobHealth[];
+}
+
+export async function getSchedulerHealth(): Promise<SchedulerHealth> {
+  const { data } = await apiClient.get<SchedulerHealth>("/scheduler-health");
   return data;
 }
 

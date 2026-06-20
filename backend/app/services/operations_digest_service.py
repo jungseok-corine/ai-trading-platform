@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.data_freshness_service import DataFreshnessService
 from app.services.operations_overview_service import OperationsOverviewService
+from app.services.scheduler_health_service import SchedulerHealthService
 
 # 심각도 순서(정렬/집계용).
 _SEVERITY_ORDER = {"ok": 0, "attention": 1, "alert": 2}
@@ -22,6 +23,7 @@ class OperationsDigestService:
     def __init__(self, session: AsyncSession) -> None:
         self._overview = OperationsOverviewService(session)
         self._freshness = DataFreshnessService(session)
+        self._scheduler = SchedulerHealthService(session)
 
     async def build(self, days: int = 30) -> dict:
         ov = await self._overview.overview(days=days)
@@ -55,6 +57,11 @@ class OperationsDigestService:
                 "level": "attention",
                 "text": f"검토 대기 제안 {research['pending_total']}건",
             })
+        if research.get("promotion_ready"):
+            alerts.append({
+                "level": "attention",
+                "text": f"승격 기준 통과 전략 {research['promotion_ready']}개 — 검토하세요(실거래는 사람만)",
+            })
 
         retro = ov["retrospective"]
         if retro["worse"] > retro["improved"]:
@@ -82,6 +89,13 @@ class OperationsDigestService:
             alerts.append({
                 "level": "attention",
                 "text": f"데이터 신선도: {', '.join(freshness['stale_sources'])} 오래됨 — 수집 점검",
+            })
+
+        scheduler = await self._scheduler.status()
+        if scheduler["unhealthy_count"]:
+            alerts.append({
+                "level": "alert",
+                "text": f"자율 잡 이상: {', '.join(scheduler['unhealthy_jobs'])} — 스케줄러 점검",
             })
 
         severity = "ok"

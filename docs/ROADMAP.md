@@ -253,3 +253,22 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.15** ✅: **Telegram 알림 채널** — `TelegramChannel`(bot token+chat_id 모두 있을 때만 전송,
   없으면 no-op). factory에 telegram 등록, config `telegram_bot_token`/`telegram_chat_id`.
   테스트는 httpx MockTransport(외부 네트워크 없음). 기본 provider는 여전히 none — 사람이 명시적으로 켠다.
+
+- **C-3.16** ✅: **승격 후보 알림** — 운영 종합 research에 `promotion_ready`(승격 기준 통과 버전 수),
+  다이제스트에 '승격 기준 통과 N개 — 검토하세요(실거래는 사람만)' 경보. 연구→승격→사람검토 루프를
+  운영 화면에서 닫는다. `PromotionReadinessService.ready_count()`. read-only.
+
+- **C-3.17** ✅: **운영 종합 스냅샷 + 추세** — 일자별 헤드라인(비용·실현손익·검토대기·승격후보)을
+  `operations_snapshots` 테이블에 멱등 적재(마이그레이션 b1c2d3e4f5a6, enum 없음). `OperationsSnapshotService`
+  (record/trend) + `POST /operations-snapshot/record`·`GET /trend` + 다이제스트 잡이 매일 함께 적재
+  + '운영 추세' 탭. read-only 집계의 적재.
+
+- **C-3.18** ✅: **스케줄러 잡 건강 점검** — 설정상 활성인 자율 잡이 제때 돌았는지/마지막이 실패했는지
+  점검(비활성 잡은 대상 아님). `SchedulerHealthService` + `GET /scheduler-health` + '안전 점검' 탭에
+  '자율 잡 건강' 섹션. read-only.
+
+- **C-3.19** ✅: **스케줄러 이상 → 다이제스트 경보** — 활성 잡이 미실행/실패면 다이제스트에 alert
+  레벨 경보('자율 잡 이상: … — 스케줄러 점검'). 운영 종합 상단 다이제스트에 자동 노출.
+
+- **C-3.20** ✅: **운영 콘솔 가이드 문서** — `docs/OPERATIONS.md`. C-3 화면/엔드포인트 표, 다이제스트
+  경보 목록, 안전 자세(기본값), 선택 기능(`.env`로 예산·다이제스트 잡·Telegram 켜기), 추세 적재 안내.

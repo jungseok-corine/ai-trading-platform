@@ -16,6 +16,7 @@ import FunnelSection from "../components/research/FunnelSection";
 import SafetySection from "../components/research/SafetySection";
 import AnalysisAuditSection from "../components/research/AnalysisAuditSection";
 import OperationsSection from "../components/research/OperationsSection";
+import OperationsTrendSection from "../components/research/OperationsTrendSection";
 import PortfolioSection from "../components/research/PortfolioSection";
 import DataFreshnessSection from "../components/research/DataFreshnessSection";
 import TradeActivitySection from "../components/research/TradeActivitySection";
@@ -24,6 +25,7 @@ import PromotionReadinessSection from "../components/research/PromotionReadiness
 
 type Section =
   | "ops"
+  | "ops-trend"
   | "pipeline"
   | "proposals"
   | "scanner-proposals"
@@ -48,6 +50,7 @@ type Section =
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "ops", label: "운영 종합" },
+  { key: "ops-trend", label: "운영 추세" },
   { key: "pipeline", label: "파이프라인" },
   { key: "proposals", label: "AI 전략 제안" },
   { key: "scanner-proposals", label: "AI 스캐너 제안" },
@@ -90,6 +93,7 @@ export default function ResearchPage() {
       </div>
 
       {section === "ops" && <OperationsSection />}
+      {section === "ops-trend" && <OperationsTrendSection />}
       {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
       {section === "scanner-proposals" && <ScannerProposalsSection />}

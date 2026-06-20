@@ -57,6 +57,8 @@ export default function OperationsSection() {
             <Stat label="활성 전략/스캐너 버전"
               value={`${data.research.active_strategy_versions} / ${data.research.active_scanner_versions}`} />
             <Stat label="공시 알림" value={`${data.research.disclosure_alerts}`} />
+            <Stat label="승격 기준 통과"
+              value={`${data.research.promotion_ready}`} accent={data.research.promotion_ready > 0} />
             <Stat label="매크로 레짐" value={data.research.macro_regime ?? "-"} />
             <Stat label="제안 생성→승인→버전"
               value={`${data.funnel.generated} → ${data.funnel.approved} → ${data.funnel.versions_created}`} />

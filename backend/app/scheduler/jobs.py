@@ -64,6 +64,7 @@ async def run_operations_digest_job(app: FastAPI) -> None:
     from app.core.config import get_settings
     from app.services.notifications import get_notification_channel
     from app.services.operations_digest_service import OperationsDigestService
+    from app.services.operations_snapshot_service import OperationsSnapshotService
 
     try:
         settings = get_settings()
@@ -72,6 +73,11 @@ async def run_operations_digest_job(app: FastAPI) -> None:
                 days=settings.operations_digest_window_days
             )
             text = OperationsDigestService(session).render_text(digest)
+            # 추세용 일자 스냅샷도 함께 적재(멱등). read-only 집계의 적재.
+            await OperationsSnapshotService(session).record(
+                days=settings.operations_digest_window_days
+            )
+            await session.commit()
         sent = False
         if digest["has_alerts"]:
             channel = get_notification_channel(settings.notification_provider)
