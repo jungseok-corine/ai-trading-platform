@@ -154,7 +154,8 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   `DartIngestService`(모니터 종목·중요도 필터, url 중복 방지) → news_events(source=dart) →
   큐레이터(C-2.57)→번들에 자동 합류. API `/dart/ingest`, 폴링 잡(기본 비활성, 10분).
   `.env`: `DART_API_KEY`. **인트라데이 감시(§7.1)의 1차 기반 완성.**
-- **C-2.60**: 마킹된 분봉 차트 이미지(UI 전용)
+- **C-2.60** ✅: 매매 마킹 분봉 차트(사람 UI 전용) — 백엔드 `/analysis-bundle/chart-data`
+  (전체 캔들+마커, 비압축) + 의존성 없는 SVG 캔들차트(▲매수/▼매도, 진입/청산). '매매 차트' 탭.
 - **C-2.61** ✅: 공시 알림 — `DisclosureAlertService`(수집된 DART 중요 공시 최신순) +
   `GET /dart/alerts` + 관제탑에 `disclosure_alerts` 수·목록 노출. (감지·표시만, 대응은 사람)
 - **C-2.62**(후속): 공시 발생 시 온디맨드 AI 평가(보유 포지션 영향) — §7.1 심화

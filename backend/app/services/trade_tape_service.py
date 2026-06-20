@@ -75,6 +75,54 @@ class TradeTapeService:
         }
         return tape
 
+    async def build_chart_data(
+        self,
+        strategy_version_id: int,
+        trading_day: date,
+        timeframe: str = "1m",
+        regular_session_only: bool = True,
+    ) -> dict | None:
+        """차트 렌더용 전체 캔들 + 매매 마커를 반환한다 (C-2.60, 사람 UI 전용, 비압축)."""
+        version = await self._version_repo.get(strategy_version_id)
+        if version is None:
+            return None
+        symbol_code = (version.parameters or {}).get("symbol_code", "")
+        start = datetime.combine(trading_day, time.min, tzinfo=KST)
+        end = start + timedelta(days=1)
+
+        candles_raw = []
+        if symbol_code:
+            candles_raw = await self._md_repo.get_candles_between(
+                symbol_code, timeframe, after_ts=start - timedelta(seconds=1), until_ts=end
+            )
+        candles = [
+            {"ts": c.ts.isoformat(), "o": float(c.open), "h": float(c.high),
+             "l": float(c.low), "c": float(c.close), "v": float(c.volume)}
+            for c in candles_raw
+            if not regular_session_only or self._in_session(c.ts)
+        ]
+
+        all_trades = await self._trade_repo.list_by_strategy_version(strategy_version_id)
+        markers: list[dict] = []
+        for t in all_trades:
+            if not self._in_day(t, start, end):
+                continue
+            event = self._to_event(t)
+            if event.entry_time and event.entry_price is not None:
+                markers.append({"ts": event.entry_time.isoformat(), "side": event.side,
+                                "price": event.entry_price, "kind": "entry"})
+            if event.exit_time and event.exit_price is not None:
+                markers.append({"ts": event.exit_time.isoformat(), "side": event.side,
+                                "price": event.exit_price, "kind": "exit"})
+
+        return {
+            "symbol_code": symbol_code,
+            "trading_day": trading_day.isoformat(),
+            "timeframe": timeframe,
+            "candles": candles,
+            "markers": markers,
+        }
+
     @staticmethod
     def _in_session(ts: datetime) -> bool:
         """ts(tz-aware)가 KR 정규장 시간(KST 09:00~15:30)인지."""

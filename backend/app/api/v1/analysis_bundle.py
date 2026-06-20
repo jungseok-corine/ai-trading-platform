@@ -57,3 +57,17 @@ async def get_full_bundle(
     if bundle is None:
         raise HTTPException(status_code=404, detail="strategy version not found")
     return bundle
+
+
+@router.get("/chart-data")
+async def get_chart_data(
+    strategy_version_id: int = Query(...),
+    trading_day: date = Query(..., description="KST 거래일 (YYYY-MM-DD)"),
+    timeframe: str = Query(default="1m"),
+    service: TradeTapeService = Depends(get_service),
+) -> dict:
+    """차트 렌더용 전체 캔들 + 매매 마커(사람 UI 전용, 비압축)."""
+    data = await service.build_chart_data(strategy_version_id, trading_day, timeframe=timeframe)
+    if data is None:
+        raise HTTPException(status_code=404, detail="strategy version not found")
+    return data
