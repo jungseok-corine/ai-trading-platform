@@ -195,3 +195,8 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
   provider/model별·일자별 집계 + 추정 단가(`model_pricing`, USD/1M). 단가 미상 모델은
   비용 0 + `unpriced` 표기(과소계상 숨기지 않음). `AiCostService` +
   `GET /ai-cost/summary?days=N` + 'AI 비용' 탭. read-only, 외부 호출 없음.
+
+- **C-3.2** ✅: **제안 퍼널**(연구 루프 ROI) — 전략·스캐너 제안의 생성→승인/거절→버전생성
+  흐름 + 끝단 회고(개선/악화)를 한 화면에. 승인률=승인/(승인+거절), 검토 없으면 None.
+  `ProposalFunnelService.funnel(days)` + `GET /proposal-funnel?days=N` + '제안 퍼널' 탭.
+  승인/거절은 여전히 사람만(여긴 집계만). read-only.

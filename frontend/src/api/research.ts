@@ -419,6 +419,31 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Proposal funnel (C-3.2) -----------------------------------------------
+export interface FunnelStage {
+  generated: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  versions_created: number;
+  approval_rate: number | null;
+}
+
+export interface ProposalFunnel {
+  days: number;
+  strategy: FunnelStage;
+  scanner: FunnelStage;
+  combined: FunnelStage;
+  retrospective: { total: number; improved: number; worse: number; inconclusive: number };
+}
+
+export async function getProposalFunnel(days = 30): Promise<ProposalFunnel> {
+  const { data } = await apiClient.get<ProposalFunnel>("/proposal-funnel", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Strategy review (C-2.42) ----------------------------------------------
 export interface StrategyReviewSummary {
   versions_reviewed: number;

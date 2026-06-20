@@ -12,6 +12,7 @@ import PipelineSection from "../components/research/PipelineSection";
 import ChartSection from "../components/research/ChartSection";
 import RetrospectiveSection from "../components/research/RetrospectiveSection";
 import AiCostSection from "../components/research/AiCostSection";
+import FunnelSection from "../components/research/FunnelSection";
 
 type Section =
   | "pipeline"
@@ -26,6 +27,7 @@ type Section =
   | "context"
   | "chart"
   | "retro"
+  | "funnel"
   | "ai-cost";
 
 const SECTIONS: { key: Section; label: string }[] = [
@@ -41,6 +43,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "context", label: "시장 맥락" },
   { key: "chart", label: "매매 차트" },
   { key: "retro", label: "제안 회고" },
+  { key: "funnel", label: "제안 퍼널" },
   { key: "ai-cost", label: "AI 비용" },
 ];
 
@@ -74,6 +77,7 @@ export default function ResearchPage() {
       {section === "context" && <MarketContextSection />}
       {section === "chart" && <ChartSection />}
       {section === "retro" && <RetrospectiveSection />}
+      {section === "funnel" && <FunnelSection />}
       {section === "ai-cost" && <AiCostSection />}
     </div>
   );
