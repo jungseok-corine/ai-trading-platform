@@ -419,6 +419,32 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Analysis audit (C-3.4) ------------------------------------------------
+export interface AnalysisRunAudit {
+  id: number;
+  created_at: string | null;
+  analysis_type: string;
+  mode: string;
+  provider: string;
+  model: string;
+  prompt_type: string;
+  status: string;
+  strategy_version_id: number | null;
+  truncated: boolean;
+  warnings: number;
+  error_message: string | null;
+  total_tokens: number;
+  est_cost_usd: number;
+  proposals_created: number;
+}
+
+export async function getAnalysisAudit(limit = 20): Promise<AnalysisRunAudit[]> {
+  const { data } = await apiClient.get<AnalysisRunAudit[]>("/analysis-audit", {
+    params: { limit },
+  });
+  return data;
+}
+
 // --- Safety status (C-3.3) -------------------------------------------------
 export interface SafetyStatus {
   invariants_ok: boolean;

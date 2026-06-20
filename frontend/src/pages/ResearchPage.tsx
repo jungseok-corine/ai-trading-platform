@@ -14,6 +14,7 @@ import RetrospectiveSection from "../components/research/RetrospectiveSection";
 import AiCostSection from "../components/research/AiCostSection";
 import FunnelSection from "../components/research/FunnelSection";
 import SafetySection from "../components/research/SafetySection";
+import AnalysisAuditSection from "../components/research/AnalysisAuditSection";
 
 type Section =
   | "pipeline"
@@ -30,7 +31,8 @@ type Section =
   | "retro"
   | "funnel"
   | "ai-cost"
-  | "safety";
+  | "safety"
+  | "analysis-audit";
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "pipeline", label: "파이프라인" },
@@ -48,6 +50,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "funnel", label: "제안 퍼널" },
   { key: "ai-cost", label: "AI 비용" },
   { key: "safety", label: "안전 점검" },
+  { key: "analysis-audit", label: "분석 감사" },
 ];
 
 export default function ResearchPage() {
@@ -83,6 +86,7 @@ export default function ResearchPage() {
       {section === "funnel" && <FunnelSection />}
       {section === "ai-cost" && <AiCostSection />}
       {section === "safety" && <SafetySection />}
+      {section === "analysis-audit" && <AnalysisAuditSection />}
     </div>
   );
 }

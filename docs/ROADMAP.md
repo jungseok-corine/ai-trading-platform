@@ -205,3 +205,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
   드리프트했는지 한 화면에서 확인 + 가드 pause/비상정지/거래 스케줄러 on/off 표시.
   `SafetyStatusService.status()`(invariants_ok + warnings) + `GET /safety-status` + '안전 점검' 탭.
   read-only 점검 — 아무것도 바꾸지 않고 드리프트는 경고로만(해제·변경은 사람이 직접).
+
+- **C-3.4** ✅: **AI 분석 실행 감사** — 최근 `ai_analysis_runs`를 실행 메타 + 토큰/추정비용 +
+  이 run이 만든 제안 수와 함께 나열(N+1 회피, created_at desc·id desc 정렬). `AnalysisAuditService`
+  + `GET /analysis-audit?limit=N` + '분석 감사' 탭. read-only.
