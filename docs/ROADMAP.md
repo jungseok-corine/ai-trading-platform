@@ -84,6 +84,9 @@ risk_off 결정. 맥락 캡처에 주입(`data.macro`), `/market-context/macro-r
 **C-2.50**: 매크로를 스캐너 제안에 반영 — `tighten_conditions(aggressive=)`. risk_off면
 강화 폭 확대(×1.45, rank ×0.6), 근거에 레짐 명시. (전일 미국장 → 한국장 제안 연계 1차)
 
+**C-2.51**: 매크로를 전략 제안(C-2.32)에도 반영 — risk_off면 volume_multiplier ×1.45,
+long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제안에 매크로 반영 완료)
+
 ## 4. 다음 후보 (우선순위)
 
 1. **매크로 반영 확장** — 전략 제안(C-2.42)에도 레짐 반영, SOX 강세 시 반도체 테마 후보
