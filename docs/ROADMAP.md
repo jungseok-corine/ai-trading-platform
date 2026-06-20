@@ -138,7 +138,9 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.54** ✅: **일일 분석 잡**(기본 비활성) + **활동량 게이트**(없음/적음/적정/과다 ×
   시장활발도 — 적음+활발이면 '조건 과빡' 분석). provider/model/mode 설정화(A/B용 dual).
   `DailyAnalysisService` + `/daily-analysis`. 실제 LLM은 AnalysisRunService(single/dual).
-- **C-2.55**: 분석 번들(C-2.53)을 LLM 프롬프트에 결합 + 활동밴드 컨텍스트 주입
+- **C-2.55** ✅: 분석 번들(C-2.53)을 LLM 프롬프트에 **추가 컨텍스트 블록**으로 결합 +
+  활동밴드 주입. `format_bundle_for_prompt`(원시 캔들 대신 사전계산 지표만), create_run/
+  get_prompt에 `extra_context` 패스스루(감사용 input_payload 보존). 기존 스키마 무변경.
 - **C-2.56**: LLM 출력(JSON: verdict/observations/mistakes/hypotheses+param_change/confidence)
   → 검증 후 proposal 연결
 - **C-2.57**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider

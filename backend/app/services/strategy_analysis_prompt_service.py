@@ -521,11 +521,13 @@ class StrategyAnalysisPromptService:
         strategy_id: int,
         version_id: int,
         prompt_type: str,
+        extra_context: str | None = None,
     ) -> StrategyAnalysisPromptRead | None:
         """prompt를 생성하고 length guard를 적용한 뒤 반환한다.
 
         strategy/version을 찾을 수 없으면 None.
         unsupported prompt_type이면 UnsupportedPromptTypeError.
+        extra_context가 있으면 프롬프트 끝에 추가 컨텍스트 블록으로 덧붙인다(C-2.55).
         """
         if prompt_type not in SUPPORTED_PROMPT_TYPES:
             raise UnsupportedPromptTypeError(prompt_type)
@@ -540,6 +542,9 @@ class StrategyAnalysisPromptService:
             prompt_text = _build_risk_prompt(payload)
         else:  # "improvement"
             prompt_text = _build_improvement_prompt(payload)
+
+        if extra_context:
+            prompt_text = f"{prompt_text}\n\n{extra_context}"
 
         warnings = _build_warnings(payload)
         prompt_text, truncated = _apply_length_guard(prompt_text, warnings)

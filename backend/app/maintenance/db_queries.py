@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
