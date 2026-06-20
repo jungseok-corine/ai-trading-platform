@@ -16,9 +16,11 @@ from app.services.us_market.base import UsMarketProvider
 from app.services.us_market.manual import ManualUsMarketProvider
 
 _SUPPORTED_PROVIDERS: frozenset[str] = frozenset(
-    {"manual", "alphavantage", "finnhub", "twelvedata"}
+    {"manual", "fred", "twelvedata", "fred_twelvedata", "alphavantage", "finnhub"}
 )
-_IMPLEMENTED_PROVIDERS: frozenset[str] = frozenset({"manual"})
+_IMPLEMENTED_PROVIDERS: frozenset[str] = frozenset(
+    {"manual", "fred", "twelvedata", "fred_twelvedata"}
+)
 
 
 class UnknownUsMarketProviderError(ValueError):
@@ -45,9 +47,43 @@ class UsMarketProviderNotImplementedError(NotImplementedError):
 
 
 def get_us_market_provider(provider_name: str) -> UsMarketProvider:
-    """provider_name에 해당하는 UsMarketProvider 구현체를 반환한다."""
+    """provider_name에 해당하는 UsMarketProvider 구현체를 반환한다.
+
+    벤더 provider는 settings에서 API 키/심볼/타임아웃을 읽어 구성한다.
+    """
     if provider_name not in _SUPPORTED_PROVIDERS:
         raise UnknownUsMarketProviderError(provider_name)
     if provider_name == "manual":
         return ManualUsMarketProvider()
+
+    if provider_name in ("fred", "twelvedata", "fred_twelvedata"):
+        from app.core.config import get_settings
+
+        s = get_settings()
+        if provider_name == "twelvedata":
+            from app.services.us_market.twelvedata import TwelveDataProvider
+
+            return TwelveDataProvider(
+                s.twelvedata_api_key,
+                symbol=s.us_market_sox_symbol,
+                timeout_seconds=s.us_market_provider_timeout_seconds,
+            )
+
+        from app.services.us_market.fred import FredProvider
+
+        sox_provider = None
+        if provider_name == "fred_twelvedata":
+            from app.services.us_market.twelvedata import TwelveDataProvider
+
+            sox_provider = TwelveDataProvider(
+                s.twelvedata_api_key,
+                symbol=s.us_market_sox_symbol,
+                timeout_seconds=s.us_market_provider_timeout_seconds,
+            )
+        return FredProvider(
+            s.fred_api_key,
+            sox_provider=sox_provider,
+            timeout_seconds=s.us_market_provider_timeout_seconds,
+        )
+
     raise UsMarketProviderNotImplementedError(provider_name)
