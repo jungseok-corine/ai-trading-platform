@@ -276,11 +276,22 @@ export interface ResearchJobStatus {
   error_message: string | null;
 }
 
+export interface MacroRegime {
+  regime: string;
+  session_date: string | null;
+  vix: number | null;
+  vix_level: string | null;
+  us_trend: string | null;
+  us_avg_change_pct: number | null;
+  semis_strength: string | null;
+}
+
 export interface ResearchStatus {
   jobs: ResearchJobStatus[];
   pending: { strategy: number; scanner: number; total: number };
   active: { scanner_versions: number; strategy_versions: number };
   retrospective: { total: number; improved: number; worse: number; inconclusive: number };
+  macro: MacroRegime;
 }
 
 export async function getResearchStatus(): Promise<ResearchStatus> {

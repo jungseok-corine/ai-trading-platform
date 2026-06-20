@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
+from app.services.macro_regime_service import MacroRegimeService
 from app.services.market_context_service import MarketContextService
 
 router = APIRouter(prefix="/market-context", tags=["market-context"])
@@ -18,6 +19,18 @@ router = APIRouter(prefix="/market-context", tags=["market-context"])
 
 def get_service(session: AsyncSession = Depends(get_db)) -> MarketContextService:
     return MarketContextService(session)
+
+
+def get_macro_service(session: AsyncSession = Depends(get_db)) -> MacroRegimeService:
+    return MacroRegimeService(session)
+
+
+@router.get("/macro-regime")
+async def get_macro_regime(
+    service: MacroRegimeService = Depends(get_macro_service),
+) -> dict:
+    """최신 미국장 스냅샷에서 분류한 매크로 레짐을 반환한다 (C-2.49)."""
+    return await service.latest_regime()
 
 
 # --- schemas ---------------------------------------------------------------
