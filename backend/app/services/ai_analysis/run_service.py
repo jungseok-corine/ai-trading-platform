@@ -54,8 +54,6 @@ from app.domain.repositories.ai_analysis import AiAnalysisRunRepository, AiModel
 from app.services.ai_analysis.base import AnalysisProvider
 from app.services.ai_analysis.debate_prompts import build_critique_prompt, build_synthesis_prompt
 from app.services.ai_analysis.factory import (
-    ProviderNotImplementedError,
-    UnknownProviderError,
     get_analysis_provider,
 )
 from app.services.ai_analysis.schemas import AnalysisProviderError, AnalysisProviderResult
@@ -99,6 +97,7 @@ class AnalysisRunService:
         secondary_model: str | None = None,
         enable_critique: bool = False,
         enable_synthesis: bool = False,
+        extra_context: str | None = None,
     ) -> AiAnalysisRun | None:
         """분석을 실행하고 결과를 저장한다 (single / dual / debate mode).
 
@@ -133,6 +132,9 @@ class AnalysisRunService:
             return None
 
         payload_dict = input_data.model_dump(mode="json")
+        if extra_context:
+            # 그날 매매 테이프/매크로/뉴스/활동진단 블록(C-2.55). 재현/감사용으로 보존.
+            payload_dict["extra_context"] = extra_context
         # analysis_context.generated_at은 호출마다 달라지므로 hash 대상에서 제외
         payload_for_hash = {k: v for k, v in payload_dict.items() if k != "analysis_context"}
         input_canonical = json.dumps(payload_for_hash, sort_keys=True, ensure_ascii=True, default=str)
@@ -140,7 +142,9 @@ class AnalysisRunService:
 
         # 3. prompt 생성
         prompt_svc = StrategyAnalysisPromptService(self._session)
-        prompt_result = await prompt_svc.get_prompt(strategy_id, version_id, prompt_type)
+        prompt_result = await prompt_svc.get_prompt(
+            strategy_id, version_id, prompt_type, extra_context=extra_context
+        )
         if prompt_result is None:
             return None   # defensive
 

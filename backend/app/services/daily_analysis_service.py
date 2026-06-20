@@ -10,9 +10,10 @@ from app.domain.models.enums import AnalysisRunMode, SchedulerRunStatus
 from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.ai_analysis.run_service import AnalysisRunService
+from app.services.analysis_bundle_service import AnalysisBundleService
 from app.services.scheduler_run_service import SchedulerRunService
-from app.services.trade_tape_service import TradeTapeService
 from app.trading.analysis.activity import assess_activity
+from app.trading.analysis.bundle_prompt import format_bundle_for_prompt
 
 KST = ZoneInfo("Asia/Seoul")
 DAILY_ANALYSIS_JOB_ID = "daily_analysis"
@@ -78,7 +79,7 @@ class DailyAnalysisService:
         self._settings = settings
         self._version_repo = StrategyVersionRepository(session)
         self._signal_repo = SignalLogRepository(session)
-        self._tape_svc = TradeTapeService(session)
+        self._bundle_svc = AnalysisBundleService(session)
         self._run_svc = AnalysisRunService(session)
         self._scheduler_run_svc = SchedulerRunService(session)
 
@@ -95,12 +96,11 @@ class DailyAnalysisService:
         skipped = 0
 
         for version in versions:
-            tape = await self._tape_svc.build_for_version(version.id, trading_day)
-            range_pct = None
-            notable = 0
-            if tape and tape.get("day_summary"):
-                range_pct = tape["day_summary"].get("range_pct")
-                notable = len(tape.get("notable_events", []))
+            bundle = await self._bundle_svc.build_full(version.id, trading_day)
+            tape = (bundle or {}).get("trade_tape") or {}
+            day_summary = tape.get("day_summary") or {}
+            range_pct = day_summary.get("range_pct")
+            notable = len(tape.get("notable_events", []))
 
             day_signals = await self._signal_repo.list_filtered(
                 strategy_version_id=version.id, date_from=start, date_to=end, limit=1000
@@ -121,7 +121,8 @@ class DailyAnalysisService:
                 ))
                 continue
 
-            run = await self._run_analysis(version.strategy_id, version.id)
+            extra_context = format_bundle_for_prompt(bundle or {}, assessment.to_dict())
+            run = await self._run_analysis(version.strategy_id, version.id, extra_context)
             analyzed += 1
             results.append(VersionAnalysisResult(
                 strategy_version_id=version.id, band=assessment.band, analyzed=True,
@@ -136,7 +137,7 @@ class DailyAnalysisService:
             provider=s.ai_analysis_provider, per_version=results,
         )
 
-    async def _run_analysis(self, strategy_id: int, version_id: int):
+    async def _run_analysis(self, strategy_id: int, version_id: int, extra_context: str):
         s = self._settings
         mode = s.ai_analysis_mode
         if mode == AnalysisRunMode.DUAL.value:
@@ -146,10 +147,12 @@ class DailyAnalysisService:
                 mode="dual",
                 secondary_provider_name=s.ai_analysis_secondary_provider,
                 secondary_model=s.ai_analysis_secondary_model,
+                extra_context=extra_context,
             )
         return await self._run_svc.create_run(
             strategy_id, version_id, prompt_type=s.ai_analysis_prompt_type,
             provider_name=s.ai_analysis_provider, model=s.ai_analysis_model, mode="single",
+            extra_context=extra_context,
         )
 
     async def run_and_record(self, trading_day: date | None = None) -> DailyAnalysisSummary:

@@ -8,7 +8,6 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.candidate_event import CandidateEvent
 from app.domain.models.market_context import MarketContextSnapshot
 from app.domain.models.market_data import MarketData
 from app.domain.repositories.candidate_event import CandidateEventRepository
