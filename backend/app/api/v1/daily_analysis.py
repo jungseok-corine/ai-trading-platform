@@ -27,6 +27,7 @@ class DailyAnalysisSummaryRead(BaseModel):
     skipped: int
     mode: str
     provider: str
+    proposals: int
     per_version: list[dict]
 
 
