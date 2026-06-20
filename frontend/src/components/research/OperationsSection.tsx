@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getOperationsOverview } from "../../api/research";
+import { getOperationsOverview, getOperationsDigest } from "../../api/research";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -19,6 +19,10 @@ export default function OperationsSection() {
     queryKey: ["operations-overview"],
     queryFn: () => getOperationsOverview(30),
   });
+  const { data: digest } = useQuery({
+    queryKey: ["operations-digest"],
+    queryFn: () => getOperationsDigest(30),
+  });
 
   return (
     <div className="card">
@@ -27,6 +31,19 @@ export default function OperationsSection() {
         안전·연구 루프·제안 퍼널·AI 비용의 핵심만 한눈에. 세부는 각 전용 탭에서 봅니다.
         (최근 30일 기준, read-only)
       </p>
+
+      {digest && (
+        <div className="table-wrapper">
+          <p className="action-result value">{digest.summary_line}</p>
+          {digest.has_alerts && (
+            <ul>
+              {digest.alerts.map((a, i) => (
+                <li key={i}>{a.level === "alert" ? "‼️" : "•"} {a.text}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {isLoading && <p className="muted">불러오는 중…</p>}
       {data && (

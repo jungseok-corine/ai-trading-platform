@@ -428,6 +428,27 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Operations digest (C-3.8) ---------------------------------------------
+export interface DigestAlert {
+  level: "alert" | "attention";
+  text: string;
+}
+
+export interface OperationsDigest {
+  generated_at: string;
+  severity: "ok" | "attention" | "alert";
+  has_alerts: boolean;
+  alerts: DigestAlert[];
+  summary_line: string;
+}
+
+export async function getOperationsDigest(days = 30): Promise<OperationsDigest> {
+  const { data } = await apiClient.get<OperationsDigest>("/operations-digest", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Portfolio summary (C-3.6) ---------------------------------------------
 export interface PortfolioPosition {
   account_id: number;

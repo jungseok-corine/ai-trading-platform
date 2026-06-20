@@ -150,6 +150,10 @@ class Settings(BaseSettings):
     # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
     ai_analysis_min_confidence: float = 0.5
 
+    # 운영 알림 채널 (C-3.8). 기본 none(외부 전송 없음). "log"는 로거에만 남긴다.
+    # 외부 채널(telegram 등)은 사용자가 토큰을 넣고 명시적으로 켤 때 붙인다.
+    notification_provider: str = "none"
+
     # AI 비용 예산 가드 (C-3.7). 0이면 예산 미설정(가드 비활성). 윈도(기본 30일) 추정비용과
     # 비교해 ok/warn/over를 매긴다. 단가는 추정치이므로 경보는 가늠자 — 사람이 최종 판단.
     ai_cost_monthly_budget_usd: float = 0.0

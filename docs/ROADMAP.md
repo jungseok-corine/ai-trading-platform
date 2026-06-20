@@ -221,3 +221,8 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.7** ✅: **AI 비용 예산 가드** — config `ai_cost_monthly_budget_usd`/`alert_threshold_pct`.
   비용 요약에 윈도 추정비용 대비 ok/warn/over/disabled 판정(`budget` 블록) 추가, 운영 종합·AI
   비용 탭에 신호등 노출. 예산 0이면 disabled. 단가 추정이므로 경보는 가늠자(사람 최종 판단).
+
+- **C-3.8** ✅: **운영 다이제스트 + 알림 채널** — 운영 종합에서 '조치 필요'만 추려 다이제스트로
+  (안전 드리프트/예산 초과/검토 대기/공시/회고 악화). `OperationsDigestService` +
+  `GET /operations-digest`(미리보기) + `POST /notify`(설정 채널 전송). 알림 채널 추상화
+  (`notifications/`: none/log, 기본 none=no-op) — 외부 채널은 토큰 준비 시 추가. 운영 종합 상단 노출.
