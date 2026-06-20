@@ -38,10 +38,16 @@ class TradeEvent:
     pnl_amount: float | None = None
     pnl_pct: float | None = None
 
+    @property
+    def status(self) -> str:
+        """청산가/청산시각이 없으면 'open'(미청산 단건 주문), 있으면 'closed'."""
+        return "closed" if self.exit_time is not None else "open"
+
     def to_dict(self) -> dict:
         return {
             "side": self.side,
             "quantity": self.quantity,
+            "status": self.status,
             "entry_time": self.entry_time.isoformat() if self.entry_time else None,
             "exit_time": self.exit_time.isoformat() if self.exit_time else None,
             "entry_price": self.entry_price,
@@ -140,11 +146,14 @@ def trade_features(candles: list[Candle], trade: TradeEvent) -> dict:
         )
     e_idx = candle_index_at(candles, trade.entry_time) if trade.entry_time else None
     x_idx = candle_index_at(candles, trade.exit_time) if trade.exit_time else None
+    feats["status"] = trade.status
     if e_idx is not None:
         feats["entry_volume_zscore"] = volume_zscore(candles, e_idx)
         mfe, mae = mfe_mae(candles, e_idx, x_idx, trade.entry_price, trade.side)
         feats["mfe_pct"] = mfe
         feats["mae_pct"] = mae
+        # MFE/MAE 기준 구간: 청산까지(closed) vs 장 마감까지(open=미청산이라 미실현).
+        feats["excursion_basis"] = "to_exit" if x_idx is not None else "to_session_close"
     return feats
 
 
