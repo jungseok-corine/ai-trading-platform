@@ -150,6 +150,13 @@ class Settings(BaseSettings):
     # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
     ai_analysis_min_confidence: float = 0.5
 
+    # DART 공시 수집 (C-2.59). 무료 키. 기본 비활성 — 보유/관심 종목 중요 공시만 저장.
+    dart_api_key: str | None = None
+    dart_provider_timeout_seconds: float = 10.0
+    dart_min_materiality: float = 0.5
+    dart_ingest_scheduler_enabled: bool = False
+    dart_ingest_interval_seconds: int = 600  # 장중 10분 폴링
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

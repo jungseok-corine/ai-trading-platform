@@ -11,6 +11,7 @@ from app.api.v1 import analysis_runs as analysis_runs_api
 from app.api.v1 import analysis_bundle as analysis_bundle_api
 from app.api.v1 import assignments as assignments_api
 from app.api.v1 import daily_analysis as daily_analysis_api
+from app.api.v1 import dart as dart_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import data_refresh as data_refresh_api
@@ -110,6 +111,7 @@ app.include_router(market_data_api.router, prefix="/api/v1")
 app.include_router(analysis_runs_api.router, prefix="/api/v1")
 app.include_router(analysis_bundle_api.router, prefix="/api/v1")
 app.include_router(daily_analysis_api.router, prefix="/api/v1")
+app.include_router(dart_api.router, prefix="/api/v1")
 app.include_router(ai_providers_api.router, prefix="/api/v1")
 app.include_router(trading_guard_api.router, prefix="/api/v1")
 app.include_router(investor_flows_api.router, prefix="/api/v1")

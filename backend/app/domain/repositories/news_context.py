@@ -12,6 +12,15 @@ from app.domain.repositories.base import BaseRepository
 class NewsEventRepository(BaseRepository[NewsEvent]):
     model = NewsEvent
 
+    async def existing_urls(self, urls: list[str]) -> set[str]:
+        """주어진 url 중 이미 저장된 것들의 집합(중복 수집 방지)."""
+        if not urls:
+            return set()
+        result = await self.session.execute(
+            select(NewsEvent.url).where(NewsEvent.url.in_(urls))
+        )
+        return {row[0] for row in result.all() if row[0]}
+
     async def list_filtered(
         self,
         market: MarketCode | None = None,
