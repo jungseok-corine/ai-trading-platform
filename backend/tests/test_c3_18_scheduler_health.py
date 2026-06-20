@@ -64,3 +64,15 @@ async def test_last_failure_is_unhealthy(db_session: AsyncSession, monkeypatch) 
     out = await SchedulerHealthService(db_session).status()
     dart = next(j for j in out["jobs"] if j["job_id"] == "dart_ingest")
     assert dart["healthy"] is False and "실패" in dart["reason"]
+
+
+async def test_unhealthy_job_appears_in_digest(db_session: AsyncSession, monkeypatch) -> None:
+    """C-3.19: 활성인데 실행 기록 없는 잡은 다이제스트 경보로 잡힌다."""
+    from app.services.operations_digest_service import OperationsDigestService
+
+    monkeypatch.setattr(
+        "app.services.scheduler_health_service.get_settings",
+        lambda: _Flags(dart_ingest_scheduler_enabled=True),
+    )
+    digest = await OperationsDigestService(db_session).build()
+    assert any("자율 잡 이상" in a["text"] for a in digest["alerts"])
