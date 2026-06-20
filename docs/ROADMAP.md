@@ -141,10 +141,21 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.55** ✅: 분석 번들(C-2.53)을 LLM 프롬프트에 **추가 컨텍스트 블록**으로 결합 +
   활동밴드 주입. `format_bundle_for_prompt`(원시 캔들 대신 사전계산 지표만), create_run/
   get_prompt에 `extra_context` 패스스루(감사용 input_payload 보존). 기존 스키마 무변경.
-- **C-2.56**: LLM 출력(JSON: verdict/observations/mistakes/hypotheses+param_change/confidence)
-  → 검증 후 proposal 연결
+- **C-2.56** ✅: LLM 출력(JSON: verdict/observations/mistakes/hypotheses+param_change/
+  confidence) → 파싱·검증 → **pending 제안 연결**(`AnalysisProposalService`). confidence<임계
+  /param_change 없음/미등록 strategy_type이면 제안 안 만듦. 일일 잡이 proposals 수까지 기록.
 - **C-2.57**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider
 - **C-2.58**: 마킹된 분봉 차트 이미지(UI 전용)
+
+### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — 계획
+> 일일 분석과 별개로, **전략이 매매 중인 종목**에 한해 장중 중요 이벤트를 감시.
+- **1차 소스 = DART 공시**(전자공시, 무료 OpenAPI, 구조화·고신호). 일반 뉴스보다 신호/노이즈 우수.
+- **중요만 필터**: ①룰(공시유형 화이트리스트: 실적/공급계약/유증·무증/합병/자기주식/횡령배임/
+  거래정지 등, 정정·IR일정 등 제외) ②뉴스는 싼 모델(큐레이터)로 materiality 점수.
+- **범위 한정**: 현재 보유 포지션(또는 활성 전략) 종목만 → 비용·노이즈 최소.
+- **실시간**: 무료 푸시는 없음 → 장중 N분 폴링(DART near-real-time).
+- **동작**: 감지→고우선 이벤트 저장→관제탑 알림(+선택적 온디맨드 AI 평가). **자동매매 없음**(안전).
+- 필요: `DART_API_KEY`(무료), positions 연동, 큐레이터 티어(C-2.57). 페이즈는 C-2.59+로.
 
 **모델 운영(합의)**: 매일=Sonnet 4.6 (또는 GPT, 일주일 A/B로 확정) / debate=Claude×현세대
 GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5·gpt-5.4-mini.

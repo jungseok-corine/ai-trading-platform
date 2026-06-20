@@ -11,8 +11,10 @@ from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.ai_analysis.run_service import AnalysisRunService
 from app.services.analysis_bundle_service import AnalysisBundleService
+from app.services.analysis_proposal_service import AnalysisProposalService
 from app.services.scheduler_run_service import SchedulerRunService
 from app.trading.analysis.activity import assess_activity
+from app.trading.analysis.analysis_output import JSON_OUTPUT_INSTRUCTION
 from app.trading.analysis.bundle_prompt import format_bundle_for_prompt
 
 KST = ZoneInfo("Asia/Seoul")
@@ -26,6 +28,7 @@ class VersionAnalysisResult:
     analyzed: bool
     run_id: int | None = None
     run_status: str | None = None
+    proposal_id: int | None = None
     reason: str = ""
 
     def to_dict(self) -> dict:
@@ -35,6 +38,7 @@ class VersionAnalysisResult:
             "analyzed": self.analyzed,
             "run_id": self.run_id,
             "run_status": self.run_status,
+            "proposal_id": self.proposal_id,
             "reason": self.reason,
         }
 
@@ -47,6 +51,7 @@ class DailyAnalysisSummary:
     skipped: int
     mode: str
     provider: str
+    proposals: int = 0
     per_version: list[VersionAnalysisResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -57,6 +62,7 @@ class DailyAnalysisSummary:
             "skipped": self.skipped,
             "mode": self.mode,
             "provider": self.provider,
+            "proposals": self.proposals,
             "per_version": [v.to_dict() for v in self.per_version],
         }
 
@@ -81,6 +87,7 @@ class DailyAnalysisService:
         self._signal_repo = SignalLogRepository(session)
         self._bundle_svc = AnalysisBundleService(session)
         self._run_svc = AnalysisRunService(session)
+        self._proposal_svc = AnalysisProposalService(session)
         self._scheduler_run_svc = SchedulerRunService(session)
 
     async def run_once(self, trading_day: date | None = None) -> DailyAnalysisSummary:
@@ -94,6 +101,7 @@ class DailyAnalysisService:
         results: list[VersionAnalysisResult] = []
         analyzed = 0
         skipped = 0
+        proposals = 0
 
         for version in versions:
             bundle = await self._bundle_svc.build_full(version.id, trading_day)
@@ -121,21 +129,48 @@ class DailyAnalysisService:
                 ))
                 continue
 
-            extra_context = format_bundle_for_prompt(bundle or {}, assessment.to_dict())
+            extra_context = (
+                format_bundle_for_prompt(bundle or {}, assessment.to_dict())
+                + "\n\n" + JSON_OUTPUT_INSTRUCTION
+            )
             run = await self._run_analysis(version.strategy_id, version.id, extra_context)
             analyzed += 1
+
+            # 분석 출력(JSON)을 검증해 pending 제안으로 연결한다(C-2.56).
+            proposal_id = await self._maybe_propose(version.strategy_id, version.id, run)
+            if proposal_id is not None:
+                proposals += 1
             results.append(VersionAnalysisResult(
                 strategy_version_id=version.id, band=assessment.band, analyzed=True,
                 run_id=run.id if run else None,
                 run_status=run.status.value if run else None,
+                proposal_id=proposal_id,
                 reason=assessment.reason,
             ))
 
         return DailyAnalysisSummary(
             trading_day=trading_day.isoformat(), versions=len(versions),
             analyzed=analyzed, skipped=skipped, mode=s.ai_analysis_mode,
-            provider=s.ai_analysis_provider, per_version=results,
+            provider=s.ai_analysis_provider, proposals=proposals, per_version=results,
         )
+
+    @staticmethod
+    def _analysis_text(run) -> str | None:
+        """run 응답에서 분석 본문을 고른다(synthesis > primary_analysis)."""
+        if run is None or not getattr(run, "responses", None):
+            return None
+        by_role = {r.role: r.content for r in run.responses if r.content}
+        return by_role.get("synthesis") or by_role.get("primary_analysis")
+
+    async def _maybe_propose(self, strategy_id: int, version_id: int, run) -> int | None:
+        text = self._analysis_text(run)
+        if not text:
+            return None
+        proposal = await self._proposal_svc.create_from_text(
+            strategy_id, version_id, text, ai_analysis_run_id=run.id,
+            min_confidence=self._settings.ai_analysis_min_confidence,
+        )
+        return proposal.id if proposal else None
 
     async def _run_analysis(self, strategy_id: int, version_id: int, extra_context: str):
         s = self._settings

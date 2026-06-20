@@ -147,6 +147,8 @@ class Settings(BaseSettings):
     ai_analysis_many_threshold: int = 15
     ai_analysis_active_range_pct: float = 2.0
     ai_analysis_active_notable: int = 3
+    # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
+    ai_analysis_min_confidence: float = 0.5
 
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
