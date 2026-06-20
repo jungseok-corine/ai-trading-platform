@@ -531,6 +531,19 @@ export async function getTradeActivity(days = 30): Promise<TradeActivity> {
   return data;
 }
 
+export interface EquityPoint {
+  date: string;
+  realized_pnl: number;
+  cumulative_pnl: number;
+}
+
+export async function getEquityCurve(days = 30): Promise<EquityPoint[]> {
+  const { data } = await apiClient.get<EquityPoint[]>("/trade-activity/equity-curve", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Data freshness (C-3.10) -----------------------------------------------
 export interface FreshnessSource {
   source: string;
@@ -755,6 +768,23 @@ export interface ProposalFunnel {
 
 export async function getProposalFunnel(days = 30): Promise<ProposalFunnel> {
   const { data } = await apiClient.get<ProposalFunnel>("/proposal-funnel", {
+    params: { days },
+  });
+  return data;
+}
+
+export interface ResearchFunnel {
+  days: number;
+  candidates: number;
+  assignments: number;
+  candidates_assigned: number;
+  assignment_rate: number | null;
+  experiments: number;
+  experiments_running: number;
+}
+
+export async function getResearchFunnel(days = 30): Promise<ResearchFunnel> {
+  const { data } = await apiClient.get<ResearchFunnel>("/research-funnel", {
     params: { days },
   });
   return data;
