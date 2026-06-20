@@ -131,6 +131,23 @@ class Settings(BaseSettings):
     us_market_refresh_scheduler_hour: int = 7  # KST 아침(미국장 마감 후)
     us_market_refresh_scheduler_minute: int = 0
 
+    # 일일 AI 분석 잡 (C-2.54). 기본 비활성 + 기본 provider는 fake(실수로 유료 호출 방지).
+    # A/B 기간엔 mode=dual로 Claude+GPT 둘 다 매일 분석해 비교한 뒤 single로 확정한다.
+    ai_daily_analysis_enabled: bool = False
+    ai_daily_analysis_scheduler_hour: int = 15  # KR 장마감(15:30) 직후
+    ai_daily_analysis_scheduler_minute: int = 40
+    ai_analysis_mode: str = "single"  # single | dual
+    ai_analysis_prompt_type: str = "improvement"  # overview | risk | improvement
+    ai_analysis_provider: str = "fake"
+    ai_analysis_model: str | None = None  # None이면 provider 기본 모델
+    ai_analysis_secondary_provider: str = "fake"
+    ai_analysis_secondary_model: str | None = None
+    # 활동량 게이트 임계값 (C-2.54).
+    ai_analysis_few_threshold: int = 3
+    ai_analysis_many_threshold: int = 15
+    ai_analysis_active_range_pct: float = 2.0
+    ai_analysis_active_notable: int = 3
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

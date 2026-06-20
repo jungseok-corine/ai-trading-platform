@@ -135,7 +135,15 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   온디맨드 `GET /analysis-bundle/full`. 기존 스키마 변경 없이 재사용·추가만.
 - **C-2.53.1** ✅(실데이터 점검 보정): ①매크로 룩어헤드 차단(`regime_as_of`=trading_day 직전
   미국 세션) ②미청산 단건 주문 라벨(`status`/`excursion_basis`) ③장중(09:00~15:30 KST) 필터.
-- **C-2.54**: 국장/미장 **일일 분석 잡**(기본 비활성) → 이 번들을 입력으로 `ai_analysis_run` 자동 생성
-- **C-2.55**: LLM 출력(JSON) → proposal rationale/가설 연결
-- **C-2.56**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider
-- **C-2.57**: 마킹된 분봉 차트 이미지(UI 전용)
+- **C-2.54** ✅: **일일 분석 잡**(기본 비활성) + **활동량 게이트**(없음/적음/적정/과다 ×
+  시장활발도 — 적음+활발이면 '조건 과빡' 분석). provider/model/mode 설정화(A/B용 dual).
+  `DailyAnalysisService` + `/daily-analysis`. 실제 LLM은 AnalysisRunService(single/dual).
+- **C-2.55**: 분석 번들(C-2.53)을 LLM 프롬프트에 결합 + 활동밴드 컨텍스트 주입
+- **C-2.56**: LLM 출력(JSON: verdict/observations/mistakes/hypotheses+param_change/confidence)
+  → 검증 후 proposal 연결
+- **C-2.57**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider
+- **C-2.58**: 마킹된 분봉 차트 이미지(UI 전용)
+
+**모델 운영(합의)**: 매일=Sonnet 4.6 (또는 GPT, 일주일 A/B로 확정) / debate=Claude×현세대
+GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5·gpt-5.4-mini.
+기본 provider는 `fake`(실수 유료호출 방지), 사람이 명시적으로 켠다.
