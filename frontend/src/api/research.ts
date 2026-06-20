@@ -428,6 +428,49 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Promotion readiness (C-3.13) ------------------------------------------
+export interface PromotionCheck {
+  name: string;
+  passed: boolean;
+  actual: string;
+  threshold: string;
+}
+
+export interface PromotionReadinessRow {
+  strategy_version_id: number;
+  label: string;
+  status: string;
+  passed: boolean;
+  checks_passed: number;
+  checks_total: number;
+  trades_count: number;
+  days: number;
+  expectancy: number;
+  max_drawdown: number;
+  checks: PromotionCheck[];
+}
+
+export interface PromotionReadiness {
+  criteria: {
+    id: number;
+    name: string;
+    market: string;
+    min_trade_count: number;
+    min_days: number;
+    min_expectancy: number;
+    max_drawdown: number | null;
+  } | null;
+  rows: PromotionReadinessRow[];
+  note: string;
+}
+
+export async function getPromotionReadiness(criteriaId?: number): Promise<PromotionReadiness> {
+  const { data } = await apiClient.get<PromotionReadiness>("/promotion-readiness", {
+    params: criteriaId ? { criteria_id: criteriaId } : undefined,
+  });
+  return data;
+}
+
 // --- Risk events (C-3.12) --------------------------------------------------
 export interface RiskRuleRow {
   rule_name: string;

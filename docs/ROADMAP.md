@@ -242,3 +242,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.12** ✅: **리스크 이벤트 요약** — 리스크 레이어 승인/차단 기록을 룰별·최근 차단 목록으로.
   차단률·룰별 집중도로 전략/리스크 설정 점검 신호. `RiskEventSummaryService` +
   `GET /risk-events/summary?days=N` + '리스크 이벤트' 탭. read-only.
+
+- **C-3.13** ✅: **승격 준비 보드** — 활성/테스트 전략 버전을 승격 기준에 평가(persist=False)해
+  근접도(통과/충족 체크 수)를 표로. ⚠️ 통과는 판단일 뿐, 실거래 활성화는 사람만(안전 불변식).
+  `PromotionReadinessService`(PromotionService 재사용) + `GET /promotion-readiness` + '승격 준비' 탭.
