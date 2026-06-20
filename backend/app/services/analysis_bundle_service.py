@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.enums import MarketCode
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.macro_regime_service import MacroRegimeService
-from app.services.news_context_service import NewsContextService
+from app.services.news_curator_service import NewsCuratorService
 from app.services.strategy_analysis_input_service import StrategyAnalysisInputService
 from app.services.trade_tape_service import TradeTapeService
 
@@ -31,7 +31,7 @@ class AnalysisBundleService:
         self._input_svc = StrategyAnalysisInputService(session)
         self._tape_svc = TradeTapeService(session)
         self._macro_svc = MacroRegimeService(session)
-        self._news_svc = NewsContextService(session)
+        self._news_curator = NewsCuratorService(session)
 
     async def build_full(
         self,
@@ -58,9 +58,10 @@ class AnalysisBundleService:
         # 룩어헤드 방지: trading_day 직전 미국 세션 기준 레짐(같은 날 미국장은 미래).
         macro = await self._macro_svc.regime_as_of(trading_day)
 
-        news = []
+        # 중요도 큐레이션(C-2.57): 주가 영향 없는 노이즈는 거르고 중요한 것만 상위로.
+        news: list[dict] = []
         if symbol_code:
-            news = await self._news_svc.list_news(
+            news = await self._news_curator.curate(
                 market=market, symbol_code=symbol_code, limit=news_limit
             )
 
@@ -76,16 +77,6 @@ class AnalysisBundleService:
             if strategy_input is not None else None,
             "trade_tape": trade_tape,
             "macro": macro,
-            "news": [self._news_brief(n) for n in news],
+            "news": news,
             "analyst_note": analyst_note,
-        }
-
-    @staticmethod
-    def _news_brief(n) -> dict:
-        return {
-            "headline": n.headline,
-            "source": n.source,
-            "sentiment": n.sentiment,
-            "published_at": n.published_at.isoformat() if n.published_at else None,
-            "themes": n.themes,
         }

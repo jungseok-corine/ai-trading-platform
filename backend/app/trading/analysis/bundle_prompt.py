@@ -83,11 +83,12 @@ def format_bundle_for_prompt(bundle: dict, assessment: dict | None = None) -> st
     news = bundle.get("news") or []
     if news:
         items = "; ".join(
-            f"[{n.get('sentiment', '?')}] {n.get('headline', '')}" for n in news[:_MAX_NEWS]
+            f"[{n.get('category', '?')}/{n.get('sentiment', '?')}] {n.get('headline', '')}"
+            for n in news[:_MAX_NEWS]
         )
-        lines.append(f"■ 종목 뉴스({len(news)}): {items}")
+        lines.append(f"■ 종목 뉴스·공시({len(news)}, 중요도순): {items}")
     else:
-        lines.append("■ 종목 뉴스: 없음")
+        lines.append("■ 종목 뉴스·공시: 없음(또는 중요도 미달로 제외)")
 
     note = bundle.get("analyst_note")
     if note:

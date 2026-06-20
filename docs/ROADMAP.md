@@ -144,8 +144,11 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.56** ✅: LLM 출력(JSON: verdict/observations/mistakes/hypotheses+param_change/
   confidence) → 파싱·검증 → **pending 제안 연결**(`AnalysisProposalService`). confidence<임계
   /param_change 없음/미등록 strategy_type이면 제안 안 만듦. 일일 잡이 proposals 수까지 기록.
-- **C-2.57**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider
-- **C-2.58**: 마킹된 분봉 차트 이미지(UI 전용)
+- **C-2.57** ✅(룰 기반): 뉴스 **중요도 큐레이터** — `score_materiality`(KR 공시/뉴스 키워드로
+  high/medium/noise 분류) + `NewsCuratorService`(임계 미달 노이즈 제외, 중요도순). 번들이
+  큐레이트된 중요 뉴스만 사용. 싼 모델 정밀 점수·실제 소스(DART)는 후속.
+- **C-2.58**: 뉴스/공시 **소스 provider**(DART 무료 + 싼 모델 정밀 점수) — 키 준비되면
+- **C-2.59**: 마킹된 분봉 차트 이미지(UI 전용)
 
 ### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — 계획
 > 일일 분석과 별개로, **전략이 매매 중인 종목**에 한해 장중 중요 이벤트를 감시.
