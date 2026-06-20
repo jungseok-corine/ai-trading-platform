@@ -158,7 +158,8 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   (전체 캔들+마커, 비압축) + 의존성 없는 SVG 캔들차트(▲매수/▼매도, 진입/청산). '매매 차트' 탭.
 - **C-2.61** ✅: 공시 알림 — `DisclosureAlertService`(수집된 DART 중요 공시 최신순) +
   `GET /dart/alerts` + 관제탑에 `disclosure_alerts` 수·목록 노출. (감지·표시만, 대응은 사람)
-- **C-2.62**(후속): 공시 발생 시 온디맨드 AI 평가(보유 포지션 영향) — §7.1 심화
+- **C-2.62** ✅: 공시 온디맨드 AI 평가 — `DisclosureAssessmentService`(공시→LLM→JSON:
+  impact/severity/action_hint/rationale, enum 보정). API `POST /dart/assess`. AI는 평가만, 대응은 사람.
 
 ### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — 계획
 > 일일 분석과 별개로, **전략이 매매 중인 종목**에 한해 장중 중요 이벤트를 감시.

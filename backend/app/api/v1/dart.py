@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.services.dart_ingest_service import DartIngestService
 from app.services.dart_provider import DartProviderError
 from app.services.disclosure_alert_service import DisclosureAlertService
+from app.services.disclosure_assessment_service import DisclosureAssessmentService
 
 router = APIRouter(prefix="/dart", tags=["dart"])
 
@@ -25,6 +26,12 @@ def get_alert_service(session: AsyncSession = Depends(get_db)) -> DisclosureAler
     return DisclosureAlertService(session)
 
 
+def get_assessment_service(
+    session: AsyncSession = Depends(get_db),
+) -> DisclosureAssessmentService:
+    return DisclosureAssessmentService(session)
+
+
 @router.get("/alerts")
 async def list_alerts(
     hours: int = Query(default=48, ge=1, le=720),
@@ -32,6 +39,19 @@ async def list_alerts(
 ) -> list[dict]:
     """최근 보유/관심 종목의 중요 공시 알림(최신순)."""
     return await service.recent(hours=hours)
+
+
+@router.post("/assess")
+async def assess_disclosure(
+    news_event_id: int = Query(...),
+    holding_note: str | None = Query(default=None),
+    service: DisclosureAssessmentService = Depends(get_assessment_service),
+) -> dict:
+    """공시 한 건의 보유 포지션 영향을 LLM으로 평가한다(온디맨드). AI는 평가만, 대응은 사람."""
+    result = await service.assess(news_event_id, holding_note=holding_note)
+    if result is None:
+        raise HTTPException(status_code=404, detail="news event not found")
+    return result
 
 
 class DartIngestRequest(BaseModel):
