@@ -30,6 +30,7 @@ class ResearchStatusRead(BaseModel):
     pending: dict
     active: dict
     retrospective: dict
+    macro: dict
 
 
 @router.get("", response_model=ResearchStatusRead)

@@ -16,6 +16,7 @@ from app.domain.models.scanner_proposal import ScannerRuleProposal
 from app.domain.models.strategy import StrategyVersion
 from app.domain.models.strategy_proposal import StrategyProposal
 from app.domain.repositories.scheduler_run import SchedulerRunRepository
+from app.services.macro_regime_service import MacroRegimeService
 from app.services.proposal_retrospective_service import ProposalRetrospectiveService
 
 # 자율 연구 루프를 구성하는 잡들. 운영자가 한눈에 보도록 모은다.
@@ -46,6 +47,7 @@ class ResearchStatus:
     pending: dict
     active: dict
     retrospective: dict
+    macro: dict
 
     def to_dict(self) -> dict:
         return {
@@ -53,6 +55,7 @@ class ResearchStatus:
             "pending": self.pending,
             "active": self.active,
             "retrospective": self.retrospective,
+            "macro": self.macro,
         }
 
 
@@ -68,6 +71,7 @@ class ResearchStatusService:
         self._session = session
         self._run_repo = SchedulerRunRepository(session)
         self._retro_service = ProposalRetrospectiveService(session)
+        self._macro_service = MacroRegimeService(session)
 
     async def status(self) -> ResearchStatus:
         jobs: list[JobStatus] = []
@@ -95,6 +99,7 @@ class ResearchStatusService:
         )
 
         retrospective = await self._retro_service.summary()
+        macro = await self._macro_service.latest_regime()
 
         return ResearchStatus(
             jobs=jobs,
@@ -108,6 +113,7 @@ class ResearchStatusService:
                 "strategy_versions": active_strategy,
             },
             retrospective=retrospective,
+            macro=macro,
         )
 
     async def _count_status(self, model, status: ProposalStatus) -> int:

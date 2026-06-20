@@ -23,6 +23,13 @@ function ControlTower() {
         제안 회고 {data.retrospective.total}건 — 개선 {data.retrospective.improved} ·
         악화 {data.retrospective.worse} · 판단보류 {data.retrospective.inconclusive}
       </p>
+      <p className="muted">
+        매크로 레짐: <strong>{data.macro.regime}</strong>
+        {data.macro.session_date ? ` (전일 ${data.macro.session_date})` : ""}
+        {data.macro.vix != null ? ` · VIX ${data.macro.vix} (${data.macro.vix_level})` : ""}
+        {data.macro.us_trend ? ` · 미국장 ${data.macro.us_trend}` : ""}
+        {data.macro.semis_strength ? ` · 반도체 ${data.macro.semis_strength}` : ""}
+      </p>
       <div className="table-wrapper">
         <table>
           <thead><tr><th>잡</th><th>최근 실행</th><th>상태</th><th>소요(ms)</th></tr></thead>

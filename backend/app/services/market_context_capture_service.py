@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.enums import MarketCode
 from app.domain.models.market_context import MarketContextSnapshot
 from app.domain.repositories.news_context import UsMarketSnapshotRepository
+from app.services.macro_regime_service import classify_macro_regime
 from app.services.market_context_service import MarketContextService
 from app.trading.scanner.facts import time_bucket
 
@@ -43,8 +44,14 @@ class MarketContextCaptureService:
                 else None,
             }
 
+        # 전일 미국장에서 매크로 레짐을 분류해 맥락에 함께 남긴다(C-2.49).
+        # 후보가 "어떤 매크로 환경에서 발견됐는지"를 보존해 이후 제안/분석의 입력이 된다.
+        macro = classify_macro_regime(us)
+
         return await self._context_service.create_snapshot(
             market=market,
             time_bucket=time_bucket(now),
+            index_trend=macro.get("us_trend"),
             us_previous_session=us_prev,
+            data={"macro": macro},
         )
