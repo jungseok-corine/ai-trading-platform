@@ -257,3 +257,8 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.16** ✅: **승격 후보 알림** — 운영 종합 research에 `promotion_ready`(승격 기준 통과 버전 수),
   다이제스트에 '승격 기준 통과 N개 — 검토하세요(실거래는 사람만)' 경보. 연구→승격→사람검토 루프를
   운영 화면에서 닫는다. `PromotionReadinessService.ready_count()`. read-only.
+
+- **C-3.17** ✅: **운영 종합 스냅샷 + 추세** — 일자별 헤드라인(비용·실현손익·검토대기·승격후보)을
+  `operations_snapshots` 테이블에 멱등 적재(마이그레이션 b1c2d3e4f5a6, enum 없음). `OperationsSnapshotService`
+  (record/trend) + `POST /operations-snapshot/record`·`GET /trend` + 다이제스트 잡이 매일 함께 적재
+  + '운영 추세' 탭. read-only 집계의 적재.

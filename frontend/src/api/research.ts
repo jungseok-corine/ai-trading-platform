@@ -553,6 +553,29 @@ export async function getDataFreshness(): Promise<DataFreshness> {
   return data;
 }
 
+// --- Operations snapshot trend (C-3.17) ------------------------------------
+export interface OperationsSnapshot {
+  snapshot_date: string;
+  invariants_ok: boolean;
+  pending_total: number;
+  promotion_ready: number;
+  est_cost_usd: number;
+  total_pnl: number;
+  win_rate: number | null;
+}
+
+export async function getOperationsTrend(days = 30): Promise<OperationsSnapshot[]> {
+  const { data } = await apiClient.get<OperationsSnapshot[]>("/operations-snapshot/trend", {
+    params: { days },
+  });
+  return data;
+}
+
+export async function recordOperationsSnapshot(): Promise<OperationsSnapshot> {
+  const { data } = await apiClient.post<OperationsSnapshot>("/operations-snapshot/record");
+  return data;
+}
+
 // --- Operations digest (C-3.8) ---------------------------------------------
 export interface DigestAlert {
   level: "alert" | "attention";
