@@ -78,11 +78,16 @@ price_change_pct ×1.3, turnover_rank ×0.7). 승인 시 DRAFT 룰 버전 생성
 **C-2.48**: FRED + Twelve Data 어댑터. FRED=VIX/금리/S&P500/나스닥, TD=SOX(SOXX proxy).
 권장 provider `fred_twelvedata`. `.env`: `FRED_API_KEY`, `TWELVEDATA_API_KEY`.
 
+**C-2.49**: 매크로 레짐 분류(`classify_macro_regime`) — 전일 미국장으로 risk_on/neutral/
+risk_off 결정. 맥락 캡처에 주입(`data.macro`), `/market-context/macro-regime`, 관제탑 노출.
+
+**C-2.50**: 매크로를 스캐너 제안에 반영 — `tighten_conditions(aggressive=)`. risk_off면
+강화 폭 확대(×1.45, rank ×0.6), 근거에 레짐 명시. (전일 미국장 → 한국장 제안 연계 1차)
+
 ## 4. 다음 후보 (우선순위)
 
-1. **미국장 맥락을 제안/스캔 로직에 반영** ← *다음 작업*.
-   예: VIX 높으면 조건 강화 제안을 더 보수적으로, SOX 강세면 반도체 테마 후보 가중,
-   전일 미국장 급락 시 신규 후보 점수 하향. vision의 "시간차 아비트라지·매크로 연계".
+1. **매크로 반영 확장** — 전략 제안(C-2.42)에도 레짐 반영, SOX 강세 시 반도체 테마 후보
+   가중, risk_off 시 신규 후보 점수 하향 등. (C-2.49/2.50에서 스캐너 제안까지는 완료)
 2. **major_news 자동 채우기** — 무료 뉴스 소스 필요(현재 `null`). provider 패턴 재사용.
 3. 회고 UI 보강(제안별 회고 테이블), 회고 결과를 제안 생성에 피드백.
 

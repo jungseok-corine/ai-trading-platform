@@ -9,6 +9,7 @@ from app.domain.models.enums import ScannerConditionType
 from app.domain.models.scanner_proposal import ScannerRuleProposal
 from app.domain.repositories.scanner import ScannerRuleVersionRepository
 from app.services.candidate_outcome_service import CandidateOutcomeService
+from app.services.macro_regime_service import MacroRegimeService
 from app.services.scanner_proposal_service import ScannerProposalService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 
@@ -16,10 +17,12 @@ from app.services.scanner_service import ScannerRuleVersionNotFoundError
 MIN_CANDIDATES_FOR_SUGGESTION = 5
 # 전체 승률이 이 값 미만일 때만 '조건 강화'를 제안한다.
 WIN_RATE_THRESHOLD = 50.0
-# 조건 강화 배수(진입 문턱 강화).
+# 조건 강화 배수(진입 문턱 강화). 기본(neutral/risk_on) vs 보수적(risk_off).
 TIGHTEN_FACTOR = Decimal("1.3")
+TIGHTEN_FACTOR_AGGRESSIVE = Decimal("1.45")
 # turnover_rank는 더 낮을수록 엄격하므로 줄인다.
 RANK_FACTOR = Decimal("0.7")
+RANK_FACTOR_AGGRESSIVE = Decimal("0.6")
 
 
 def _round1(value: Decimal) -> float:
@@ -32,14 +35,17 @@ class _TightenResult:
     changes: list[str]  # 사람이 읽을 수 있는 변경 설명
 
 
-def tighten_conditions(conditions: list[dict]) -> _TightenResult:
+def tighten_conditions(conditions: list[dict], *, aggressive: bool = False) -> _TightenResult:
     """스캐너 조건을 결정적으로 강화한다(진입 문턱을 높여 약한 신호를 줄인다).
 
-    - volume_spike.multiplier ×1.3
-    - price_change_pct.min_pct ×1.3
-    - turnover_rank.max_rank ×0.7 (최소 1)
+    - volume_spike.multiplier ×1.3 (aggressive ×1.45)
+    - price_change_pct.min_pct ×1.3 (aggressive ×1.45)
+    - turnover_rank.max_rank ×0.7 (aggressive ×0.6, 최소 1)
+    aggressive=True는 매크로 위험회피(risk_off) 국면에서 더 보수적으로 문턱을 높인다(C-2.50).
     investor_flow / time_bucket 같은 범주형 조건은 강화 기준이 모호하여 그대로 둔다.
     """
+    mult_factor = TIGHTEN_FACTOR_AGGRESSIVE if aggressive else TIGHTEN_FACTOR
+    rank_factor = RANK_FACTOR_AGGRESSIVE if aggressive else RANK_FACTOR
     new_conditions: list[dict] = []
     changes: list[str] = []
 
@@ -49,21 +55,21 @@ def tighten_conditions(conditions: list[dict]) -> _TightenResult:
 
         if ctype == ScannerConditionType.VOLUME_SPIKE.value:
             cur = Decimal(str(params.get("multiplier", 1.5)))
-            new = _round1(cur * TIGHTEN_FACTOR)
+            new = _round1(cur * mult_factor)
             if Decimal(str(new)) <= cur:
                 new = float(cur + Decimal("0.5"))
             params["multiplier"] = new
             changes.append(f"volume_spike multiplier {cur} → {new}")
         elif ctype == ScannerConditionType.PRICE_CHANGE_PCT.value:
             cur = Decimal(str(params.get("min_pct", 0)))
-            new = _round1(cur * TIGHTEN_FACTOR)
+            new = _round1(cur * mult_factor)
             if Decimal(str(new)) <= cur:
                 new = float(cur + Decimal("1.0"))
             params["min_pct"] = new
             changes.append(f"price_change_pct min_pct {cur} → {new}")
         elif ctype == ScannerConditionType.TURNOVER_RANK.value:
             cur = int(params.get("max_rank", 100))
-            new = max(1, int((Decimal(cur) * RANK_FACTOR).to_integral_value()))
+            new = max(1, int((Decimal(cur) * rank_factor).to_integral_value()))
             if new >= cur:
                 new = max(1, cur - 1)
             params["max_rank"] = new
@@ -87,6 +93,7 @@ class ScannerProposalGenerator:
         self._version_repo = ScannerRuleVersionRepository(session)
         self._outcome_service = CandidateOutcomeService(session)
         self._proposal_service = ScannerProposalService(session)
+        self._macro_service = MacroRegimeService(session)
 
     async def generate_for_version(
         self,
@@ -110,7 +117,12 @@ class ScannerProposalGenerator:
         if win_rate is None or win_rate >= WIN_RATE_THRESHOLD:
             return None
 
-        tightened = tighten_conditions(version.conditions or [])
+        # 매크로 레짐을 반영한다(C-2.50): risk_off 국면에서는 더 보수적으로 문턱을 높인다.
+        macro = await self._macro_service.latest_regime()
+        regime = macro.get("regime")
+        aggressive = regime == "risk_off"
+
+        tightened = tighten_conditions(version.conditions or [], aggressive=aggressive)
         if not tightened.changes:
             return None
         # 강화 결과가 기존과 동일하면(실제 변경 없음) 제안하지 않는다.
@@ -121,6 +133,11 @@ class ScannerProposalGenerator:
             f"최근 {count}건 후보의 {horizon_minutes}분 후 승률이 {win_rate}%로 "
             f"기준({WIN_RATE_THRESHOLD}%) 미만입니다."
         )
+        macro_note = ""
+        if regime in ("risk_off", "risk_on", "neutral"):
+            macro_note = f" 전일 미국장 매크로 레짐은 '{regime}'입니다."
+            if aggressive:
+                macro_note += " 위험회피 국면이라 강화 폭을 더 키웠습니다."
         change_text = "; ".join(tightened.changes)
 
         return await self._proposal_service.create_proposal(
@@ -128,7 +145,7 @@ class ScannerProposalGenerator:
             suggested_conditions=tightened.conditions,
             title=f"스캐너 조건 강화 (v{version.version_no})",
             summary=f"진입 문턱을 높여 약한 신호를 줄입니다: {change_text}",
-            rationale=f"{base_reason} 조건을 강화해 후보 품질을 높입니다.",
+            rationale=f"{base_reason}{macro_note} 조건을 강화해 후보 품질을 높입니다.",
             expected_effect="후보 수 감소, 약한 신호 제거로 평균 후보 품질 개선 가능.",
             risk_notes="조건이 강해져 기회가 줄어들 수 있습니다. 새 버전으로 비교 검증이 필요합니다.",
             base_version_id=version_id,
