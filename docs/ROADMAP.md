@@ -102,6 +102,10 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.64** ✅: 회고 UI(제안별 회고 테이블, '제안 회고' 탭) + **회고→AI 피드백**
   (분석 번들에 retrospective 요약 주입 → 프롬프트에 '악화 많으면 신중' 노출).
 
+- **C-2.65** ✅: 뉴스 큐레이터 **LLM 정밀화**(옵션, 기본 off) — 룰이 놓친 중요 뉴스를
+  싼 모델이 0~1 점수로 보강. `final=max(rule, llm)`. `news_llm_score`(프롬프트/파서) +
+  `NewsCuratorService(llm_provider=)`. 실패 시 룰로 폴백. config `news_curator_llm_*`.
+
 ## 5. 보류 항목
 
 - **US 실시간(분봉/틱)**: KIS 해외 실시간 승인 또는 Polygon 유료. 현재는 일별 EOD로 충분.
