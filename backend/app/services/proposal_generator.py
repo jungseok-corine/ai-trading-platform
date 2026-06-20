@@ -11,6 +11,7 @@ from app.domain.repositories.strategy import (
     StrategyVersionRepository,
 )
 from app.domain.repositories.trade import TradeRepository
+from app.services.macro_regime_service import MacroRegimeService
 from app.services.proposal_service import ProposalService
 from app.services.strategy_service import (
     StrategyNotFoundError,
@@ -37,11 +38,12 @@ class ProposalSuggestion:
 
 
 def suggest_parameter_change(
-    strategy_type: str, params: dict, metrics: VariantMetrics
+    strategy_type: str, params: dict, metrics: VariantMetrics, *, aggressive: bool = False
 ) -> ProposalSuggestion | None:
     """성과 지표에 기반해 파라미터 조정 제안을 만든다. 제안할 게 없으면 None.
 
     결정적(deterministic) 휴리스틱이다. 데이터 부족이거나 기대값이 양수면 제안하지 않는다.
+    aggressive=True(매크로 risk_off)면 강화 폭을 더 키운다(C-2.51).
     """
     if metrics.trades_count < MIN_TRADES_FOR_SUGGESTION:
         return None
@@ -53,10 +55,12 @@ def suggest_parameter_change(
         f"최근 {metrics.trades_count}건 거래의 기대값이 {metrics.expectancy}로 음수입니다"
         f"(승률 {metrics.win_rate}%, 최대낙폭 {metrics.max_drawdown})."
     )
+    macro_note = " 위험회피 국면이라 강화 폭을 더 키웠습니다." if aggressive else ""
 
     if strategy_type in _VOLUME_STRATEGIES:
         current = Decimal(str(params.get("volume_multiplier", 1.5)))
-        new_value = (current * Decimal("1.3")).quantize(Decimal("0.1"))
+        factor = Decimal("1.45") if aggressive else Decimal("1.3")
+        new_value = (current * factor).quantize(Decimal("0.1"))
         if new_value <= current:
             new_value = current + Decimal("0.5")
         suggested = {**params, "volume_multiplier": float(new_value)}
@@ -64,20 +68,20 @@ def suggest_parameter_change(
             suggested_parameters=suggested,
             title=f"거래량 조건 강화: volume_multiplier {current} → {new_value}",
             summary=f"거래량 배수를 {current}에서 {new_value}로 높여 진입 문턱을 강화합니다.",
-            rationale=f"{base_reason} 거래량 조건을 강화해 약한 신호 진입을 줄입니다.",
+            rationale=f"{base_reason}{macro_note} 거래량 조건을 강화해 약한 신호 진입을 줄입니다.",
             expected_effect="거래 횟수 감소, 약한 신호 제거로 평균 품질 개선 가능.",
             risk_notes="조건이 강해져 기회가 줄어들 수 있습니다. paper에서 비교 검증이 필요합니다.",
         )
 
     if strategy_type == "moving_average_cross":
         long_window = int(params.get("long_window", 20))
-        new_long = long_window + 5
+        new_long = long_window + (8 if aggressive else 5)
         suggested = {**params, "long_window": new_long}
         return ProposalSuggestion(
             suggested_parameters=suggested,
             title=f"장기 이평 확대: long_window {long_window} → {new_long}",
             summary=f"장기 이동평균 기간을 {long_window}에서 {new_long}으로 늘립니다.",
-            rationale=f"{base_reason} 장기선을 늘려 휩쏘(whipsaw) 신호를 줄입니다.",
+            rationale=f"{base_reason}{macro_note} 장기선을 늘려 휩쏘(whipsaw) 신호를 줄입니다.",
             expected_effect="잦은 교차 신호 감소, 추세 추종 안정화 가능.",
             risk_notes="진입이 느려져 초기 추세를 놓칠 수 있습니다. paper 비교가 필요합니다.",
         )
@@ -100,6 +104,7 @@ class ProposalGeneratorService:
         self._version_repo = StrategyVersionRepository(session)
         self._trade_repo = TradeRepository(session)
         self._proposal_service = ProposalService(session)
+        self._macro_service = MacroRegimeService(session)
 
     async def generate_for_version(
         self,
@@ -121,7 +126,12 @@ class ProposalGeneratorService:
 
         params = version.parameters or {}
         strategy_type = params.get("strategy_type", "")
-        suggestion = suggest_parameter_change(strategy_type, params, metrics)
+        # 매크로 레짐 반영(C-2.51): risk_off면 강화 폭을 더 키운다.
+        macro = await self._macro_service.latest_regime()
+        aggressive = macro.get("regime") == "risk_off"
+        suggestion = suggest_parameter_change(
+            strategy_type, params, metrics, aggressive=aggressive
+        )
         if suggestion is None:
             return None
 
