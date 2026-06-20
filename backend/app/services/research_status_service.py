@@ -16,6 +16,7 @@ from app.domain.models.scanner_proposal import ScannerRuleProposal
 from app.domain.models.strategy import StrategyVersion
 from app.domain.models.strategy_proposal import StrategyProposal
 from app.domain.repositories.scheduler_run import SchedulerRunRepository
+from app.services.disclosure_alert_service import DisclosureAlertService
 from app.services.macro_regime_service import MacroRegimeService
 from app.services.proposal_retrospective_service import ProposalRetrospectiveService
 
@@ -48,9 +49,11 @@ class ResearchStatus:
     active: dict
     retrospective: dict
     macro: dict
+    disclosure_alerts: int = 0
 
     def to_dict(self) -> dict:
         return {
+            "disclosure_alerts": self.disclosure_alerts,
             "jobs": [j.to_dict() for j in self.jobs],
             "pending": self.pending,
             "active": self.active,
@@ -72,6 +75,7 @@ class ResearchStatusService:
         self._run_repo = SchedulerRunRepository(session)
         self._retro_service = ProposalRetrospectiveService(session)
         self._macro_service = MacroRegimeService(session)
+        self._alert_service = DisclosureAlertService(session)
 
     async def status(self) -> ResearchStatus:
         jobs: list[JobStatus] = []
@@ -100,6 +104,7 @@ class ResearchStatusService:
 
         retrospective = await self._retro_service.summary()
         macro = await self._macro_service.latest_regime()
+        disclosure_alerts = await self._alert_service.count_recent()
 
         return ResearchStatus(
             jobs=jobs,
@@ -114,6 +119,7 @@ class ResearchStatusService:
             },
             retrospective=retrospective,
             macro=macro,
+            disclosure_alerts=disclosure_alerts,
         )
 
     async def _count_status(self, model, status: ProposalStatus) -> int:

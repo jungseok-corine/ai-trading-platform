@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import select
 
@@ -20,6 +20,19 @@ class NewsEventRepository(BaseRepository[NewsEvent]):
             select(NewsEvent.url).where(NewsEvent.url.in_(urls))
         )
         return {row[0] for row in result.all() if row[0]}
+
+    async def list_by_source_since(
+        self, source: str, since: datetime, symbols: list[str] | None = None, limit: int = 100
+    ) -> list[NewsEvent]:
+        """source의 since 이후 이벤트를 최신순으로 반환한다(공시 알림용)."""
+        stmt = select(NewsEvent).where(
+            NewsEvent.source == source, NewsEvent.published_at >= since
+        )
+        if symbols:
+            stmt = stmt.where(NewsEvent.symbol_code.in_(symbols))
+        stmt = stmt.order_by(NewsEvent.published_at.desc(), NewsEvent.id.desc()).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def list_filtered(
         self,

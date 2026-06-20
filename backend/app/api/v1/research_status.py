@@ -31,6 +31,7 @@ class ResearchStatusRead(BaseModel):
     active: dict
     retrospective: dict
     macro: dict
+    disclosure_alerts: int = 0
 
 
 @router.get("", response_model=ResearchStatusRead)

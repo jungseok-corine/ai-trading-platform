@@ -1,6 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPipelineRuns, getResearchStatus, runPipeline } from "../../api/research";
+import { getDisclosureAlerts, getPipelineRuns, getResearchStatus, runPipeline } from "../../api/research";
 import type { PipelineSummary } from "../../types/research";
+
+function DisclosureAlerts() {
+  const { data } = useQuery({ queryKey: ["disclosure-alerts"], queryFn: () => getDisclosureAlerts(48) });
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="card" style={{ background: "#fff8e1" }}>
+      <strong>📢 보유/관심 종목 중요 공시 ({data.length})</strong>
+      <div className="table-wrapper">
+        <table>
+          <thead><tr><th>종목</th><th>공시</th><th>중요도</th><th>시각</th></tr></thead>
+          <tbody>
+            {data.slice(0, 15).map((a, i) => (
+              <tr key={i}>
+                <td>{a.symbol_code}</td>
+                <td>{a.url ? <a href={a.url} target="_blank" rel="noreferrer">{a.headline}</a> : a.headline}</td>
+                <td>{a.category ?? "-"}</td>
+                <td>{a.published_at ? new Date(a.published_at).toLocaleDateString() : "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const JOB_LABELS: Record<string, string> = {
   research_pipeline: "스캔·후보·배정",
@@ -30,6 +55,9 @@ function ControlTower() {
         {data.macro.us_trend ? ` · 미국장 ${data.macro.us_trend}` : ""}
         {data.macro.semis_strength ? ` · 반도체 ${data.macro.semis_strength}` : ""}
       </p>
+      {data.disclosure_alerts > 0 && (
+        <p className="muted">📢 최근 중요 공시 <strong>{data.disclosure_alerts}</strong>건 (아래)</p>
+      )}
       <div className="table-wrapper">
         <table>
           <thead><tr><th>잡</th><th>최근 실행</th><th>상태</th><th>소요(ms)</th></tr></thead>
@@ -72,6 +100,7 @@ export default function PipelineSection() {
       </p>
 
       <ControlTower />
+      <DisclosureAlerts />
 
       <div className="form-row">
         <button className="primary" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
