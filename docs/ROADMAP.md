@@ -238,3 +238,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.11** ✅: **거래 활동 요약** — 최근 거래 건수·승패·승률·손익을 전체/전략버전별로(청산 손익
   있는 거래만 승패·손익 집계, 미청산은 건수만). `TradeActivityService` + `GET /trade-activity?days=N`
   + '거래 활동' 탭. read-only.
+
+- **C-3.12** ✅: **리스크 이벤트 요약** — 리스크 레이어 승인/차단 기록을 룰별·최근 차단 목록으로.
+  차단률·룰별 집중도로 전략/리스크 설정 점검 신호. `RiskEventSummaryService` +
+  `GET /risk-events/summary?days=N` + '리스크 이벤트' 탭. read-only.

@@ -428,6 +428,37 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Risk events (C-3.12) --------------------------------------------------
+export interface RiskRuleRow {
+  rule_name: string;
+  approved: number;
+  rejected: number;
+}
+
+export interface RiskRejection {
+  rule_name: string | null;
+  reason: string | null;
+  strategy_version_id: number | null;
+  created_at: string | null;
+}
+
+export interface RiskEventSummary {
+  days: number;
+  total: number;
+  approved: number;
+  rejected: number;
+  rejection_rate: number | null;
+  by_rule: RiskRuleRow[];
+  recent_rejections: RiskRejection[];
+}
+
+export async function getRiskEventSummary(days = 30): Promise<RiskEventSummary> {
+  const { data } = await apiClient.get<RiskEventSummary>("/risk-events/summary", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Trade activity (C-3.11) -----------------------------------------------
 export interface TradeBucket {
   trades: number;
