@@ -300,6 +300,35 @@ export async function getChartData(
   return data;
 }
 
+// --- Proposal retrospective (C-2.64) ---------------------------------------
+export interface RetroEntry {
+  proposal_id: number;
+  kind: string;
+  base_version_id: number | null;
+  created_version_id: number | null;
+  metric: string;
+  base_metric: number | null;
+  new_metric: number | null;
+  base_samples: number;
+  new_samples: number;
+  verdict: string;
+}
+
+export async function getStrategyRetros(): Promise<RetroEntry[]> {
+  const { data } = await apiClient.get<RetroEntry[]>("/proposal-retrospective/strategy");
+  return data;
+}
+export async function getScannerRetros(): Promise<RetroEntry[]> {
+  const { data } = await apiClient.get<RetroEntry[]>("/proposal-retrospective/scanner");
+  return data;
+}
+export async function getRetroSummary(): Promise<{
+  total: number; improved: number; worse: number; inconclusive: number;
+}> {
+  const { data } = await apiClient.get("/proposal-retrospective/summary");
+  return data;
+}
+
 // --- Research status (C-2.43) ----------------------------------------------
 export interface ResearchJobStatus {
   job_id: string;

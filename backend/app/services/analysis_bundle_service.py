@@ -8,6 +8,7 @@ from app.domain.models.enums import MarketCode
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.macro_regime_service import MacroRegimeService
 from app.services.news_curator_service import NewsCuratorService
+from app.services.proposal_retrospective_service import ProposalRetrospectiveService
 from app.services.strategy_analysis_input_service import StrategyAnalysisInputService
 from app.services.trade_tape_service import TradeTapeService
 
@@ -32,6 +33,7 @@ class AnalysisBundleService:
         self._tape_svc = TradeTapeService(session)
         self._macro_svc = MacroRegimeService(session)
         self._news_curator = NewsCuratorService(session)
+        self._retro_svc = ProposalRetrospectiveService(session)
 
     async def build_full(
         self,
@@ -78,5 +80,6 @@ class AnalysisBundleService:
             "trade_tape": trade_tape,
             "macro": macro,
             "news": news,
+            "retrospective": await self._retro_svc.summary(),
             "analyst_note": analyst_note,
         }

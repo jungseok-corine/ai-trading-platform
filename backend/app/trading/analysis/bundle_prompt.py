@@ -90,6 +90,14 @@ def format_bundle_for_prompt(bundle: dict, assessment: dict | None = None) -> st
     else:
         lines.append("■ 종목 뉴스·공시: 없음(또는 중요도 미달로 제외)")
 
+    retro = bundle.get("retrospective") or {}
+    if retro.get("total"):
+        lines.append(
+            f"■ 과거 AI 제안 회고: 총 {retro.get('total')}건 — 개선 {retro.get('improved', 0)}, "
+            f"악화 {retro.get('worse', 0)}, 판단보류 {retro.get('inconclusive', 0)}. "
+            "(악화가 많으면 제안에 더 신중하라)"
+        )
+
     note = bundle.get("analyst_note")
     if note:
         lines.append(f"■ 애널리스트 노트(사람 입력): {note}")
