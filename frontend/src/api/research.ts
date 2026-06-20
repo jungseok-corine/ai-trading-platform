@@ -398,6 +398,14 @@ export interface AiCostDayRow {
   est_cost_usd: number;
 }
 
+export interface AiCostBudget {
+  budget_usd: number;
+  used_usd: number;
+  used_pct: number | null;
+  threshold_pct: number;
+  status: "ok" | "warn" | "over" | "disabled";
+}
+
 export interface AiCostSummary {
   days: number;
   total: {
@@ -410,6 +418,7 @@ export interface AiCostSummary {
   by_model: AiCostModelRow[];
   by_day: AiCostDayRow[];
   unpriced_models: string[];
+  budget: AiCostBudget;
 }
 
 export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
@@ -467,7 +476,13 @@ export interface OperationsOverview {
     approval_rate: number | null;
   };
   retrospective: { total: number; improved: number; worse: number; inconclusive: number };
-  cost: { responses: number; total_tokens: number; est_cost_usd: number };
+  cost: {
+    responses: number;
+    total_tokens: number;
+    est_cost_usd: number;
+    budget_status: "ok" | "warn" | "over" | "disabled";
+    budget_used_pct: number | null;
+  };
 }
 
 export async function getOperationsOverview(days = 30): Promise<OperationsOverview> {

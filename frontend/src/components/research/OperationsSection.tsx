@@ -47,7 +47,11 @@ export default function OperationsSection() {
             <Stat label="회고 (개선/악화)"
               value={`${data.retrospective.improved} / ${data.retrospective.worse}`} />
             <Stat label="AI 비용 (30일)"
-              value={`$${data.cost.est_cost_usd.toFixed(2)}`} accent />
+              value={`$${data.cost.est_cost_usd.toFixed(2)}${
+                data.cost.budget_status === "over" ? " 🔴"
+                : data.cost.budget_status === "warn" ? " 🟠"
+                : data.cost.budget_used_pct !== null ? ` (${data.cost.budget_used_pct}%)` : ""
+              }`} accent />
           </div>
         </>
       )}

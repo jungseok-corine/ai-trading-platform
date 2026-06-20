@@ -150,6 +150,11 @@ class Settings(BaseSettings):
     # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
     ai_analysis_min_confidence: float = 0.5
 
+    # AI 비용 예산 가드 (C-3.7). 0이면 예산 미설정(가드 비활성). 윈도(기본 30일) 추정비용과
+    # 비교해 ok/warn/over를 매긴다. 단가는 추정치이므로 경보는 가늠자 — 사람이 최종 판단.
+    ai_cost_monthly_budget_usd: float = 0.0
+    ai_cost_alert_threshold_pct: float = 80.0
+
     # 뉴스 큐레이터 LLM 정밀화 (C-2.65). 기본 비활성(룰 기반만). 켜면 싼 모델로 보강.
     news_curator_llm_enabled: bool = False
     news_curator_provider: str = "fake"

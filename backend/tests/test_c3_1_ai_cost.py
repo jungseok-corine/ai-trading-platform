@@ -84,6 +84,46 @@ async def test_summary_aggregates_by_model_and_day(db_session: AsyncSession) -> 
     assert any(d["date"] == today for d in out["by_day"])
 
 
+class _FakeSettings:
+    def __init__(self, budget, threshold=80.0):
+        self.ai_cost_monthly_budget_usd = budget
+        self.ai_cost_alert_threshold_pct = threshold
+
+
+async def test_budget_disabled_by_default(db_session: AsyncSession) -> None:
+    out = await AiCostService(db_session).summary(days=30)
+    assert out["budget"]["status"] == "disabled"
+    assert out["budget"]["used_pct"] is None
+
+
+async def test_budget_statuses(db_session: AsyncSession, monkeypatch) -> None:
+    run = await _make_run(db_session)
+    # gpt-5.4 1M input @2.5 = $2.5
+    db_session.add(AiModelResponse(
+        run_id=run.id, provider="openai", model="gpt-5.4", role="primary_analysis",
+        prompt_tokens=1_000_000, completion_tokens=0, total_tokens=1_000_000,
+    ))
+    await db_session.flush()
+
+    # 예산 $10 → 25% → ok
+    monkeypatch.setattr("app.services.ai_cost_service.get_settings",
+                        lambda: _FakeSettings(10.0))
+    out = await AiCostService(db_session).summary(days=30)
+    assert out["budget"]["status"] == "ok" and out["budget"]["used_pct"] == 25.0
+
+    # 예산 $3 → 83% → warn(임계 80)
+    monkeypatch.setattr("app.services.ai_cost_service.get_settings",
+                        lambda: _FakeSettings(3.0))
+    out = await AiCostService(db_session).summary(days=30)
+    assert out["budget"]["status"] == "warn"
+
+    # 예산 $2 → 125% → over
+    monkeypatch.setattr("app.services.ai_cost_service.get_settings",
+                        lambda: _FakeSettings(2.0))
+    out = await AiCostService(db_session).summary(days=30)
+    assert out["budget"]["status"] == "over"
+
+
 async def test_summary_respects_window(db_session: AsyncSession) -> None:
     run = await _make_run(db_session)
     old = AiModelResponse(
