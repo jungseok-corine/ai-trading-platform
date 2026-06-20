@@ -428,6 +428,35 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Trade activity (C-3.11) -----------------------------------------------
+export interface TradeBucket {
+  trades: number;
+  closed: number;
+  wins: number;
+  losses: number;
+  total_pnl: number;
+  win_rate: number | null;
+  avg_pnl: number | null;
+}
+
+export interface TradeStrategyRow extends TradeBucket {
+  strategy_version_id: number | null;
+  label: string;
+}
+
+export interface TradeActivity {
+  days: number;
+  overall: TradeBucket;
+  by_strategy: TradeStrategyRow[];
+}
+
+export async function getTradeActivity(days = 30): Promise<TradeActivity> {
+  const { data } = await apiClient.get<TradeActivity>("/trade-activity", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Data freshness (C-3.10) -----------------------------------------------
 export interface FreshnessSource {
   source: string;

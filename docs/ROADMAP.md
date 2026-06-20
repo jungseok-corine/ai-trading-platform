@@ -234,3 +234,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.10** ✅: **데이터 신선도 점검** — 시세/미국장/뉴스/DART의 최신 타임스탬프·경과 시간·stale
   여부. 데이터 없는 소스(미사용 가능)는 stale로 안 봄(거짓 경보 방지). `DataFreshnessService` +
   `GET /data-freshness` + '데이터 신선도' 탭 + 다이제스트에 stale 경보 통합. read-only.
+
+- **C-3.11** ✅: **거래 활동 요약** — 최근 거래 건수·승패·승률·손익을 전체/전략버전별로(청산 손익
+  있는 거래만 승패·손익 집계, 미청산은 건수만). `TradeActivityService` + `GET /trade-activity?days=N`
+  + '거래 활동' 탭. read-only.
