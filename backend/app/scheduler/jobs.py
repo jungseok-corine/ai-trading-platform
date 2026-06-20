@@ -30,6 +30,27 @@ RESEARCH_PIPELINE_JOB_ID = "research_pipeline"
 SCANNER_REVIEW_JOB_ID = "scanner_review"
 STRATEGY_REVIEW_JOB_ID = "strategy_review"
 US_MARKET_REFRESH_JOB_ID = "us_market_refresh"
+DAILY_ANALYSIS_JOB_ID = "daily_analysis"
+
+
+async def run_daily_analysis_job(app: FastAPI) -> None:
+    """장마감 후 활성 전략 버전을 활동량 게이트로 선별해 LLM 분석한다 (C-2.54).
+
+    provider/model/mode는 설정에서 읽으며 기본은 fake. 분석은 read-only 메타 작업이다.
+    """
+    from app.services.daily_analysis_service import DailyAnalysisService
+
+    try:
+        async with async_session_factory() as session:
+            summary = await DailyAnalysisService(session).run_and_record()
+        logger.info(
+            "daily analysis: versions=%s analyzed=%s skipped=%s mode=%s",
+            summary.versions, summary.analyzed, summary.skipped, summary.mode,
+        )
+        app.state.daily_analysis_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 분석 실패가 스케줄러를 중단시키지 않도록
+        logger.error("daily analysis job failed: %s", exc_message(exc))
+        app.state.daily_analysis_last_error = exc_message(exc)
 
 
 async def run_us_market_refresh_job(app: FastAPI) -> None:
