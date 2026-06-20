@@ -614,6 +614,7 @@ export interface OperationsOverview {
     active_scanner_versions: number;
     disclosure_alerts: number;
     macro_regime: string | null;
+    promotion_ready: number;
   };
   funnel: {
     generated: number;

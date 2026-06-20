@@ -253,3 +253,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.15** ✅: **Telegram 알림 채널** — `TelegramChannel`(bot token+chat_id 모두 있을 때만 전송,
   없으면 no-op). factory에 telegram 등록, config `telegram_bot_token`/`telegram_chat_id`.
   테스트는 httpx MockTransport(외부 네트워크 없음). 기본 provider는 여전히 none — 사람이 명시적으로 켠다.
+
+- **C-3.16** ✅: **승격 후보 알림** — 운영 종합 research에 `promotion_ready`(승격 기준 통과 버전 수),
+  다이제스트에 '승격 기준 통과 N개 — 검토하세요(실거래는 사람만)' 경보. 연구→승격→사람검토 루프를
+  운영 화면에서 닫는다. `PromotionReadinessService.ready_count()`. read-only.

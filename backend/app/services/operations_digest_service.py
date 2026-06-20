@@ -55,6 +55,11 @@ class OperationsDigestService:
                 "level": "attention",
                 "text": f"검토 대기 제안 {research['pending_total']}건",
             })
+        if research.get("promotion_ready"):
+            alerts.append({
+                "level": "attention",
+                "text": f"승격 기준 통과 전략 {research['promotion_ready']}개 — 검토하세요(실거래는 사람만)",
+            })
 
         retro = ov["retrospective"]
         if retro["worse"] > retro["improved"]:

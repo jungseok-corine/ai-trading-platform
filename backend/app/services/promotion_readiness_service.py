@@ -72,6 +72,11 @@ class PromotionReadinessService:
             "note": "통과는 '실전 적용 가능 판단'일 뿐 — 실거래 활성화는 사람만 합니다.",
         }
 
+    async def ready_count(self, criteria_id: int | None = None) -> int:
+        """승격 기준을 통과한 활성/테스트 버전 수(요약용). 기준 없으면 0."""
+        board = await self.board(criteria_id=criteria_id)
+        return sum(1 for r in board["rows"] if r["passed"])
+
     async def _pick_criteria(self, criteria_id: int | None) -> PromotionCriteria | None:
         stmt = select(PromotionCriteria)
         if criteria_id is not None:

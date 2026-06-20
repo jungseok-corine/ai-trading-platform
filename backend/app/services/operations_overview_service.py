@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.ai_cost_service import AiCostService
+from app.services.promotion_readiness_service import PromotionReadinessService
 from app.services.proposal_funnel_service import ProposalFunnelService
 from app.services.research_status_service import ResearchStatusService
 from app.services.risk_event_summary_service import RiskEventSummaryService
@@ -25,6 +26,7 @@ class OperationsOverviewService:
         self._cost = AiCostService(session)
         self._trades = TradeActivityService(session)
         self._risk = RiskEventSummaryService(session)
+        self._readiness = PromotionReadinessService(session)
 
     async def overview(self, days: int = 30) -> dict:
         safety = await self._safety.status()
@@ -34,6 +36,7 @@ class OperationsOverviewService:
         cost = await self._cost.summary(days=days)
         trades = await self._trades.summary(days=days)
         risk = await self._risk.summary(days=days)
+        promotion_ready = await self._readiness.ready_count()
 
         return {
             "days": days,
@@ -47,6 +50,7 @@ class OperationsOverviewService:
                 "active_scanner_versions": research_d["active"]["scanner_versions"],
                 "disclosure_alerts": research_d["disclosure_alerts"],
                 "macro_regime": research_d["macro"].get("regime"),
+                "promotion_ready": promotion_ready,
             },
             "funnel": {
                 "generated": funnel["combined"]["generated"],
