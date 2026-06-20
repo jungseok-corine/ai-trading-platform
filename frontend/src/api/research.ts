@@ -419,6 +419,22 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Safety status (C-3.3) -------------------------------------------------
+export interface SafetyStatus {
+  invariants_ok: boolean;
+  real_trading_enabled: boolean;
+  auto_trade_versions: number;
+  guards: { total: number; paused: number };
+  risk: { configs: number; emergency_stops: number };
+  schedulers: Record<string, boolean>;
+  warnings: string[];
+}
+
+export async function getSafetyStatus(): Promise<SafetyStatus> {
+  const { data } = await apiClient.get<SafetyStatus>("/safety-status");
+  return data;
+}
+
 // --- Proposal funnel (C-3.2) -----------------------------------------------
 export interface FunnelStage {
   generated: number;
