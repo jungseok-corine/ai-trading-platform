@@ -55,7 +55,8 @@ class AnalysisBundleService:
         trade_tape = await self._tape_svc.build_for_version(
             strategy_version_id, trading_day
         )
-        macro = await self._macro_svc.latest_regime()
+        # 룩어헤드 방지: trading_day 직전 미국 세션 기준 레짐(같은 날 미국장은 미래).
+        macro = await self._macro_svc.regime_as_of(trading_day)
 
         news = []
         if symbol_code:

@@ -11,6 +11,9 @@ from app.domain.repositories.trade import TradeRepository
 from app.trading.analysis.trade_tape import Candle, TradeEvent, build_trade_tape
 
 KST = ZoneInfo("Asia/Seoul")
+# KR 정규장 (09:00~15:30 KST). 마감 후 평평한/단일대량 캔들 노이즈를 제외하기 위함.
+KR_SESSION_OPEN = time(9, 0)
+KR_SESSION_CLOSE = time(15, 30)
 
 
 class TradeTapeService:
@@ -33,8 +36,12 @@ class TradeTapeService:
         timeframe: str = "1m",
         window: int = 15,
         coarse: int = 15,
+        regular_session_only: bool = True,
     ) -> dict | None:
-        """strategy_version의 trading_day 매매 테이프를 만든다. 버전이 없으면 None."""
+        """strategy_version의 trading_day 매매 테이프를 만든다. 버전이 없으면 None.
+
+        regular_session_only=True면 KR 정규장(09:00~15:30 KST)만 남겨 마감 후 노이즈를 뺀다.
+        """
         version = await self._version_repo.get(strategy_version_id)
         if version is None:
             return None
@@ -52,6 +59,7 @@ class TradeTapeService:
             Candle(ts=c.ts, o=float(c.open), h=float(c.high), lo=float(c.low),
                    c=float(c.close), v=float(c.volume))
             for c in candles_raw
+            if not regular_session_only or self._in_session(c.ts)
         ]
 
         all_trades = await self._trade_repo.list_by_strategy_version(strategy_version_id)
@@ -66,6 +74,12 @@ class TradeTapeService:
             "trade_count": len(trades),
         }
         return tape
+
+    @staticmethod
+    def _in_session(ts: datetime) -> bool:
+        """ts(tz-aware)가 KR 정규장 시간(KST 09:00~15:30)인지."""
+        t = ts.astimezone(KST).time()
+        return KR_SESSION_OPEN <= t <= KR_SESSION_CLOSE
 
     @staticmethod
     def _in_day(trade, start: datetime, end: datetime) -> bool:

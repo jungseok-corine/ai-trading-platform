@@ -46,6 +46,19 @@ class UsMarketSnapshotRepository(BaseRepository[UsMarketSnapshot]):
         )
         return result.scalar_one_or_none()
 
+    async def get_latest_before(self, before_date: date) -> UsMarketSnapshot | None:
+        """before_date보다 엄격히 이전(session_date < before_date)인 최신 스냅샷.
+
+        과거 거래일 분석 시 룩어헤드(미래 미국장)를 막기 위해 쓴다.
+        """
+        result = await self.session.execute(
+            select(UsMarketSnapshot)
+            .where(UsMarketSnapshot.session_date < before_date)
+            .order_by(UsMarketSnapshot.session_date.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def list_recent(self, limit: int = 30) -> list[UsMarketSnapshot]:
         result = await self.session.execute(
             select(UsMarketSnapshot)

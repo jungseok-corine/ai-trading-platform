@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.news_context import UsMarketSnapshot
@@ -94,4 +96,14 @@ class MacroRegimeService:
 
     async def latest_regime(self) -> dict:
         snapshot = await self._us_repo.get_latest()
+        return classify_macro_regime(snapshot)
+
+    async def regime_as_of(self, trading_day: date) -> dict:
+        """trading_day(KR) 직전에 마감된 미국 세션 기준 레짐.
+
+        KR 거래일은 *전일* 미국장을 보고 움직이므로, trading_day와 같은 날짜의 미국
+        세션(아직 끝나지 않은 미래)을 쓰면 룩어헤드가 된다. session_date < trading_day 중
+        최신을 골라 이를 막는다. 해당 데이터가 없으면 regime="unknown".
+        """
+        snapshot = await self._us_repo.get_latest_before(trading_day)
         return classify_macro_regime(snapshot)

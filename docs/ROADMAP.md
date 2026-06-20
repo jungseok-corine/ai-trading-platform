@@ -133,6 +133,8 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.52** ✅: 매매 테이프 빌더(압축+사전계산+notable 가드) + 온디맨드 `/analysis-bundle/trade-tape`
 - **C-2.53** ✅: 전체 분석 번들 합본 `AnalysisBundleService` (전략입력+테이프+매크로+뉴스+노트),
   온디맨드 `GET /analysis-bundle/full`. 기존 스키마 변경 없이 재사용·추가만.
+- **C-2.53.1** ✅(실데이터 점검 보정): ①매크로 룩어헤드 차단(`regime_as_of`=trading_day 직전
+  미국 세션) ②미청산 단건 주문 라벨(`status`/`excursion_basis`) ③장중(09:00~15:30 KST) 필터.
 - **C-2.54**: 국장/미장 **일일 분석 잡**(기본 비활성) → 이 번들을 입력으로 `ai_analysis_run` 자동 생성
 - **C-2.55**: LLM 출력(JSON) → proposal rationale/가설 연결
 - **C-2.56**: 뉴스 **큐레이터 티어**(싼 모델) + 뉴스/공시 소스 provider
