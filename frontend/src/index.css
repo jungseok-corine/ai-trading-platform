@@ -129,6 +129,26 @@ th {
   overflow-x: auto;
 }
 
+/* 운영 종합 관제 통계 카드 (C-3.5) */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.stat-card {
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.stat-card .value {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 .muted {
   color: #888;
   font-size: 13px;

@@ -209,3 +209,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.4** ✅: **AI 분석 실행 감사** — 최근 `ai_analysis_runs`를 실행 메타 + 토큰/추정비용 +
   이 run이 만든 제안 수와 함께 나열(N+1 회피, created_at desc·id desc 정렬). `AnalysisAuditService`
   + `GET /analysis-audit?limit=N` + '분석 감사' 탭. read-only.
+
+- **C-3.5** ✅: **운영 종합 관제**(랜딩) — 안전(C-3.3)·연구 루프(C-2.43)·퍼널(C-3.2)·비용(C-3.1)의
+  핵심 헤드라인만 한 화면에. `OperationsOverviewService`(기존 read-only 서비스 조합) +
+  `GET /operations-overview?days=N` + '운영 종합' 탭(연구소 기본 랜딩). read-only 합본.

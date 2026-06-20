@@ -15,8 +15,10 @@ import AiCostSection from "../components/research/AiCostSection";
 import FunnelSection from "../components/research/FunnelSection";
 import SafetySection from "../components/research/SafetySection";
 import AnalysisAuditSection from "../components/research/AnalysisAuditSection";
+import OperationsSection from "../components/research/OperationsSection";
 
 type Section =
+  | "ops"
   | "pipeline"
   | "proposals"
   | "scanner-proposals"
@@ -35,6 +37,7 @@ type Section =
   | "analysis-audit";
 
 const SECTIONS: { key: Section; label: string }[] = [
+  { key: "ops", label: "운영 종합" },
   { key: "pipeline", label: "파이프라인" },
   { key: "proposals", label: "AI 전략 제안" },
   { key: "scanner-proposals", label: "AI 스캐너 제안" },
@@ -54,7 +57,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 ];
 
 export default function ResearchPage() {
-  const [section, setSection] = useState<Section>("pipeline");
+  const [section, setSection] = useState<Section>("ops");
 
   return (
     <div className="app">
@@ -71,6 +74,7 @@ export default function ResearchPage() {
         ))}
       </div>
 
+      {section === "ops" && <OperationsSection />}
       {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
       {section === "scanner-proposals" && <ScannerProposalsSection />}

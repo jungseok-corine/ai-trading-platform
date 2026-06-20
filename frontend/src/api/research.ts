@@ -419,6 +419,34 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Operations overview (C-3.5) -------------------------------------------
+export interface OperationsOverview {
+  days: number;
+  safety: { invariants_ok: boolean; warnings: string[] };
+  research: {
+    pending_total: number;
+    active_strategy_versions: number;
+    active_scanner_versions: number;
+    disclosure_alerts: number;
+    macro_regime: string | null;
+  };
+  funnel: {
+    generated: number;
+    approved: number;
+    versions_created: number;
+    approval_rate: number | null;
+  };
+  retrospective: { total: number; improved: number; worse: number; inconclusive: number };
+  cost: { responses: number; total_tokens: number; est_cost_usd: number };
+}
+
+export async function getOperationsOverview(days = 30): Promise<OperationsOverview> {
+  const { data } = await apiClient.get<OperationsOverview>("/operations-overview", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Analysis audit (C-3.4) ------------------------------------------------
 export interface AnalysisRunAudit {
   id: number;
