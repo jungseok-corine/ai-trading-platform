@@ -52,6 +52,32 @@ class TradeActivityService:
 
         return {"days": days, "overall": overall, "by_strategy": by_strategy}
 
+    async def equity_curve(self, days: int = 30) -> list[dict]:
+        """일자별 실현손익과 누적 손익(에쿼티 곡선)을 반환한다.
+
+        청산 손익(pnl_amount)이 기록된 거래만 쓴다. 거래일(exit_time 우선, 없으면 created_at)
+        기준으로 묶는다. read-only 집계.
+        """
+        since = datetime.now(timezone.utc) - timedelta(days=max(1, days))
+        trades = (
+            await self._session.execute(select(Trade).where(Trade.created_at >= since))
+        ).scalars().all()
+
+        by_day: dict[str, float] = {}
+        for t in trades:
+            if t.pnl_amount is None:
+                continue
+            ts = t.exit_time or t.created_at
+            day = ts.date().isoformat() if ts else "unknown"
+            by_day[day] = round(by_day.get(day, 0.0) + _f(t.pnl_amount), 2)
+
+        curve: list[dict] = []
+        cumulative = 0.0
+        for day in sorted(by_day):
+            cumulative = round(cumulative + by_day[day], 2)
+            curve.append({"date": day, "realized_pnl": by_day[day], "cumulative_pnl": cumulative})
+        return curve
+
     async def _version_labels(self, version_ids: list[int]) -> dict[int, str]:
         if not version_ids:
             return {}

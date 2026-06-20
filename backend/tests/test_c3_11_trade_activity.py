@@ -53,6 +53,27 @@ async def test_summary_aggregates_wins_losses(db_session: AsyncSession) -> None:
     assert out["by_strategy"][0]["label"] == "ActivityStrat v1"
 
 
+async def test_equity_curve_accumulates(db_session: AsyncSession) -> None:
+    from datetime import datetime, timezone
+
+    acc, sv = await _setup(db_session)
+    t1 = _trade(acc.id, sv.id, 1000)
+    t1.exit_time = datetime(2026, 6, 18, 15, 0, tzinfo=timezone.utc)
+    t2 = _trade(acc.id, sv.id, -300)
+    t2.exit_time = datetime(2026, 6, 19, 15, 0, tzinfo=timezone.utc)
+    t3 = _trade(acc.id, sv.id, 500)
+    t3.exit_time = datetime(2026, 6, 19, 16, 0, tzinfo=timezone.utc)
+    db_session.add_all([t1, t2, t3])
+    await db_session.flush()
+
+    curve = await TradeActivityService(db_session).equity_curve(days=365)
+    assert [p["date"] for p in curve] == ["2026-06-18", "2026-06-19"]
+    assert curve[0]["cumulative_pnl"] == 1000.0
+    # 둘째 날: -300 + 500 = +200, 누적 1200
+    assert curve[1]["realized_pnl"] == 200.0
+    assert curve[1]["cumulative_pnl"] == 1200.0
+
+
 async def test_summary_window_excludes_old(db_session: AsyncSession) -> None:
     acc, sv = await _setup(db_session)
     old = _trade(acc.id, sv.id, 500)

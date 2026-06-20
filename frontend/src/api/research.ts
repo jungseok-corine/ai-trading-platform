@@ -531,6 +531,19 @@ export async function getTradeActivity(days = 30): Promise<TradeActivity> {
   return data;
 }
 
+export interface EquityPoint {
+  date: string;
+  realized_pnl: number;
+  cumulative_pnl: number;
+}
+
+export async function getEquityCurve(days = 30): Promise<EquityPoint[]> {
+  const { data } = await apiClient.get<EquityPoint[]>("/trade-activity/equity-curve", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Data freshness (C-3.10) -----------------------------------------------
 export interface FreshnessSource {
   source: string;

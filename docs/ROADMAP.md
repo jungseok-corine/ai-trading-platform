@@ -276,3 +276,6 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.21** ✅: **연구 루프 전반부 퍼널** — 후보 포착→전략 배정→실험 흐름과 전환율(배정/후보).
   제안 퍼널(C-3.2, 후반부)의 짝. `ResearchFunnelService` + `GET /research-funnel?days=N` +
   '제안 퍼널' 탭을 '연구 루프 퍼널'로 확장(전반부+후반부 한 화면). read-only.
+
+- **C-3.22** ✅: **에쿼티 곡선** — 일자별 실현손익·누적손익. `TradeActivityService.equity_curve(days)`
+  + `GET /trade-activity/equity-curve` + '거래 활동' 탭에 의존성 없는 SVG 누적손익 곡선. read-only.

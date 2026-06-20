@@ -22,3 +22,11 @@ async def get_summary(
     service: TradeActivityService = Depends(get_service),
 ) -> dict:
     return await service.summary(days=days)
+
+
+@router.get("/equity-curve")
+async def get_equity_curve(
+    days: int = Query(30, ge=1, le=365),
+    service: TradeActivityService = Depends(get_service),
+) -> list[dict]:
+    return await service.equity_curve(days=days)
