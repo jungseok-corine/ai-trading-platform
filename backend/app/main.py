@@ -28,6 +28,9 @@ from app.api.v1 import analysis_audit as analysis_audit_api
 from app.api.v1 import operations_digest as operations_digest_api
 from app.api.v1 import operations_overview as operations_overview_api
 from app.api.v1 import portfolio_summary as portfolio_summary_api
+from app.api.v1 import promotion_readiness as promotion_readiness_api
+from app.api.v1 import risk_events as risk_events_api
+from app.api.v1 import trade_activity as trade_activity_api
 from app.api.v1 import proposal_funnel as proposal_funnel_api
 from app.api.v1 import safety_status as safety_status_api
 from app.api.v1 import proposal_retrospective as proposal_retrospective_api
@@ -148,6 +151,9 @@ app.include_router(analysis_audit_api.router, prefix="/api/v1")
 app.include_router(operations_overview_api.router, prefix="/api/v1")
 app.include_router(operations_digest_api.router, prefix="/api/v1")
 app.include_router(portfolio_summary_api.router, prefix="/api/v1")
+app.include_router(trade_activity_api.router, prefix="/api/v1")
+app.include_router(risk_events_api.router, prefix="/api/v1")
+app.include_router(promotion_readiness_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

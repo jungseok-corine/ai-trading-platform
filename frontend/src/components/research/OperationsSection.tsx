@@ -69,6 +69,12 @@ export default function OperationsSection() {
                 : data.cost.budget_status === "warn" ? " 🟠"
                 : data.cost.budget_used_pct !== null ? ` (${data.cost.budget_used_pct}%)` : ""
               }`} accent />
+            <Stat label="거래 (청산/승률)"
+              value={`${data.trading.closed_trades} · ${data.trading.win_rate !== null ? `${data.trading.win_rate}%` : "-"}`} />
+            <Stat label="실현손익 (30일)"
+              value={`${data.trading.total_pnl >= 0 ? "+" : ""}₩${Math.round(data.trading.total_pnl).toLocaleString()}`} />
+            <Stat label="리스크 차단률"
+              value={data.trading.risk_rejection_rate !== null ? `${data.trading.risk_rejection_rate}%` : "-"} />
           </div>
         </>
       )}

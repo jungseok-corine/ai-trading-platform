@@ -428,6 +428,109 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Promotion readiness (C-3.13) ------------------------------------------
+export interface PromotionCheck {
+  name: string;
+  passed: boolean;
+  actual: string;
+  threshold: string;
+}
+
+export interface PromotionReadinessRow {
+  strategy_version_id: number;
+  label: string;
+  status: string;
+  passed: boolean;
+  checks_passed: number;
+  checks_total: number;
+  trades_count: number;
+  days: number;
+  expectancy: number;
+  max_drawdown: number;
+  checks: PromotionCheck[];
+}
+
+export interface PromotionReadiness {
+  criteria: {
+    id: number;
+    name: string;
+    market: string;
+    min_trade_count: number;
+    min_days: number;
+    min_expectancy: number;
+    max_drawdown: number | null;
+  } | null;
+  rows: PromotionReadinessRow[];
+  note: string;
+}
+
+export async function getPromotionReadiness(criteriaId?: number): Promise<PromotionReadiness> {
+  const { data } = await apiClient.get<PromotionReadiness>("/promotion-readiness", {
+    params: criteriaId ? { criteria_id: criteriaId } : undefined,
+  });
+  return data;
+}
+
+// --- Risk events (C-3.12) --------------------------------------------------
+export interface RiskRuleRow {
+  rule_name: string;
+  approved: number;
+  rejected: number;
+}
+
+export interface RiskRejection {
+  rule_name: string | null;
+  reason: string | null;
+  strategy_version_id: number | null;
+  created_at: string | null;
+}
+
+export interface RiskEventSummary {
+  days: number;
+  total: number;
+  approved: number;
+  rejected: number;
+  rejection_rate: number | null;
+  by_rule: RiskRuleRow[];
+  recent_rejections: RiskRejection[];
+}
+
+export async function getRiskEventSummary(days = 30): Promise<RiskEventSummary> {
+  const { data } = await apiClient.get<RiskEventSummary>("/risk-events/summary", {
+    params: { days },
+  });
+  return data;
+}
+
+// --- Trade activity (C-3.11) -----------------------------------------------
+export interface TradeBucket {
+  trades: number;
+  closed: number;
+  wins: number;
+  losses: number;
+  total_pnl: number;
+  win_rate: number | null;
+  avg_pnl: number | null;
+}
+
+export interface TradeStrategyRow extends TradeBucket {
+  strategy_version_id: number | null;
+  label: string;
+}
+
+export interface TradeActivity {
+  days: number;
+  overall: TradeBucket;
+  by_strategy: TradeStrategyRow[];
+}
+
+export async function getTradeActivity(days = 30): Promise<TradeActivity> {
+  const { data } = await apiClient.get<TradeActivity>("/trade-activity", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Data freshness (C-3.10) -----------------------------------------------
 export interface FreshnessSource {
   source: string;
@@ -525,6 +628,13 @@ export interface OperationsOverview {
     est_cost_usd: number;
     budget_status: "ok" | "warn" | "over" | "disabled";
     budget_used_pct: number | null;
+  };
+  trading: {
+    closed_trades: number;
+    win_rate: number | null;
+    total_pnl: number;
+    risk_rejected: number;
+    risk_rejection_rate: number | null;
   };
 }
 

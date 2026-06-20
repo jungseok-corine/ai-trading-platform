@@ -18,6 +18,9 @@ import AnalysisAuditSection from "../components/research/AnalysisAuditSection";
 import OperationsSection from "../components/research/OperationsSection";
 import PortfolioSection from "../components/research/PortfolioSection";
 import DataFreshnessSection from "../components/research/DataFreshnessSection";
+import TradeActivitySection from "../components/research/TradeActivitySection";
+import RiskEventsSection from "../components/research/RiskEventsSection";
+import PromotionReadinessSection from "../components/research/PromotionReadinessSection";
 
 type Section =
   | "ops"
@@ -38,7 +41,10 @@ type Section =
   | "safety"
   | "analysis-audit"
   | "portfolio"
-  | "freshness";
+  | "freshness"
+  | "trade-activity"
+  | "risk-events"
+  | "promotion-readiness";
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "ops", label: "운영 종합" },
@@ -60,6 +66,9 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "analysis-audit", label: "분석 감사" },
   { key: "portfolio", label: "포트폴리오" },
   { key: "freshness", label: "데이터 신선도" },
+  { key: "trade-activity", label: "거래 활동" },
+  { key: "risk-events", label: "리스크 이벤트" },
+  { key: "promotion-readiness", label: "승격 준비" },
 ];
 
 export default function ResearchPage() {
@@ -99,6 +108,9 @@ export default function ResearchPage() {
       {section === "analysis-audit" && <AnalysisAuditSection />}
       {section === "portfolio" && <PortfolioSection />}
       {section === "freshness" && <DataFreshnessSection />}
+      {section === "trade-activity" && <TradeActivitySection />}
+      {section === "risk-events" && <RiskEventsSection />}
+      {section === "promotion-readiness" && <PromotionReadinessSection />}
     </div>
   );
 }

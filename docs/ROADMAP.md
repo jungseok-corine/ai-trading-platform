@@ -234,3 +234,22 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.10** ✅: **데이터 신선도 점검** — 시세/미국장/뉴스/DART의 최신 타임스탬프·경과 시간·stale
   여부. 데이터 없는 소스(미사용 가능)는 stale로 안 봄(거짓 경보 방지). `DataFreshnessService` +
   `GET /data-freshness` + '데이터 신선도' 탭 + 다이제스트에 stale 경보 통합. read-only.
+
+- **C-3.11** ✅: **거래 활동 요약** — 최근 거래 건수·승패·승률·손익을 전체/전략버전별로(청산 손익
+  있는 거래만 승패·손익 집계, 미청산은 건수만). `TradeActivityService` + `GET /trade-activity?days=N`
+  + '거래 활동' 탭. read-only.
+
+- **C-3.12** ✅: **리스크 이벤트 요약** — 리스크 레이어 승인/차단 기록을 룰별·최근 차단 목록으로.
+  차단률·룰별 집중도로 전략/리스크 설정 점검 신호. `RiskEventSummaryService` +
+  `GET /risk-events/summary?days=N` + '리스크 이벤트' 탭. read-only.
+
+- **C-3.13** ✅: **승격 준비 보드** — 활성/테스트 전략 버전을 승격 기준에 평가(persist=False)해
+  근접도(통과/충족 체크 수)를 표로. ⚠️ 통과는 판단일 뿐, 실거래 활성화는 사람만(안전 불변식).
+  `PromotionReadinessService`(PromotionService 재사용) + `GET /promotion-readiness` + '승격 준비' 탭.
+
+- **C-3.14** ✅: **운영 종합/다이제스트에 거래·리스크 통합** — 운영 종합에 trading 블록(청산·승률·
+  실현손익·리스크 차단률) 추가, 다이제스트에 '실현손익 마이너스'·'차단률 50%↑(표본 5↑)' 경보 추가.
+
+- **C-3.15** ✅: **Telegram 알림 채널** — `TelegramChannel`(bot token+chat_id 모두 있을 때만 전송,
+  없으면 no-op). factory에 telegram 등록, config `telegram_bot_token`/`telegram_chat_id`.
+  테스트는 httpx MockTransport(외부 네트워크 없음). 기본 provider는 여전히 none — 사람이 명시적으로 켠다.

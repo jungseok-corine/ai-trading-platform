@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.ai_cost_service import AiCostService
 from app.services.proposal_funnel_service import ProposalFunnelService
 from app.services.research_status_service import ResearchStatusService
+from app.services.risk_event_summary_service import RiskEventSummaryService
 from app.services.safety_status_service import SafetyStatusService
+from app.services.trade_activity_service import TradeActivityService
 
 
 class OperationsOverviewService:
@@ -21,6 +23,8 @@ class OperationsOverviewService:
         self._research = ResearchStatusService(session)
         self._funnel = ProposalFunnelService(session)
         self._cost = AiCostService(session)
+        self._trades = TradeActivityService(session)
+        self._risk = RiskEventSummaryService(session)
 
     async def overview(self, days: int = 30) -> dict:
         safety = await self._safety.status()
@@ -28,6 +32,8 @@ class OperationsOverviewService:
         research_d = research.to_dict()
         funnel = await self._funnel.funnel(days=days)
         cost = await self._cost.summary(days=days)
+        trades = await self._trades.summary(days=days)
+        risk = await self._risk.summary(days=days)
 
         return {
             "days": days,
@@ -55,5 +61,12 @@ class OperationsOverviewService:
                 "est_cost_usd": cost["total"]["est_cost_usd"],
                 "budget_status": cost["budget"]["status"],
                 "budget_used_pct": cost["budget"]["used_pct"],
+            },
+            "trading": {
+                "closed_trades": trades["overall"]["closed"],
+                "win_rate": trades["overall"]["win_rate"],
+                "total_pnl": trades["overall"]["total_pnl"],
+                "risk_rejected": risk["rejected"],
+                "risk_rejection_rate": risk["rejection_rate"],
             },
         }

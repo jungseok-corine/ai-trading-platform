@@ -150,9 +150,12 @@ class Settings(BaseSettings):
     # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
     ai_analysis_min_confidence: float = 0.5
 
-    # 운영 알림 채널 (C-3.8). 기본 none(외부 전송 없음). "log"는 로거에만 남긴다.
-    # 외부 채널(telegram 등)은 사용자가 토큰을 넣고 명시적으로 켤 때 붙인다.
+    # 운영 알림 채널 (C-3.8/C-3.15). 기본 none(외부 전송 없음). "log"는 로거에만 남긴다.
+    # "telegram"은 아래 토큰/chat_id가 모두 있을 때만 전송(없으면 no-op). 사용자가 명시적으로 켠다.
     notification_provider: str = "none"
+    notification_timeout_seconds: float = 10.0
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
 
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
