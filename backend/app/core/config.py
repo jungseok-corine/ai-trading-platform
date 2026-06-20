@@ -150,6 +150,11 @@ class Settings(BaseSettings):
     # LLM 출력→제안 연결 (C-2.56). 가설 confidence가 이 값 이상일 때만 pending 제안 생성.
     ai_analysis_min_confidence: float = 0.5
 
+    # 뉴스 큐레이터 LLM 정밀화 (C-2.65). 기본 비활성(룰 기반만). 켜면 싼 모델로 보강.
+    news_curator_llm_enabled: bool = False
+    news_curator_provider: str = "fake"
+    news_curator_model: str | None = None
+
     # DART 공시 수집 (C-2.59). 무료 키. 기본 비활성 — 보유/관심 종목 중요 공시만 저장.
     dart_api_key: str | None = None
     dart_provider_timeout_seconds: float = 10.0

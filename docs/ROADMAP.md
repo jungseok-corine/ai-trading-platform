@@ -95,6 +95,17 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 2. **SOX 강세 시 반도체 테마 후보 가중 / risk_off 시 신규 후보 점수 하향** (스캔 단계 매크로 반영).
 3. 회고 UI 보강(제안별 회고 테이블), 회고 결과를 제안 생성에 피드백.
 
+- **C-2.63** ✅: 매크로를 **스캔 단계 후보 점수**에 반영 — `macro_score_adjustment`
+  (risk_off ×0.85, risk_on ×1.05, 반도체테마×SOX강세 ×1.15/약세 ×0.9). 스캔 시 regime_as_of +
+  반도체 테마 종목 집합 조회해 후보 score 조정(원점수는 facts에 보존).
+
+- **C-2.64** ✅: 회고 UI(제안별 회고 테이블, '제안 회고' 탭) + **회고→AI 피드백**
+  (분석 번들에 retrospective 요약 주입 → 프롬프트에 '악화 많으면 신중' 노출).
+
+- **C-2.65** ✅: 뉴스 큐레이터 **LLM 정밀화**(옵션, 기본 off) — 룰이 놓친 중요 뉴스를
+  싼 모델이 0~1 점수로 보강. `final=max(rule, llm)`. `news_llm_score`(프롬프트/파서) +
+  `NewsCuratorService(llm_provider=)`. 실패 시 룰로 폴백. config `news_curator_llm_*`.
+
 ## 5. 보류 항목
 
 - **US 실시간(분봉/틱)**: KIS 해외 실시간 승인 또는 Polygon 유료. 현재는 일별 EOD로 충분.
@@ -158,7 +169,8 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   (전체 캔들+마커, 비압축) + 의존성 없는 SVG 캔들차트(▲매수/▼매도, 진입/청산). '매매 차트' 탭.
 - **C-2.61** ✅: 공시 알림 — `DisclosureAlertService`(수집된 DART 중요 공시 최신순) +
   `GET /dart/alerts` + 관제탑에 `disclosure_alerts` 수·목록 노출. (감지·표시만, 대응은 사람)
-- **C-2.62**(후속): 공시 발생 시 온디맨드 AI 평가(보유 포지션 영향) — §7.1 심화
+- **C-2.62** ✅: 공시 온디맨드 AI 평가 — `DisclosureAssessmentService`(공시→LLM→JSON:
+  impact/severity/action_hint/rationale, enum 보정). API `POST /dart/assess`. AI는 평가만, 대응은 사람.
 
 ### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — 계획
 > 일일 분석과 별개로, **전략이 매매 중인 종목**에 한해 장중 중요 이벤트를 감시.

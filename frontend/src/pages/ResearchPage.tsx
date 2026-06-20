@@ -10,6 +10,7 @@ import PromotionsSection from "../components/research/PromotionsSection";
 import MarketContextSection from "../components/research/MarketContextSection";
 import PipelineSection from "../components/research/PipelineSection";
 import ChartSection from "../components/research/ChartSection";
+import RetrospectiveSection from "../components/research/RetrospectiveSection";
 
 type Section =
   | "pipeline"
@@ -22,7 +23,8 @@ type Section =
   | "reports"
   | "promotions"
   | "context"
-  | "chart";
+  | "chart"
+  | "retro";
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "pipeline", label: "파이프라인" },
@@ -36,6 +38,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "promotions", label: "실전 승격" },
   { key: "context", label: "시장 맥락" },
   { key: "chart", label: "매매 차트" },
+  { key: "retro", label: "제안 회고" },
 ];
 
 export default function ResearchPage() {
@@ -67,6 +70,7 @@ export default function ResearchPage() {
       {section === "promotions" && <PromotionsSection />}
       {section === "context" && <MarketContextSection />}
       {section === "chart" && <ChartSection />}
+      {section === "retro" && <RetrospectiveSection />}
     </div>
   );
 }
