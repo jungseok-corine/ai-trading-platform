@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.data_freshness_service import DataFreshnessService
 from app.services.operations_overview_service import OperationsOverviewService
 
 # 심각도 순서(정렬/집계용).
@@ -20,6 +21,7 @@ class OperationsDigestService:
 
     def __init__(self, session: AsyncSession) -> None:
         self._overview = OperationsOverviewService(session)
+        self._freshness = DataFreshnessService(session)
 
     async def build(self, days: int = 30) -> dict:
         ov = await self._overview.overview(days=days)
@@ -59,6 +61,13 @@ class OperationsDigestService:
             alerts.append({
                 "level": "attention",
                 "text": f"회고 악화({retro['worse']}) > 개선({retro['improved']}) — 제안 기준 재검토",
+            })
+
+        freshness = await self._freshness.status()
+        if freshness["stale_count"]:
+            alerts.append({
+                "level": "attention",
+                "text": f"데이터 신선도: {', '.join(freshness['stale_sources'])} 오래됨 — 수집 점검",
             })
 
         severity = "ok"

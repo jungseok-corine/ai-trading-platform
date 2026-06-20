@@ -14,6 +14,7 @@ from app.api.v1 import daily_analysis as daily_analysis_api
 from app.api.v1 import dart as dart_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
+from app.api.v1 import data_freshness as data_freshness_api
 from app.api.v1 import data_refresh as data_refresh_api
 from app.api.v1 import engine as engine_api
 from app.api.v1 import experiments as experiments_api
@@ -137,6 +138,7 @@ app.include_router(daily_reports_api.router, prefix="/api/v1")
 app.include_router(promotions_api.router, prefix="/api/v1")
 app.include_router(proposal_retrospective_api.router, prefix="/api/v1")
 app.include_router(data_refresh_api.router, prefix="/api/v1")
+app.include_router(data_freshness_api.router, prefix="/api/v1")
 app.include_router(research_pipeline_api.router, prefix="/api/v1")
 app.include_router(research_status_api.router, prefix="/api/v1")
 app.include_router(ai_cost_api.router, prefix="/api/v1")

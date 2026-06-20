@@ -230,3 +230,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.9** ✅: **운영 다이제스트 스케줄러 잡**(기본 비활성) — 매일 다이제스트를 만들어 조치 항목이
   있으면 설정 채널로 전송. `run_operations_digest_job` + config `operations_digest_scheduler_*`.
   채널 기본 none이라 켜도 외부 전송 없음(채널 함께 설정해야 발송). 새 잡은 기본 off 규칙 준수.
+
+- **C-3.10** ✅: **데이터 신선도 점검** — 시세/미국장/뉴스/DART의 최신 타임스탬프·경과 시간·stale
+  여부. 데이터 없는 소스(미사용 가능)는 stale로 안 봄(거짓 경보 방지). `DataFreshnessService` +
+  `GET /data-freshness` + '데이터 신선도' 탭 + 다이제스트에 stale 경보 통합. read-only.

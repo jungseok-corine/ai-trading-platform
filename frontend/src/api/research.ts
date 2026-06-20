@@ -428,6 +428,28 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Data freshness (C-3.10) -----------------------------------------------
+export interface FreshnessSource {
+  source: string;
+  present: boolean;
+  last_at: string | null;
+  age_hours: number | null;
+  threshold_hours: number;
+  stale: boolean;
+}
+
+export interface DataFreshness {
+  checked_at: string;
+  sources: FreshnessSource[];
+  stale_count: number;
+  stale_sources: string[];
+}
+
+export async function getDataFreshness(): Promise<DataFreshness> {
+  const { data } = await apiClient.get<DataFreshness>("/data-freshness");
+  return data;
+}
+
 // --- Operations digest (C-3.8) ---------------------------------------------
 export interface DigestAlert {
   level: "alert" | "attention";
