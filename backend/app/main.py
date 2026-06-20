@@ -14,6 +14,7 @@ from app.api.v1 import daily_analysis as daily_analysis_api
 from app.api.v1 import dart as dart_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
+from app.api.v1 import data_freshness as data_freshness_api
 from app.api.v1 import data_refresh as data_refresh_api
 from app.api.v1 import engine as engine_api
 from app.api.v1 import experiments as experiments_api
@@ -24,7 +25,9 @@ from app.api.v1 import news_context as news_context_api
 from app.api.v1 import promotions as promotions_api
 from app.api.v1 import ai_cost as ai_cost_api
 from app.api.v1 import analysis_audit as analysis_audit_api
+from app.api.v1 import operations_digest as operations_digest_api
 from app.api.v1 import operations_overview as operations_overview_api
+from app.api.v1 import portfolio_summary as portfolio_summary_api
 from app.api.v1 import proposal_funnel as proposal_funnel_api
 from app.api.v1 import safety_status as safety_status_api
 from app.api.v1 import proposal_retrospective as proposal_retrospective_api
@@ -135,6 +138,7 @@ app.include_router(daily_reports_api.router, prefix="/api/v1")
 app.include_router(promotions_api.router, prefix="/api/v1")
 app.include_router(proposal_retrospective_api.router, prefix="/api/v1")
 app.include_router(data_refresh_api.router, prefix="/api/v1")
+app.include_router(data_freshness_api.router, prefix="/api/v1")
 app.include_router(research_pipeline_api.router, prefix="/api/v1")
 app.include_router(research_status_api.router, prefix="/api/v1")
 app.include_router(ai_cost_api.router, prefix="/api/v1")
@@ -142,6 +146,8 @@ app.include_router(proposal_funnel_api.router, prefix="/api/v1")
 app.include_router(safety_status_api.router, prefix="/api/v1")
 app.include_router(analysis_audit_api.router, prefix="/api/v1")
 app.include_router(operations_overview_api.router, prefix="/api/v1")
+app.include_router(operations_digest_api.router, prefix="/api/v1")
+app.include_router(portfolio_summary_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

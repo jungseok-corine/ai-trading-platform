@@ -213,3 +213,24 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.5** ✅: **운영 종합 관제**(랜딩) — 안전(C-3.3)·연구 루프(C-2.43)·퍼널(C-3.2)·비용(C-3.1)의
   핵심 헤드라인만 한 화면에. `OperationsOverviewService`(기존 read-only 서비스 조합) +
   `GET /operations-overview?days=N` + '운영 종합' 탭(연구소 기본 랜딩). read-only 합본.
+
+- **C-3.6** ✅: **포트폴리오·노출 집계** — 보유 포지션(수량≠0)을 시가평가·미실현손익·종목별
+  노출 비중으로. 현재가 미수신이면 평단으로 평가(has_price 표시). `PortfolioSummaryService` +
+  `GET /portfolio-summary?account_id=` + '포트폴리오' 탭. read-only(시세 갱신은 동기화 잡 몫).
+
+- **C-3.7** ✅: **AI 비용 예산 가드** — config `ai_cost_monthly_budget_usd`/`alert_threshold_pct`.
+  비용 요약에 윈도 추정비용 대비 ok/warn/over/disabled 판정(`budget` 블록) 추가, 운영 종합·AI
+  비용 탭에 신호등 노출. 예산 0이면 disabled. 단가 추정이므로 경보는 가늠자(사람 최종 판단).
+
+- **C-3.8** ✅: **운영 다이제스트 + 알림 채널** — 운영 종합에서 '조치 필요'만 추려 다이제스트로
+  (안전 드리프트/예산 초과/검토 대기/공시/회고 악화). `OperationsDigestService` +
+  `GET /operations-digest`(미리보기) + `POST /notify`(설정 채널 전송). 알림 채널 추상화
+  (`notifications/`: none/log, 기본 none=no-op) — 외부 채널은 토큰 준비 시 추가. 운영 종합 상단 노출.
+
+- **C-3.9** ✅: **운영 다이제스트 스케줄러 잡**(기본 비활성) — 매일 다이제스트를 만들어 조치 항목이
+  있으면 설정 채널로 전송. `run_operations_digest_job` + config `operations_digest_scheduler_*`.
+  채널 기본 none이라 켜도 외부 전송 없음(채널 함께 설정해야 발송). 새 잡은 기본 off 규칙 준수.
+
+- **C-3.10** ✅: **데이터 신선도 점검** — 시세/미국장/뉴스/DART의 최신 타임스탬프·경과 시간·stale
+  여부. 데이터 없는 소스(미사용 가능)는 stale로 안 봄(거짓 경보 방지). `DataFreshnessService` +
+  `GET /data-freshness` + '데이터 신선도' 탭 + 다이제스트에 stale 경보 통합. read-only.

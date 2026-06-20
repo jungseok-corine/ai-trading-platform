@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.domain.models.ai_analysis import AiModelResponse
 from app.trading.analysis.model_pricing import estimate_cost
 
@@ -93,4 +94,30 @@ class AiCostService:
             "by_model": models,
             "by_day": daily,
             "unpriced_models": sorted(unpriced),
+            "budget": self._budget_block(total["est_cost_usd"]),
+        }
+
+    def _budget_block(self, used_usd: float) -> dict:
+        """설정된 예산 대비 사용액 상태(ok/warn/over/disabled)를 매긴다.
+
+        예산이 0이면 가드 비활성(disabled). 단가는 추정치이므로 경보는 가늠자다.
+        """
+        s = get_settings()
+        budget = float(s.ai_cost_monthly_budget_usd or 0.0)
+        threshold = float(s.ai_cost_alert_threshold_pct or 0.0)
+        if budget <= 0:
+            return {
+                "budget_usd": 0.0, "used_usd": round(used_usd, 6),
+                "used_pct": None, "threshold_pct": threshold, "status": "disabled",
+            }
+        used_pct = round(used_usd / budget * 100, 1)
+        if used_pct >= 100:
+            status = "over"
+        elif used_pct >= threshold:
+            status = "warn"
+        else:
+            status = "ok"
+        return {
+            "budget_usd": round(budget, 2), "used_usd": round(used_usd, 6),
+            "used_pct": used_pct, "threshold_pct": threshold, "status": status,
         }

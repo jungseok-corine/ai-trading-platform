@@ -53,5 +53,7 @@ class OperationsOverviewService:
                 "responses": cost["total"]["responses"],
                 "total_tokens": cost["total"]["total_tokens"],
                 "est_cost_usd": cost["total"]["est_cost_usd"],
+                "budget_status": cost["budget"]["status"],
+                "budget_used_pct": cost["budget"]["used_pct"],
             },
         }

@@ -398,6 +398,14 @@ export interface AiCostDayRow {
   est_cost_usd: number;
 }
 
+export interface AiCostBudget {
+  budget_usd: number;
+  used_usd: number;
+  used_pct: number | null;
+  threshold_pct: number;
+  status: "ok" | "warn" | "over" | "disabled";
+}
+
 export interface AiCostSummary {
   days: number;
   total: {
@@ -410,12 +418,86 @@ export interface AiCostSummary {
   by_model: AiCostModelRow[];
   by_day: AiCostDayRow[];
   unpriced_models: string[];
+  budget: AiCostBudget;
 }
 
 export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   const { data } = await apiClient.get<AiCostSummary>("/ai-cost/summary", {
     params: { days },
   });
+  return data;
+}
+
+// --- Data freshness (C-3.10) -----------------------------------------------
+export interface FreshnessSource {
+  source: string;
+  present: boolean;
+  last_at: string | null;
+  age_hours: number | null;
+  threshold_hours: number;
+  stale: boolean;
+}
+
+export interface DataFreshness {
+  checked_at: string;
+  sources: FreshnessSource[];
+  stale_count: number;
+  stale_sources: string[];
+}
+
+export async function getDataFreshness(): Promise<DataFreshness> {
+  const { data } = await apiClient.get<DataFreshness>("/data-freshness");
+  return data;
+}
+
+// --- Operations digest (C-3.8) ---------------------------------------------
+export interface DigestAlert {
+  level: "alert" | "attention";
+  text: string;
+}
+
+export interface OperationsDigest {
+  generated_at: string;
+  severity: "ok" | "attention" | "alert";
+  has_alerts: boolean;
+  alerts: DigestAlert[];
+  summary_line: string;
+}
+
+export async function getOperationsDigest(days = 30): Promise<OperationsDigest> {
+  const { data } = await apiClient.get<OperationsDigest>("/operations-digest", {
+    params: { days },
+  });
+  return data;
+}
+
+// --- Portfolio summary (C-3.6) ---------------------------------------------
+export interface PortfolioPosition {
+  account_id: number;
+  symbol_code: string;
+  symbol_name: string | null;
+  quantity: number;
+  avg_entry_price: number;
+  last_price: number;
+  cost_basis: number;
+  market_value: number;
+  unrealized_pnl: number;
+  unrealized_pct: number | null;
+  exposure_pct: number | null;
+  has_price: boolean;
+}
+
+export interface PortfolioSummary {
+  open_positions: number;
+  total_market_value: number;
+  total_cost_basis: number;
+  total_unrealized_pnl: number;
+  total_realized_pnl: number;
+  positions: PortfolioPosition[];
+}
+
+export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+  const { data } = await apiClient.get<PortfolioSummary>("/portfolio-summary");
   return data;
 }
 
@@ -437,7 +519,13 @@ export interface OperationsOverview {
     approval_rate: number | null;
   };
   retrospective: { total: number; improved: number; worse: number; inconclusive: number };
-  cost: { responses: number; total_tokens: number; est_cost_usd: number };
+  cost: {
+    responses: number;
+    total_tokens: number;
+    est_cost_usd: number;
+    budget_status: "ok" | "warn" | "over" | "disabled";
+    budget_used_pct: number | null;
+  };
 }
 
 export async function getOperationsOverview(days = 30): Promise<OperationsOverview> {

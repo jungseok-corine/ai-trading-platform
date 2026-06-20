@@ -42,6 +42,18 @@ export default function AiCostSection() {
             총 호출 {num(data.total.responses)}건 · 토큰 {num(data.total.total_tokens)} ·
             추정비용 <strong>{usd(data.total.est_cost_usd)}</strong>
           </p>
+          {data.budget.status === "disabled" ? (
+            <p className="muted">
+              예산 미설정 — AI_COST_MONTHLY_BUDGET_USD를 설정하면 예산 대비 경보가 켜집니다.
+            </p>
+          ) : (
+            <p className="action-result value">
+              {data.budget.status === "over" ? "🔴" : data.budget.status === "warn" ? "🟠" : "🟢"}{" "}
+              예산 {usd(data.budget.budget_usd)} 중 {data.budget.used_pct}% 사용
+              {data.budget.status === "over" && " — 예산 초과!"}
+              {data.budget.status === "warn" && ` — 임계 ${data.budget.threshold_pct}% 도달`}
+            </p>
+          )}
           {data.unpriced_models.length > 0 && (
             <p className="muted">⚠️ 단가 미상(비용 0 처리): {data.unpriced_models.join(", ")}</p>
           )}

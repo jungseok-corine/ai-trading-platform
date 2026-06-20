@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.data_freshness_service import DataFreshnessService
+from app.services.operations_overview_service import OperationsOverviewService
+
+# 심각도 순서(정렬/집계용).
+_SEVERITY_ORDER = {"ok": 0, "attention": 1, "alert": 2}
+
+
+class OperationsDigestService:
+    """운영 종합을 '조치가 필요한 것'만 추려 사람이 읽을 다이제스트로 만든다 (C-3.8).
+
+    운영 종합(C-3.5)을 받아 안전 드리프트/예산 초과/검토 대기/공시 알림/회고 악화 등
+    '봐야 할 것'만 한 줄씩 뽑는다. read-only 생성 — 어떤 상태도 바꾸지 않으며, 외부로
+    보내는 행위는 별도 알림 채널(기본 none/no-op)의 몫이다.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._overview = OperationsOverviewService(session)
+        self._freshness = DataFreshnessService(session)
+
+    async def build(self, days: int = 30) -> dict:
+        ov = await self._overview.overview(days=days)
+        alerts: list[dict] = []
+
+        safety = ov["safety"]
+        if not safety["invariants_ok"]:
+            for w in safety["warnings"]:
+                alerts.append({"level": "alert", "text": f"안전 불변식: {w}"})
+
+        cost = ov["cost"]
+        if cost["budget_status"] == "over":
+            alerts.append({
+                "level": "alert",
+                "text": f"AI 비용 예산 초과 ({cost['budget_used_pct']}% 사용)",
+            })
+        elif cost["budget_status"] == "warn":
+            alerts.append({
+                "level": "attention",
+                "text": f"AI 비용 예산 임계 도달 ({cost['budget_used_pct']}% 사용)",
+            })
+
+        research = ov["research"]
+        if research["disclosure_alerts"]:
+            alerts.append({
+                "level": "attention",
+                "text": f"중요 공시 알림 {research['disclosure_alerts']}건 — 확인 필요",
+            })
+        if research["pending_total"]:
+            alerts.append({
+                "level": "attention",
+                "text": f"검토 대기 제안 {research['pending_total']}건",
+            })
+
+        retro = ov["retrospective"]
+        if retro["worse"] > retro["improved"]:
+            alerts.append({
+                "level": "attention",
+                "text": f"회고 악화({retro['worse']}) > 개선({retro['improved']}) — 제안 기준 재검토",
+            })
+
+        freshness = await self._freshness.status()
+        if freshness["stale_count"]:
+            alerts.append({
+                "level": "attention",
+                "text": f"데이터 신선도: {', '.join(freshness['stale_sources'])} 오래됨 — 수집 점검",
+            })
+
+        severity = "ok"
+        for a in alerts:
+            if _SEVERITY_ORDER[a["level"]] > _SEVERITY_ORDER[severity]:
+                severity = a["level"]
+        alerts.sort(key=lambda a: _SEVERITY_ORDER[a["level"]], reverse=True)
+
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "severity": severity,
+            "has_alerts": bool(alerts),
+            "alerts": alerts,
+            "summary_line": self._summary_line(severity, alerts),
+        }
+
+    @staticmethod
+    def _summary_line(severity: str, alerts: list[dict]) -> str:
+        if not alerts:
+            return "✅ 조치가 필요한 항목이 없습니다."
+        icon = "🔴" if severity == "alert" else "🟠"
+        return f"{icon} 조치 필요 {len(alerts)}건 (최고 심각도: {severity})"
+
+    def render_text(self, digest: dict) -> str:
+        """다이제스트를 알림 채널로 보낼 평문으로 렌더링한다."""
+        lines = [digest["summary_line"]]
+        for a in digest["alerts"]:
+            mark = "‼️" if a["level"] == "alert" else "•"
+            lines.append(f"{mark} {a['text']}")
+        return "\n".join(lines)
