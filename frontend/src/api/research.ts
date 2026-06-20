@@ -267,6 +267,39 @@ export async function rejectScannerProposal(
   return data;
 }
 
+// --- Trade chart (C-2.60) --------------------------------------------------
+export interface ChartCandle {
+  ts: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+export interface ChartMarker {
+  ts: string;
+  side: string;
+  price: number;
+  kind: "entry" | "exit";
+}
+export interface ChartData {
+  symbol_code: string;
+  trading_day: string;
+  timeframe: string;
+  candles: ChartCandle[];
+  markers: ChartMarker[];
+}
+
+export async function getChartData(
+  strategyVersionId: number,
+  tradingDay: string,
+): Promise<ChartData> {
+  const { data } = await apiClient.get<ChartData>("/analysis-bundle/chart-data", {
+    params: { strategy_version_id: strategyVersionId, trading_day: tradingDay },
+  });
+  return data;
+}
+
 // --- Research status (C-2.43) ----------------------------------------------
 export interface ResearchJobStatus {
   job_id: string;
