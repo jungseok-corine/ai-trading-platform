@@ -15,6 +15,7 @@ from app.domain.repositories.scanner import (
 )
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 from app.trading.scanner.conditions import evaluate_conditions
+from app.trading.scanner.macro_score import macro_score_adjustment
 
 
 @dataclass
@@ -46,10 +47,14 @@ class CandidateService:
         symbol_facts: dict[str, dict[str, Any]],
         triggered_at: datetime | None = None,
         context_snapshot_id: int | None = None,
+        macro: dict | None = None,
+        semis_symbols: set[str] | None = None,
     ) -> ScanResult:
         """룰 버전의 조건을 각 종목 facts에 대해 평가하고, 매칭된 종목을 기록한다.
 
         symbol_facts 예: {"005930": {"volume_ratio": 2.1, "price_change_pct": 5.3}, ...}
+        macro가 주어지면 후보 점수를 매크로 레짐으로 조정한다(C-2.63): risk_off면 하향,
+        반도체 강세 + 반도체 테마 종목이면 가산.
         """
         version = await self._version_repo.get(scanner_rule_version_id)
         if version is None:
@@ -57,12 +62,23 @@ class CandidateService:
 
         rule = await self._rule_repo.get(version.scanner_rule_id)
         market = rule.market if rule is not None else MarketCode.KR
+        regime = (macro or {}).get("regime")
+        semis_strength = (macro or {}).get("semis_strength")
+        semis_symbols = semis_symbols or set()
 
         candidates: list[CandidateEvent] = []
         for symbol_code, facts in symbol_facts.items():
             result = evaluate_conditions(version.conditions, facts)
             if not result.matched:
                 continue
+            score = result.score
+            if macro:
+                adjusted = macro_score_adjustment(
+                    score, regime, semis_strength, symbol_code in semis_symbols
+                )
+                if adjusted != score:
+                    facts = {**facts, "_base_score": score, "_macro_regime": regime}
+                score = adjusted
             extra: dict[str, Any] = {}
             if triggered_at is not None:
                 extra["triggered_at"] = triggered_at
@@ -70,7 +86,7 @@ class CandidateService:
                 scanner_rule_version_id=scanner_rule_version_id,
                 market=market,
                 symbol_code=symbol_code,
-                score=result.score,
+                score=score,
                 matched_conditions=result.matched_conditions,
                 facts=facts,
                 context_snapshot_id=context_snapshot_id,
