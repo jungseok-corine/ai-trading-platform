@@ -279,3 +279,6 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 
 - **C-3.22** ✅: **에쿼티 곡선** — 일자별 실현손익·누적손익. `TradeActivityService.equity_curve(days)`
   + `GET /trade-activity/equity-curve` + '거래 활동' 탭에 의존성 없는 SVG 누적손익 곡선. read-only.
+
+- **C-3.23** ✅: **포지션 집중 위험 경보** — 단일 종목 노출이 40%↑면 다이제스트에 '포지션 집중: …
+  — 분산 검토' 경보(포트폴리오 요약 재사용). read-only.

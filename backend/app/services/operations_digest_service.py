@@ -6,10 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.data_freshness_service import DataFreshnessService
 from app.services.operations_overview_service import OperationsOverviewService
+from app.services.portfolio_summary_service import PortfolioSummaryService
 from app.services.scheduler_health_service import SchedulerHealthService
 
 # 심각도 순서(정렬/집계용).
 _SEVERITY_ORDER = {"ok": 0, "attention": 1, "alert": 2}
+# 단일 종목 노출이 이 % 이상이면 집중 위험으로 본다.
+_CONCENTRATION_PCT = 40.0
 
 
 class OperationsDigestService:
@@ -24,6 +27,7 @@ class OperationsDigestService:
         self._overview = OperationsOverviewService(session)
         self._freshness = DataFreshnessService(session)
         self._scheduler = SchedulerHealthService(session)
+        self._portfolio = PortfolioSummaryService(session)
 
     async def build(self, days: int = 30) -> dict:
         ov = await self._overview.overview(days=days)
@@ -96,6 +100,17 @@ class OperationsDigestService:
             alerts.append({
                 "level": "alert",
                 "text": f"자율 잡 이상: {', '.join(scheduler['unhealthy_jobs'])} — 스케줄러 점검",
+            })
+
+        portfolio = await self._portfolio.summary()
+        concentrated = [
+            p for p in portfolio["positions"]
+            if p["exposure_pct"] is not None and p["exposure_pct"] >= _CONCENTRATION_PCT
+        ]
+        for p in concentrated:
+            alerts.append({
+                "level": "attention",
+                "text": f"포지션 집중: {p['symbol_code']} {p['exposure_pct']}% — 분산 검토",
             })
 
         severity = "ok"
