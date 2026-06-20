@@ -249,3 +249,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 
 - **C-3.14** ✅: **운영 종합/다이제스트에 거래·리스크 통합** — 운영 종합에 trading 블록(청산·승률·
   실현손익·리스크 차단률) 추가, 다이제스트에 '실현손익 마이너스'·'차단률 50%↑(표본 5↑)' 경보 추가.
+
+- **C-3.15** ✅: **Telegram 알림 채널** — `TelegramChannel`(bot token+chat_id 모두 있을 때만 전송,
+  없으면 no-op). factory에 telegram 등록, config `telegram_bot_token`/`telegram_chat_id`.
+  테스트는 httpx MockTransport(외부 네트워크 없음). 기본 provider는 여전히 none — 사람이 명시적으로 켠다.

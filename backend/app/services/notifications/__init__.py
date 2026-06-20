@@ -6,5 +6,11 @@
 """
 from app.services.notifications.base import NotificationChannel, NotificationResult
 from app.services.notifications.factory import get_notification_channel
+from app.services.notifications.telegram import TelegramChannel
 
-__all__ = ["NotificationChannel", "NotificationResult", "get_notification_channel"]
+__all__ = [
+    "NotificationChannel",
+    "NotificationResult",
+    "TelegramChannel",
+    "get_notification_channel",
+]
