@@ -292,6 +292,24 @@ export interface ResearchStatus {
   active: { scanner_versions: number; strategy_versions: number };
   retrospective: { total: number; improved: number; worse: number; inconclusive: number };
   macro: MacroRegime;
+  disclosure_alerts: number;
+}
+
+export interface DisclosureAlert {
+  symbol_code: string;
+  headline: string;
+  category: string | null;
+  materiality: number | null;
+  corp_name: string | null;
+  published_at: string | null;
+  url: string | null;
+}
+
+export async function getDisclosureAlerts(hours = 48): Promise<DisclosureAlert[]> {
+  const { data } = await apiClient.get<DisclosureAlert[]>("/dart/alerts", {
+    params: { hours },
+  });
+  return data;
 }
 
 export async function getResearchStatus(): Promise<ResearchStatus> {

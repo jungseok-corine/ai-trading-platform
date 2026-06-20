@@ -5,19 +5,33 @@ read-only 수집이며 주문과 무관하다. 기본 provider 키 없으면 422
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.services.dart_ingest_service import DartIngestService
 from app.services.dart_provider import DartProviderError
+from app.services.disclosure_alert_service import DisclosureAlertService
 
 router = APIRouter(prefix="/dart", tags=["dart"])
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> DartIngestService:
     return DartIngestService(session)
+
+
+def get_alert_service(session: AsyncSession = Depends(get_db)) -> DisclosureAlertService:
+    return DisclosureAlertService(session)
+
+
+@router.get("/alerts")
+async def list_alerts(
+    hours: int = Query(default=48, ge=1, le=720),
+    service: DisclosureAlertService = Depends(get_alert_service),
+) -> list[dict]:
+    """최근 보유/관심 종목의 중요 공시 알림(최신순)."""
+    return await service.recent(hours=hours)
 
 
 class DartIngestRequest(BaseModel):
