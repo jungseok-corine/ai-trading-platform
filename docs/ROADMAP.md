@@ -213,3 +213,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
 - **C-3.5** ✅: **운영 종합 관제**(랜딩) — 안전(C-3.3)·연구 루프(C-2.43)·퍼널(C-3.2)·비용(C-3.1)의
   핵심 헤드라인만 한 화면에. `OperationsOverviewService`(기존 read-only 서비스 조합) +
   `GET /operations-overview?days=N` + '운영 종합' 탭(연구소 기본 랜딩). read-only 합본.
+
+- **C-3.6** ✅: **포트폴리오·노출 집계** — 보유 포지션(수량≠0)을 시가평가·미실현손익·종목별
+  노출 비중으로. 현재가 미수신이면 평단으로 평가(has_price 표시). `PortfolioSummaryService` +
+  `GET /portfolio-summary?account_id=` + '포트폴리오' 탭. read-only(시세 갱신은 동기화 잡 몫).

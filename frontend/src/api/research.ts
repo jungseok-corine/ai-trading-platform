@@ -419,6 +419,36 @@ export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
   return data;
 }
 
+// --- Portfolio summary (C-3.6) ---------------------------------------------
+export interface PortfolioPosition {
+  account_id: number;
+  symbol_code: string;
+  symbol_name: string | null;
+  quantity: number;
+  avg_entry_price: number;
+  last_price: number;
+  cost_basis: number;
+  market_value: number;
+  unrealized_pnl: number;
+  unrealized_pct: number | null;
+  exposure_pct: number | null;
+  has_price: boolean;
+}
+
+export interface PortfolioSummary {
+  open_positions: number;
+  total_market_value: number;
+  total_cost_basis: number;
+  total_unrealized_pnl: number;
+  total_realized_pnl: number;
+  positions: PortfolioPosition[];
+}
+
+export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+  const { data } = await apiClient.get<PortfolioSummary>("/portfolio-summary");
+  return data;
+}
+
 // --- Operations overview (C-3.5) -------------------------------------------
 export interface OperationsOverview {
   days: number;
