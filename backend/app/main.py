@@ -22,6 +22,7 @@ from app.api.v1 import market_context as market_context_api
 from app.api.v1 import market_data as market_data_api
 from app.api.v1 import news_context as news_context_api
 from app.api.v1 import promotions as promotions_api
+from app.api.v1 import ai_cost as ai_cost_api
 from app.api.v1 import proposal_retrospective as proposal_retrospective_api
 from app.api.v1 import research_pipeline as research_pipeline_api
 from app.api.v1 import research_status as research_status_api
@@ -132,6 +133,7 @@ app.include_router(proposal_retrospective_api.router, prefix="/api/v1")
 app.include_router(data_refresh_api.router, prefix="/api/v1")
 app.include_router(research_pipeline_api.router, prefix="/api/v1")
 app.include_router(research_status_api.router, prefix="/api/v1")
+app.include_router(ai_cost_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

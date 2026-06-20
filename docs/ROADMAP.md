@@ -185,3 +185,13 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 **모델 운영(합의)**: 매일=Sonnet 4.6 (또는 GPT, 일주일 A/B로 확정) / debate=Claude×현세대
 GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5·gpt-5.4-mini.
 기본 provider는 `fake`(실수 유료호출 방지), 사람이 명시적으로 켠다.
+
+## 8. C-3 — 연구 → 실전 운영 (operator 관제)
+
+> C-2의 buildable 항목 완료 후 시작. **실거래는 여전히 사람만**(안전 불변식 유지).
+> 우선 read-only 관제·가시성부터: "지금 뭐가 돌고, 비용은 얼마고, 무엇을 봐야 하나".
+
+- **C-3.1** ✅: **AI 비용·사용량 대시보드**(비용 가드) — `ai_model_responses`의 토큰을
+  provider/model별·일자별 집계 + 추정 단가(`model_pricing`, USD/1M). 단가 미상 모델은
+  비용 0 + `unpriced` 표기(과소계상 숨기지 않음). `AiCostService` +
+  `GET /ai-cost/summary?days=N` + 'AI 비용' 탭. read-only, 외부 호출 없음.

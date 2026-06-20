@@ -379,6 +379,46 @@ export async function getResearchStatus(): Promise<ResearchStatus> {
   return data;
 }
 
+// --- AI cost (C-3.1) -------------------------------------------------------
+export interface AiCostModelRow {
+  provider: string;
+  model: string;
+  responses: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  est_cost_usd: number;
+  priced: boolean;
+}
+
+export interface AiCostDayRow {
+  date: string;
+  responses: number;
+  total_tokens: number;
+  est_cost_usd: number;
+}
+
+export interface AiCostSummary {
+  days: number;
+  total: {
+    responses: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    est_cost_usd: number;
+  };
+  by_model: AiCostModelRow[];
+  by_day: AiCostDayRow[];
+  unpriced_models: string[];
+}
+
+export async function getAiCostSummary(days = 30): Promise<AiCostSummary> {
+  const { data } = await apiClient.get<AiCostSummary>("/ai-cost/summary", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Strategy review (C-2.42) ----------------------------------------------
 export interface StrategyReviewSummary {
   versions_reviewed: number;
