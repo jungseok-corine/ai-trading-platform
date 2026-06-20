@@ -154,6 +154,13 @@ class Settings(BaseSettings):
     # 외부 채널(telegram 등)은 사용자가 토큰을 넣고 명시적으로 켤 때 붙인다.
     notification_provider: str = "none"
 
+    # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
+    # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
+    operations_digest_scheduler_enabled: bool = False
+    operations_digest_scheduler_hour: int = 16
+    operations_digest_scheduler_minute: int = 30
+    operations_digest_window_days: int = 30
+
     # AI 비용 예산 가드 (C-3.7). 0이면 예산 미설정(가드 비활성). 윈도(기본 30일) 추정비용과
     # 비교해 ok/warn/over를 매긴다. 단가는 추정치이므로 경보는 가늠자 — 사람이 최종 판단.
     ai_cost_monthly_budget_usd: float = 0.0

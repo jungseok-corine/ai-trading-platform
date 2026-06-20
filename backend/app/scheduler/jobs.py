@@ -32,6 +32,7 @@ STRATEGY_REVIEW_JOB_ID = "strategy_review"
 US_MARKET_REFRESH_JOB_ID = "us_market_refresh"
 DAILY_ANALYSIS_JOB_ID = "daily_analysis"
 DART_INGEST_JOB_ID = "dart_ingest"
+OPERATIONS_DIGEST_JOB_ID = "operations_digest"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -52,6 +53,38 @@ async def run_dart_ingest_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
         logger.error("dart ingest job failed: %s", exc_message(exc))
         app.state.dart_ingest_last_error = exc_message(exc)
+
+
+async def run_operations_digest_job(app: FastAPI) -> None:
+    """운영 다이제스트를 만들어 설정된 알림 채널로 보낸다 (C-3.9).
+
+    조치 항목이 없으면 전송을 건너뛴다. 채널 기본값은 none(no-op)이라 기본 상태에선
+    외부로 아무것도 보내지 않는다. read-only 집계 + (선택) 알림 — 주문과 무관하다.
+    """
+    from app.core.config import get_settings
+    from app.services.notifications import get_notification_channel
+    from app.services.operations_digest_service import OperationsDigestService
+
+    try:
+        settings = get_settings()
+        async with async_session_factory() as session:
+            digest = await OperationsDigestService(session).build(
+                days=settings.operations_digest_window_days
+            )
+            text = OperationsDigestService(session).render_text(digest)
+        sent = False
+        if digest["has_alerts"]:
+            channel = get_notification_channel(settings.notification_provider)
+            result = await channel.send("운영 다이제스트", text)
+            sent = result.sent
+        logger.info(
+            "operations digest: severity=%s alerts=%s sent=%s",
+            digest["severity"], len(digest["alerts"]), sent,
+        )
+        app.state.operations_digest_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 다이제스트 실패가 스케줄러를 중단시키지 않도록
+        logger.error("operations digest job failed: %s", exc_message(exc))
+        app.state.operations_digest_last_error = exc_message(exc)
 
 
 async def run_daily_analysis_job(app: FastAPI) -> None:

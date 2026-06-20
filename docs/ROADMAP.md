@@ -226,3 +226,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
   (안전 드리프트/예산 초과/검토 대기/공시/회고 악화). `OperationsDigestService` +
   `GET /operations-digest`(미리보기) + `POST /notify`(설정 채널 전송). 알림 채널 추상화
   (`notifications/`: none/log, 기본 none=no-op) — 외부 채널은 토큰 준비 시 추가. 운영 종합 상단 노출.
+
+- **C-3.9** ✅: **운영 다이제스트 스케줄러 잡**(기본 비활성) — 매일 다이제스트를 만들어 조치 항목이
+  있으면 설정 채널로 전송. `run_operations_digest_job` + config `operations_digest_scheduler_*`.
+  채널 기본 none이라 켜도 외부 전송 없음(채널 함께 설정해야 발송). 새 잡은 기본 off 규칙 준수.

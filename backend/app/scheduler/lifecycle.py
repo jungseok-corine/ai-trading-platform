@@ -18,12 +18,14 @@ from app.scheduler.jobs import (
     STRATEGY_REVIEW_JOB_ID,
     STRATEGY_RUNNER_JOB_ID,
     TRADING_STATE_SYNC_JOB_ID,
+    OPERATIONS_DIGEST_JOB_ID,
     US_MARKET_REFRESH_JOB_ID,
     order_sync_job,
     run_daily_report_job,
     run_data_refresh_job,
     run_daily_analysis_job,
     run_dart_ingest_job,
+    run_operations_digest_job,
     run_research_pipeline_job,
     run_scanner_review_job,
     run_strategy_job,
@@ -187,6 +189,19 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
             run_dart_ingest_job,
             trigger=IntervalTrigger(seconds=settings.dart_ingest_interval_seconds),
             id=DART_INGEST_JOB_ID,
+            args=[app],
+            max_instances=1,
+            replace_existing=True,
+        )
+
+    if settings.operations_digest_scheduler_enabled:
+        scheduler.add_job(
+            run_operations_digest_job,
+            trigger=CronTrigger(
+                hour=settings.operations_digest_scheduler_hour,
+                minute=settings.operations_digest_scheduler_minute,
+            ),
+            id=OPERATIONS_DIGEST_JOB_ID,
             args=[app],
             max_instances=1,
             replace_existing=True,
