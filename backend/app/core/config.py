@@ -117,8 +117,16 @@ class Settings(BaseSettings):
 
     # 미국장 스냅샷 수집 (C-2.44). 기본 provider는 "manual"(외부 호출 없음, 수동 입력 보존).
     # 벤더 어댑터(alphavantage/finnhub/twelvedata)는 API 키가 준비되면 붙인다.
+    # 미국장 스냅샷 수집 (C-2.44/C-2.48). provider는 "manual"(외부 호출 없음, 기본),
+    # "fred", "twelvedata", "fred_twelvedata"(권장: FRED 매크로 + TD가 SOX 보강).
     us_market_provider: str = "manual"
-    us_market_api_key: str | None = None
+    # FRED(미 연준 세인트루이스) — VIX/10년물 금리/S&P500/나스닥종합. 무료.
+    fred_api_key: str | None = None
+    # Twelve Data — SOX(기본 SOXX ETF proxy) 등 보강. 무료 800콜/일.
+    twelvedata_api_key: str | None = None
+    # SOX 대용 심볼(SOX 지수는 라이선스 제약이 많아 ETF proxy를 기본으로 둔다).
+    us_market_sox_symbol: str = "SOXX"
+    us_market_provider_timeout_seconds: float = 10.0
     us_market_refresh_scheduler_enabled: bool = False
     us_market_refresh_scheduler_hour: int = 7  # KST 아침(미국장 마감 후)
     us_market_refresh_scheduler_minute: int = 0
