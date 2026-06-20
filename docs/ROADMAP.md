@@ -262,3 +262,7 @@ GPT(gpt-5.4↑) / 승격 딥다이브=Opus 4.8+gpt-5.5 / 큐레이터=Haiku 4.5�
   `operations_snapshots` 테이블에 멱등 적재(마이그레이션 b1c2d3e4f5a6, enum 없음). `OperationsSnapshotService`
   (record/trend) + `POST /operations-snapshot/record`·`GET /trend` + 다이제스트 잡이 매일 함께 적재
   + '운영 추세' 탭. read-only 집계의 적재.
+
+- **C-3.18** ✅: **스케줄러 잡 건강 점검** — 설정상 활성인 자율 잡이 제때 돌았는지/마지막이 실패했는지
+  점검(비활성 잡은 대상 아님). `SchedulerHealthService` + `GET /scheduler-health` + '안전 점검' 탭에
+  '자율 잡 건강' 섹션. read-only.

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getSafetyStatus } from "../../api/research";
+import { getSafetyStatus, getSchedulerHealth } from "../../api/research";
 
 function Flag({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -13,6 +13,10 @@ export default function SafetySection() {
   const { data, isLoading } = useQuery({
     queryKey: ["safety-status"],
     queryFn: getSafetyStatus,
+  });
+  const { data: sched } = useQuery({
+    queryKey: ["scheduler-health"],
+    queryFn: getSchedulerHealth,
   });
 
   return (
@@ -58,6 +62,28 @@ export default function SafetySection() {
             {Object.entries(data.schedulers).map(([k, v]) => (
               <li key={k}>{v ? "🟢 ON" : "⚪ OFF"} — {k}</li>
             ))}
+          </ul>
+        </>
+      )}
+
+      {sched && (
+        <>
+          <h4>자율 잡 건강</h4>
+          <p className="muted">
+            활성 잡이 제때 돌고 있는지 점검합니다. 비활성 잡은 점검 대상이 아닙니다.
+            {sched.unhealthy_count > 0 ? ` ⚠️ 이상 ${sched.unhealthy_count}개` : " ✅ 이상 없음"}
+          </p>
+          <ul>
+            {sched.jobs.filter((j) => j.enabled).length === 0 ? (
+              <li className="muted">활성화된 자율 잡이 없습니다.</li>
+            ) : (
+              sched.jobs.filter((j) => j.enabled).map((j) => (
+                <li key={j.job_id}>
+                  {j.healthy ? "🟢" : "⚠️"} {j.job_id}
+                  {j.reason ? ` — ${j.reason}` : ` — ${j.last_status ?? "?"}`}
+                </li>
+              ))
+            )}
           </ul>
         </>
       )}

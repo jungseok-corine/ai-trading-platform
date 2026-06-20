@@ -711,6 +711,30 @@ export async function getSafetyStatus(): Promise<SafetyStatus> {
   return data;
 }
 
+// --- Scheduler health (C-3.18) ---------------------------------------------
+export interface SchedulerJobHealth {
+  job_id: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  age_hours: number | null;
+  stale_hours: number;
+  healthy: boolean;
+  reason: string | null;
+}
+
+export interface SchedulerHealth {
+  checked_at: string;
+  unhealthy_count: number;
+  unhealthy_jobs: string[];
+  jobs: SchedulerJobHealth[];
+}
+
+export async function getSchedulerHealth(): Promise<SchedulerHealth> {
+  const { data } = await apiClient.get<SchedulerHealth>("/scheduler-health");
+  return data;
+}
+
 // --- Proposal funnel (C-3.2) -----------------------------------------------
 export interface FunnelStage {
   generated: number;
