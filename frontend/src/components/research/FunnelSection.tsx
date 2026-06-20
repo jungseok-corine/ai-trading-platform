@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getProposalFunnel } from "../../api/research";
+import { getProposalFunnel, getResearchFunnel } from "../../api/research";
 import type { FunnelStage } from "../../api/research";
 
 const DAY_OPTIONS = [7, 30, 90];
@@ -29,13 +29,18 @@ export default function FunnelSection() {
     queryKey: ["proposal-funnel", days],
     queryFn: () => getProposalFunnel(days),
   });
+  const { data: research } = useQuery({
+    queryKey: ["research-funnel", days],
+    queryFn: () => getResearchFunnel(days),
+  });
 
   return (
     <div className="card">
-      <h3>제안 퍼널 (연구 루프 ROI)</h3>
+      <h3>연구 루프 퍼널 (ROI)</h3>
       <p className="muted">
-        AI/수동 제안이 생성 → 승인/거절 → 새 버전(DRAFT) 생성으로 얼마나 흘러가는지,
-        그리고 끝단 회고에서 실제로 나아졌는지를 봅니다. 승인은 사람만 합니다(여긴 집계만).
+        전반부(후보→배정→실험)와 후반부(AI 제안→승인→버전→회고)를 한 화면에서 봅니다.
+        시장 스캔이 실험으로, 제안이 개선으로 얼마나 이어지는지가 연구 루프의 ROI입니다.
+        승인은 사람만 합니다(여긴 집계만).
       </p>
       <div className="sub-nav">
         {DAY_OPTIONS.map((d) => (
@@ -45,6 +50,14 @@ export default function FunnelSection() {
           </button>
         ))}
       </div>
+
+      {research && (
+        <p className="action-result value">
+          전반부(후보→배정→실험): 후보 {research.candidates} → 배정 {research.candidates_assigned}
+          {research.assignment_rate !== null && ` (전환 ${rate(research.assignment_rate)})`} →
+          실험 {research.experiments} (진행 {research.experiments_running})
+        </p>
+      )}
 
       {isLoading && <p className="muted">불러오는 중…</p>}
       {data && (

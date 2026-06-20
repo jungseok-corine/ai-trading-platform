@@ -760,6 +760,23 @@ export async function getProposalFunnel(days = 30): Promise<ProposalFunnel> {
   return data;
 }
 
+export interface ResearchFunnel {
+  days: number;
+  candidates: number;
+  assignments: number;
+  candidates_assigned: number;
+  assignment_rate: number | null;
+  experiments: number;
+  experiments_running: number;
+}
+
+export async function getResearchFunnel(days = 30): Promise<ResearchFunnel> {
+  const { data } = await apiClient.get<ResearchFunnel>("/research-funnel", {
+    params: { days },
+  });
+  return data;
+}
+
 // --- Strategy review (C-2.42) ----------------------------------------------
 export interface StrategyReviewSummary {
   versions_reviewed: number;
