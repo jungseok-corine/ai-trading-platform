@@ -63,6 +63,20 @@ class OperationsDigestService:
                 "text": f"회고 악화({retro['worse']}) > 개선({retro['improved']}) — 제안 기준 재검토",
             })
 
+        trading = ov["trading"]
+        if trading["closed_trades"] and trading["total_pnl"] < 0:
+            alerts.append({
+                "level": "attention",
+                "text": f"기간 실현손익 마이너스 ({trading['total_pnl']:,.0f}) — 거래 점검",
+            })
+        # 차단이 충분히 쌓였고 비율이 높으면(검토 표본 5건↑, 50%↑) 알린다.
+        if (trading["risk_rejected"] >= 5 and trading["risk_rejection_rate"] is not None
+                and trading["risk_rejection_rate"] >= 50):
+            alerts.append({
+                "level": "attention",
+                "text": f"리스크 차단률 {trading['risk_rejection_rate']}% — 전략/리스크 설정 점검",
+            })
+
         freshness = await self._freshness.status()
         if freshness["stale_count"]:
             alerts.append({

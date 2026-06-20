@@ -61,3 +61,6 @@ async def test_overview_composes_sections(db_session: AsyncSession) -> None:
     assert out["cost"]["est_cost_usd"] == 2.5
     assert out["cost"]["responses"] == 1
     assert "retrospective" in out
+    # 거래/리스크 헤드라인 블록 존재(데이터 없으면 0/None)
+    assert out["trading"]["closed_trades"] == 0
+    assert out["trading"]["risk_rejection_rate"] is None

@@ -629,6 +629,13 @@ export interface OperationsOverview {
     budget_status: "ok" | "warn" | "over" | "disabled";
     budget_used_pct: number | null;
   };
+  trading: {
+    closed_trades: number;
+    win_rate: number | null;
+    total_pnl: number;
+    risk_rejected: number;
+    risk_rejection_rate: number | null;
+  };
 }
 
 export async function getOperationsOverview(days = 30): Promise<OperationsOverview> {
