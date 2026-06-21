@@ -218,6 +218,23 @@ export interface StrategyVersionParameters {
   max_flow_age_days: number;
   flow_mode: string;
   require_flow_data: boolean;
+  // 유니버스 신호 스캔 (종목 자동 선택) — null이면 단일 종목 모드
+  universe?: string | null;
+  universe_lookback_days?: number;
+  // rsi_reversion 전용
+  rsi_period?: number;
+  oversold?: number;
+  overbought?: number;
+  exit_mode?: string;
+  // macd_trend 전용
+  fast_period?: number;
+  slow_period?: number;
+  signal_period?: number;
+  require_above_zero?: boolean;
+  // breakout_high 전용
+  breakout_lookback?: number;
+  exit_lookback?: number;
+  volume_confirm?: boolean;
 }
 
 export interface StrategyParameterMeta {
@@ -514,4 +531,17 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   max_flow_age_days: 5,
   flow_mode: "foreign_or_institution",
   require_flow_data: true,
+  universe: null,
+  universe_lookback_days: 5,
+  rsi_period: 14,
+  oversold: 30,
+  overbought: 70,
+  exit_mode: "overbought",
+  fast_period: 12,
+  slow_period: 26,
+  signal_period: 9,
+  require_above_zero: false,
+  breakout_lookback: 20,
+  exit_lookback: 10,
+  volume_confirm: false,
 };

@@ -386,6 +386,28 @@ export interface Translations {
     hintFlowData: string;
     errorFlowLookbackDaysGt0: string;
     errorMaxFlowAgeDaysGt0: string;
+    strategyTypeRsiReversion: string;
+    strategyTypeMacdTrend: string;
+    strategyTypeBreakoutHigh: string;
+    strategyTypePullbackTrend: string;
+    labelUniverse: string;
+    universeNone: string;
+    universeScannerCandidates: string;
+    universeWatchlist: string;
+    hintUniverse: string;
+    labelRsiPeriod: string;
+    labelOversold: string;
+    labelOverbought: string;
+    labelExitMode: string;
+    exitModeOverbought: string;
+    exitModeMidline: string;
+    labelFastPeriod: string;
+    labelSlowPeriod: string;
+    labelSignalPeriod: string;
+    labelRequireAboveZero: string;
+    labelBreakoutLookback: string;
+    labelExitLookback: string;
+    labelVolumeConfirm: string;
   };
 }
 
@@ -854,6 +876,29 @@ export const translations: Record<Language, Translations> = {
         "수급 데이터는 일별 확정 데이터이며 실시간 매수세/매도세가 아닙니다. 당일 수급은 장마감 후 확정되므로 전일 이하 데이터만 사용됩니다.",
       errorFlowLookbackDaysGt0: "수급 조회 기간은 1일 이상이어야 합니다.",
       errorMaxFlowAgeDaysGt0: "수급 최대 허용 경과일은 1일 이상이어야 합니다.",
+      strategyTypeRsiReversion: "RSI 평균회귀",
+      strategyTypeMacdTrend: "MACD 추세추종",
+      strategyTypeBreakoutHigh: "전고점 돌파",
+      strategyTypePullbackTrend: "눌림목 매수",
+      labelUniverse: "유니버스 (종목 자동 선택)",
+      universeNone: "없음 (단일 종목)",
+      universeScannerCandidates: "스캐너 후보",
+      universeWatchlist: "관심종목",
+      hintUniverse:
+        "유니버스를 선택하면 종목을 하나씩 지정하지 않아도 스캐너 후보/관심종목 전체에 전략을 돌려 신호를 기록합니다(신호 생성 전용, 자동매매 불가).",
+      labelRsiPeriod: "RSI 기간",
+      labelOversold: "과매도 기준",
+      labelOverbought: "과매수 기준",
+      labelExitMode: "청산 모드",
+      exitModeOverbought: "과열 시 (overbought)",
+      exitModeMidline: "중심선 회귀 (midline 50)",
+      labelFastPeriod: "단기 EMA 기간",
+      labelSlowPeriod: "장기 EMA 기간",
+      labelSignalPeriod: "시그널선 기간",
+      labelRequireAboveZero: "0선 위에서만 매수",
+      labelBreakoutLookback: "돌파 비교 구간 (봉)",
+      labelExitLookback: "이탈 비교 구간 (봉)",
+      labelVolumeConfirm: "거래량 확인 사용",
     },
   },
   en: {
@@ -1319,6 +1364,29 @@ export const translations: Record<Language, Translations> = {
         "Flow data is daily confirmed data, not real-time buying/selling pressure. Only data from the day before the candle date is used to prevent look-ahead bias.",
       errorFlowLookbackDaysGt0: "Flow lookback days must be at least 1.",
       errorMaxFlowAgeDaysGt0: "Max flow age days must be at least 1.",
+      strategyTypeRsiReversion: "RSI Reversion",
+      strategyTypeMacdTrend: "MACD Trend",
+      strategyTypeBreakoutHigh: "Breakout High",
+      strategyTypePullbackTrend: "Pullback Trend",
+      labelUniverse: "Universe (auto symbol selection)",
+      universeNone: "None (single symbol)",
+      universeScannerCandidates: "Scanner Candidates",
+      universeWatchlist: "Watchlist",
+      hintUniverse:
+        "Selecting a universe runs the strategy across all scanner candidates / watchlist symbols and records signals, without specifying symbols one by one (signal-only; auto-trade not allowed).",
+      labelRsiPeriod: "RSI Period",
+      labelOversold: "Oversold",
+      labelOverbought: "Overbought",
+      labelExitMode: "Exit Mode",
+      exitModeOverbought: "On Overbought",
+      exitModeMidline: "Midline Reversion (50)",
+      labelFastPeriod: "Fast EMA Period",
+      labelSlowPeriod: "Slow EMA Period",
+      labelSignalPeriod: "Signal Period",
+      labelRequireAboveZero: "Buy only above zero line",
+      labelBreakoutLookback: "Breakout Lookback (bars)",
+      labelExitLookback: "Exit Lookback (bars)",
+      labelVolumeConfirm: "Use Volume Confirmation",
     },
   },
 };

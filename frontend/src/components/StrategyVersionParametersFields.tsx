@@ -12,7 +12,30 @@ const STRATEGY_TYPES = [
   { value: "moving_average_cross", labelKey: "strategyTypeMovingAverage" as const },
   { value: "volume_confirmed_ma_cross", labelKey: "strategyTypeVolumeConfirmed" as const },
   { value: "flow_confirmed_volume_ma_cross", labelKey: "strategyTypeFlowConfirmed" as const },
+  { value: "rsi_reversion", labelKey: "strategyTypeRsiReversion" as const },
+  { value: "macd_trend", labelKey: "strategyTypeMacdTrend" as const },
+  { value: "breakout_high", labelKey: "strategyTypeBreakoutHigh" as const },
+  { value: "pullback_trend", labelKey: "strategyTypePullbackTrend" as const },
 ];
+
+const UNIVERSES = [
+  { value: "", labelKey: "universeNone" as const },
+  { value: "scanner_candidates", labelKey: "universeScannerCandidates" as const },
+  { value: "watchlist", labelKey: "universeWatchlist" as const },
+];
+
+const EXIT_MODES = [
+  { value: "overbought", labelKey: "exitModeOverbought" as const },
+  { value: "midline", labelKey: "exitModeMidline" as const },
+];
+
+// short_window/long_window 입력을 노출하는 MA 계열 전략 타입.
+const MA_WINDOW_TYPES = new Set([
+  "moving_average_cross",
+  "volume_confirmed_ma_cross",
+  "flow_confirmed_volume_ma_cross",
+  "pullback_trend",
+]);
 
 const FLOW_MODES = [
   { value: "foreign_or_institution", labelKey: "flowModeForeignOrInstitution" as const },
@@ -22,9 +45,16 @@ const FLOW_MODES = [
 
 function getValidationErrors(p: StrategyVersionParameters, t: ReturnType<typeof useSettings>["t"]) {
   const errors: string[] = [];
-  if (p.long_window <= p.short_window) errors.push(t.strategyParams.errorLongWindowGtShort);
-  if (p.volume_window <= 0) errors.push(t.strategyParams.errorVolumeWindowGt0);
-  if (p.volume_multiplier <= 0) errors.push(t.strategyParams.errorVolumeMultiplierGt0);
+  if (MA_WINDOW_TYPES.has(p.strategy_type) && p.long_window <= p.short_window) {
+    errors.push(t.strategyParams.errorLongWindowGtShort);
+  }
+  const isVolume =
+    p.strategy_type === "volume_confirmed_ma_cross" ||
+    p.strategy_type === "flow_confirmed_volume_ma_cross";
+  if (isVolume) {
+    if (p.volume_window <= 0) errors.push(t.strategyParams.errorVolumeWindowGt0);
+    if (p.volume_multiplier <= 0) errors.push(t.strategyParams.errorVolumeMultiplierGt0);
+  }
   if (p.strategy_type === "flow_confirmed_volume_ma_cross") {
     if (p.flow_lookback_days <= 0) errors.push(t.strategyParams.errorFlowLookbackDaysGt0);
     if (p.max_flow_age_days <= 0) errors.push(t.strategyParams.errorMaxFlowAgeDaysGt0);
@@ -48,6 +78,11 @@ export default function StrategyVersionParametersFields({
     parameters.strategy_type === "volume_confirmed_ma_cross" ||
     parameters.strategy_type === "flow_confirmed_volume_ma_cross";
   const isFlowType = parameters.strategy_type === "flow_confirmed_volume_ma_cross";
+  const isMaType = MA_WINDOW_TYPES.has(parameters.strategy_type);
+  const isRsiType = parameters.strategy_type === "rsi_reversion";
+  const isMacdType = parameters.strategy_type === "macd_trend";
+  const isBreakoutType = parameters.strategy_type === "breakout_high";
+  const universeMode = !!parameters.universe;
   const validationErrors = getValidationErrors(parameters, t);
 
   return (
@@ -67,35 +102,188 @@ export default function StrategyVersionParametersFields({
         </select>
       </div>
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-symbol-code`}>{sp.labelSymbolCode}</label>
-        <input
-          id={`${idPrefix}-symbol-code`}
-          type="text"
-          value={parameters.symbol_code}
-          onChange={(e) => update("symbol_code", e.target.value)}
-          required
-        />
+        <label htmlFor={`${idPrefix}-universe`}>{sp.labelUniverse}</label>
+        <select
+          id={`${idPrefix}-universe`}
+          value={parameters.universe ?? ""}
+          onChange={(e) => {
+            const value = e.target.value || null;
+            // 유니버스 모드는 신호 생성 전용 — 자동매매를 강제로 끈다.
+            onChange({
+              ...parameters,
+              universe: value,
+              auto_trade_enabled: value ? false : parameters.auto_trade_enabled,
+            });
+          }}
+        >
+          {UNIVERSES.map(({ value, labelKey }) => (
+            <option key={value} value={value}>
+              {sp[labelKey]}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="form-row">
-        <label htmlFor={`${idPrefix}-short-window`}>{sp.labelShortWindow}</label>
-        <input
-          id={`${idPrefix}-short-window`}
-          type="number"
-          min={1}
-          value={parameters.short_window}
-          onChange={(e) => update("short_window", Number(e.target.value) || 0)}
-        />
-      </div>
-      <div className="form-row">
-        <label htmlFor={`${idPrefix}-long-window`}>{sp.labelLongWindow}</label>
-        <input
-          id={`${idPrefix}-long-window`}
-          type="number"
-          min={1}
-          value={parameters.long_window}
-          onChange={(e) => update("long_window", Number(e.target.value) || 0)}
-        />
-      </div>
+      {!universeMode && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-symbol-code`}>{sp.labelSymbolCode}</label>
+          <input
+            id={`${idPrefix}-symbol-code`}
+            type="text"
+            value={parameters.symbol_code}
+            onChange={(e) => update("symbol_code", e.target.value)}
+            required
+          />
+        </div>
+      )}
+      {universeMode && <p className="section-description">{sp.hintUniverse}</p>}
+      {isMaType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-short-window`}>{sp.labelShortWindow}</label>
+            <input
+              id={`${idPrefix}-short-window`}
+              type="number"
+              min={1}
+              value={parameters.short_window}
+              onChange={(e) => update("short_window", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-long-window`}>{sp.labelLongWindow}</label>
+            <input
+              id={`${idPrefix}-long-window`}
+              type="number"
+              min={1}
+              value={parameters.long_window}
+              onChange={(e) => update("long_window", Number(e.target.value) || 0)}
+            />
+          </div>
+        </>
+      )}
+      {isRsiType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-rsi-period`}>{sp.labelRsiPeriod}</label>
+            <input
+              id={`${idPrefix}-rsi-period`}
+              type="number"
+              min={2}
+              value={parameters.rsi_period ?? 14}
+              onChange={(e) => update("rsi_period", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-oversold`}>{sp.labelOversold}</label>
+            <input
+              id={`${idPrefix}-oversold`}
+              type="number"
+              min={0}
+              value={parameters.oversold ?? 30}
+              onChange={(e) => update("oversold", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-overbought`}>{sp.labelOverbought}</label>
+            <input
+              id={`${idPrefix}-overbought`}
+              type="number"
+              min={0}
+              value={parameters.overbought ?? 70}
+              onChange={(e) => update("overbought", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-exit-mode`}>{sp.labelExitMode}</label>
+            <select
+              id={`${idPrefix}-exit-mode`}
+              value={parameters.exit_mode ?? "overbought"}
+              onChange={(e) => update("exit_mode", e.target.value)}
+            >
+              {EXIT_MODES.map(({ value, labelKey }) => (
+                <option key={value} value={value}>
+                  {sp[labelKey]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
+      {isMacdType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-fast-period`}>{sp.labelFastPeriod}</label>
+            <input
+              id={`${idPrefix}-fast-period`}
+              type="number"
+              min={1}
+              value={parameters.fast_period ?? 12}
+              onChange={(e) => update("fast_period", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-slow-period`}>{sp.labelSlowPeriod}</label>
+            <input
+              id={`${idPrefix}-slow-period`}
+              type="number"
+              min={2}
+              value={parameters.slow_period ?? 26}
+              onChange={(e) => update("slow_period", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-signal-period`}>{sp.labelSignalPeriod}</label>
+            <input
+              id={`${idPrefix}-signal-period`}
+              type="number"
+              min={1}
+              value={parameters.signal_period ?? 9}
+              onChange={(e) => update("signal_period", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-require-above-zero`}>{sp.labelRequireAboveZero}</label>
+            <input
+              id={`${idPrefix}-require-above-zero`}
+              type="checkbox"
+              checked={parameters.require_above_zero ?? false}
+              onChange={(e) => update("require_above_zero", e.target.checked)}
+            />
+          </div>
+        </>
+      )}
+      {isBreakoutType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-breakout-lookback`}>{sp.labelBreakoutLookback}</label>
+            <input
+              id={`${idPrefix}-breakout-lookback`}
+              type="number"
+              min={1}
+              value={parameters.breakout_lookback ?? 20}
+              onChange={(e) => update("breakout_lookback", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-exit-lookback`}>{sp.labelExitLookback}</label>
+            <input
+              id={`${idPrefix}-exit-lookback`}
+              type="number"
+              min={1}
+              value={parameters.exit_lookback ?? 10}
+              onChange={(e) => update("exit_lookback", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-volume-confirm`}>{sp.labelVolumeConfirm}</label>
+            <input
+              id={`${idPrefix}-volume-confirm`}
+              type="checkbox"
+              checked={parameters.volume_confirm ?? false}
+              onChange={(e) => update("volume_confirm", e.target.checked)}
+            />
+          </div>
+        </>
+      )}
       {isVolumeType && (
         <>
           <div className="form-row">
@@ -188,15 +376,17 @@ export default function StrategyVersionParametersFields({
           onChange={(e) => update("timeframe", e.target.value)}
         />
       </div>
-      <div className="form-row">
-        <label htmlFor={`${idPrefix}-account-id`}>{sp.labelAccountId}</label>
-        <input
-          id={`${idPrefix}-account-id`}
-          type="number"
-          value={parameters.account_id ?? ""}
-          onChange={(e) => update("account_id", e.target.value === "" ? null : Number(e.target.value))}
-        />
-      </div>
+      {!universeMode && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-account-id`}>{sp.labelAccountId}</label>
+          <input
+            id={`${idPrefix}-account-id`}
+            type="number"
+            value={parameters.account_id ?? ""}
+            onChange={(e) => update("account_id", e.target.value === "" ? null : Number(e.target.value))}
+          />
+        </div>
+      )}
       <div className="form-row">
         <label htmlFor={`${idPrefix}-enabled`}>{sp.labelEnabled}</label>
         <input
@@ -206,14 +396,16 @@ export default function StrategyVersionParametersFields({
           onChange={(e) => update("enabled", e.target.checked)}
         />
       </div>
-      <div className="form-row">
-        <AutoTradeToggle
-          value={parameters.auto_trade_enabled}
-          accountId={parameters.account_id}
-          quantity={parameters.quantity}
-          onChange={(next) => update("auto_trade_enabled", next)}
-        />
-      </div>
+      {!universeMode && (
+        <div className="form-row">
+          <AutoTradeToggle
+            value={parameters.auto_trade_enabled}
+            accountId={parameters.account_id}
+            quantity={parameters.quantity}
+            onChange={(next) => update("auto_trade_enabled", next)}
+          />
+        </div>
+      )}
       {validationErrors.length > 0 && (
         <ul className="validation-errors">
           {validationErrors.map((msg) => (

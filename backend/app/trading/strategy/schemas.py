@@ -159,12 +159,74 @@ STRATEGY_TYPES_METADATA: list[StrategyTypeMeta] = [
             StrategyParameterMeta(name="require_flow_data", type="bool", default=True, description="수급 데이터 없을 때 BUY 차단 여부. false면 수급 없이도 volume+MA 조건만으로 BUY 허용"),
         ],
     ),
+    StrategyTypeMeta(
+        strategy_type="rsi_reversion",
+        display_name="RSI Reversion",
+        display_name_ko="RSI 평균회귀",
+        parameters=[
+            StrategyParameterMeta(name="rsi_period", type="int", default=14, min=2, description="RSI 계산 기간"),
+            StrategyParameterMeta(name="oversold", type="float", default=30.0, min=0.0, description="과매도 기준 (BUY: 아래→위 탈출)"),
+            StrategyParameterMeta(name="overbought", type="float", default=70.0, min=0.0, description="과매수 기준 (exit_mode=overbought SELL)"),
+            StrategyParameterMeta(name="exit_mode", type="str", default="overbought", description="청산 모드: overbought(과열 시) / midline(50 회귀 시)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
+    StrategyTypeMeta(
+        strategy_type="macd_trend",
+        display_name="MACD Trend",
+        display_name_ko="MACD 추세추종",
+        parameters=[
+            StrategyParameterMeta(name="fast_period", type="int", default=12, min=1, description="단기 EMA 기간"),
+            StrategyParameterMeta(name="slow_period", type="int", default=26, min=2, description="장기 EMA 기간 (fast 초과)"),
+            StrategyParameterMeta(name="signal_period", type="int", default=9, min=1, description="시그널선 EMA 기간"),
+            StrategyParameterMeta(name="require_above_zero", type="bool", default=False, description="MACD>0(0선 위)일 때만 BUY 허용"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
+    StrategyTypeMeta(
+        strategy_type="breakout_high",
+        display_name="Breakout High",
+        display_name_ko="전고점 돌파",
+        parameters=[
+            StrategyParameterMeta(name="breakout_lookback", type="int", default=20, min=1, description="돌파 비교 구간 (직전 N봉 최고가)"),
+            StrategyParameterMeta(name="exit_lookback", type="int", default=10, min=1, description="이탈 비교 구간 (직전 N봉 최저가)"),
+            StrategyParameterMeta(name="volume_confirm", type="bool", default=False, description="거래량 확인 사용 여부"),
+            StrategyParameterMeta(name="volume_window", type="int", default=20, min=1, description="거래량 SMA 기간 (volume_confirm 시)"),
+            StrategyParameterMeta(name="volume_multiplier", type="float", default=1.5, min=0.01, description="거래량 spike 배수 (volume_confirm 시)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
+    StrategyTypeMeta(
+        strategy_type="pullback_trend",
+        display_name="Pullback Trend",
+        display_name_ko="눌림목 매수",
+        parameters=[
+            StrategyParameterMeta(name="short_window", type="int", default=10, min=1, description="단기 이동평균 기간 (눌림 후 재탈환 기준)"),
+            StrategyParameterMeta(name="long_window", type="int", default=50, min=2, description="장기 이동평균 기간 (추세 기준, short 초과)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
 ]
 
 
 _VALID_FLOW_MODES = frozenset(
     {"foreign_or_institution", "foreign_and_institution", "smart_money_vs_retail"}
 )
+
+# short_window/long_window 제약(long>short)이 적용되는 MA 계열 전략 타입.
+_MA_WINDOW_STRATEGY_TYPES = frozenset(
+    {
+        "moving_average_cross",
+        "volume_confirmed_ma_cross",
+        "flow_confirmed_volume_ma_cross",
+        "pullback_trend",
+    }
+)
+
+_VALID_EXIT_MODES = frozenset({"overbought", "midline"})
+
+# 유니버스 신호 스캔에서 허용되는 universe 이름 (UniverseResolver와 동일하게 유지).
+_VALID_UNIVERSES = frozenset({"scanner_candidates", "watchlist"})
 
 
 class StrategyVersionParameters(BaseModel):
@@ -175,7 +237,12 @@ class StrategyVersionParameters(BaseModel):
     """
 
     strategy_type: str = "moving_average_cross"
-    symbol_code: str
+    # universe 모드에서는 symbol_code 없이도 유효하다(유니버스가 종목을 공급).
+    symbol_code: str = ""
+    # 유니버스 신호 스캔: 설정 시 단일 symbol_code 대신 유니버스 전체에 전략을 돌린다.
+    # (scanner_candidates / watchlist). read-only 신호 생성 전용 — auto_trade와 양립 불가.
+    universe: str | None = None
+    universe_lookback_days: int = Field(default=5, gt=0)
     short_window: int = Field(default=5, gt=0)
     long_window: int = Field(default=20, gt=0)
     quantity: int = Field(default=1, gt=0)
@@ -191,19 +258,58 @@ class StrategyVersionParameters(BaseModel):
     max_flow_age_days: int = Field(default=5, gt=0)
     flow_mode: str = "foreign_or_institution"
     require_flow_data: bool = True
+    # rsi_reversion 전용 파라미터
+    rsi_period: int = Field(default=14, gt=0)
+    oversold: float = Field(default=30.0, ge=0)
+    overbought: float = Field(default=70.0, ge=0)
+    exit_mode: str = "overbought"
+    # macd_trend 전용 파라미터
+    fast_period: int = Field(default=12, gt=0)
+    slow_period: int = Field(default=26, gt=0)
+    signal_period: int = Field(default=9, gt=0)
+    require_above_zero: bool = False
+    # breakout_high 전용 파라미터
+    breakout_lookback: int = Field(default=20, gt=0)
+    exit_lookback: int = Field(default=10, gt=0)
+    volume_confirm: bool = False
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":
-        if self.long_window <= self.short_window:
+        # short/long_window는 MA 계열 전략에서만 의미가 있으므로 해당 타입에만 적용한다.
+        if self.strategy_type in _MA_WINDOW_STRATEGY_TYPES and self.long_window <= self.short_window:
             raise ValueError(
                 f"long_window({self.long_window})은 short_window({self.short_window})보다 커야 합니다."
             )
+        if self.universe is not None:
+            if self.universe not in _VALID_UNIVERSES:
+                raise ValueError(
+                    f"universe={self.universe!r}은 유효하지 않습니다. 허용값: {sorted(_VALID_UNIVERSES)}"
+                )
+            # 안전: 유니버스 전체에 자동매매를 거는 것은 금지(read-only 신호 생성 전용).
+            if self.auto_trade_enabled:
+                raise ValueError("universe 모드에서는 auto_trade_enabled를 켤 수 없습니다(신호 생성 전용).")
+        elif not self.symbol_code:
+            raise ValueError("universe가 없으면 symbol_code가 필요합니다.")
         if self.auto_trade_enabled and self.account_id is None:
             raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
         if self.flow_mode not in _VALID_FLOW_MODES:
             raise ValueError(
                 f"flow_mode={self.flow_mode!r}은 유효하지 않습니다. "
                 f"허용값: {sorted(_VALID_FLOW_MODES)}"
+            )
+        if self.strategy_type == "rsi_reversion":
+            if self.exit_mode not in _VALID_EXIT_MODES:
+                raise ValueError(
+                    f"exit_mode={self.exit_mode!r}은 유효하지 않습니다. "
+                    f"허용값: {sorted(_VALID_EXIT_MODES)}"
+                )
+            if self.overbought <= self.oversold:
+                raise ValueError(
+                    f"overbought({self.overbought})는 oversold({self.oversold})보다 커야 합니다."
+                )
+        if self.strategy_type == "macd_trend" and self.slow_period <= self.fast_period:
+            raise ValueError(
+                f"slow_period({self.slow_period})는 fast_period({self.fast_period})보다 커야 합니다."
             )
         return self
 

@@ -12,8 +12,9 @@ from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
+from app.services.universe_resolver import UniverseResolver
 from app.trading.broker.error_classifier import classify_exception, exc_message
-from app.trading.strategy.base import Signal
+from app.trading.strategy.base import Signal, Strategy
 from app.trading.strategy.registry import create_strategy
 
 logger = logging.getLogger(__name__)
@@ -63,32 +64,72 @@ class StrategyRunnerService:
         versions = await self._strategy_version_repo.list_active()
         results: list[StrategyRunResult] = []
         for version in versions:
-            result = await self._run_version(version)
-            if result is not None:
-                results.append(result)
+            results.extend(await self._run_version(version))
         return results
 
-    async def _run_version(self, version: StrategyVersion) -> StrategyRunResult | None:
+    async def _resolve_symbols(self, version: StrategyVersion, params: dict) -> list[str]:
+        """전략 버전이 돌 종목 목록을 해석한다.
+
+        universe가 설정돼 있으면 유니버스(스캐너 후보/관심종목)를 해석하고,
+        아니면 단일 symbol_code를 리스트로 반환한다.
+        """
+        universe = params.get("universe")
+        if universe:
+            resolver = UniverseResolver(self._session)
+            symbols = await resolver.resolve(
+                universe, lookback_days=int(params.get("universe_lookback_days", 5))
+            )
+            if not symbols:
+                logger.info(
+                    "strategy_version_id=%s universe=%r 해석 결과 종목 없음 — 건너뜁니다.",
+                    version.id, universe,
+                )
+            return symbols
+        symbol_code = params.get("symbol_code")
+        return [symbol_code] if symbol_code else []
+
+    async def _run_version(self, version: StrategyVersion) -> list[StrategyRunResult]:
         params = version.parameters or {}
 
         if not params.get("enabled", True):
-            return None
+            return []
 
         strategy_type = params.get("strategy_type", "")
         strategy = create_strategy(strategy_type, params)
         if strategy is None:
-            return None
+            return []
 
-        symbol_code = params.get("symbol_code")
-        if not symbol_code:
-            return None
+        symbols = await self._resolve_symbols(version, params)
+        if not symbols:
+            return []
 
+        # 안전: universe 모드는 신호 생성 전용 — 자동매매를 절대 켜지 않는다.
+        universe_mode = bool(params.get("universe"))
+        auto_trade_enabled = (
+            False if universe_mode else bool(params.get("auto_trade_enabled", False))
+        )
+
+        results: list[StrategyRunResult] = []
+        for symbol_code in symbols:
+            results.append(
+                await self._run_one(version, strategy, symbol_code, params, auto_trade_enabled)
+            )
+        return results
+
+    async def _run_one(
+        self,
+        version: StrategyVersion,
+        strategy: Strategy,
+        symbol_code: str,
+        params: dict,
+        auto_trade_enabled: bool,
+    ) -> StrategyRunResult:
         result = StrategyRunResult(
             strategy_version_id=version.id,
             symbol_code=symbol_code,
             signal_created=False,
             signal_id=None,
-            auto_trade_enabled=bool(params.get("auto_trade_enabled", False)),
+            auto_trade_enabled=auto_trade_enabled,
             trade_attempted=False,
         )
 
@@ -100,8 +141,8 @@ class StrategyRunnerService:
             result.error = f"market data error: {exc_message(exc)}"
             result.error_category = classify_exception(exc)
             logger.error(
-                "strategy_version_id=%s signal generation failed (%s): %s",
-                version.id, result.error_category, exc_message(exc),
+                "strategy_version_id=%s symbol=%s signal generation failed (%s): %s",
+                version.id, symbol_code, result.error_category, exc_message(exc),
             )
             return result
 
@@ -111,7 +152,7 @@ class StrategyRunnerService:
         result.signal_created = True
         result.signal_id = log.id
 
-        if not result.auto_trade_enabled:
+        if not auto_trade_enabled:
             return result
 
         await self._attempt_auto_trade(version, params, log, result)
