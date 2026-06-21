@@ -1,7 +1,7 @@
 # C-4 설계 — 전략 엔진 확장 (실전 전략 타입)
 
-> 상태: **구현 완료** (전략 4종 + 유니버스 신호 스캔) · 작성 2026-06-21 · 페이즈 C-4
-> 남은 것: 토이 전략 아카이브 + 로그 리셋(§5) — 실행 전 테이블 목록 확인 후 진행.
+> 상태: **구현 완료** (전략 4종 + 유니버스 신호 스캔 + 정리 스크립트) · 작성 2026-06-21 · 페이즈 C-4
+> 정리 스크립트: `backend/scripts/reset_toy_strategies.py` (기본 dry-run, `--apply`로 실행).
 > 목적: 엔진이 **이동평균 교차밖에 못 도는** 현 상태를 깨고, 서로 다른 매매 원리의
 > 실전 전략 타입을 추가해 **로그가 차별화되도록** 만든다. 그래야 AI 제안·회고 루프가
 > "단기 5 vs 7" 미세 파라미터 싸움을 벗어난다.
@@ -95,8 +95,10 @@ SignalService.generate_and_log_signal()
    `auto_trade_enabled=false` 로 전환 (연구 루프가 무시). **이력/FK는 보존** —
    hard delete 금지(참조 무결성 + "덮어쓰기 금지" 철학).
 2. **로그 리셋**: 깨끗한 기준선을 위해 비울 후보 테이블 —
-   `signal_logs`, signal outcome 집계, 페이퍼 trades, 관련 `experiment` 기록.
-   → **실행 직전 정확한 테이블 목록을 사람에게 다시 확인받고** 비운다 (파괴적 작업).
+   `signal_logs`(전체) + **PAPER 계좌**의 trades/positions/position_events.
+   (signal outcome은 저장 테이블 없이 집계라 비울 대상 아님. experiments는 `--reset-experiments` 옵션.)
+   → 스크립트 `backend/scripts/reset_toy_strategies.py`로 수행. **기본 dry-run**(대상 건수만 출력),
+   `--apply` 시에만 단일 트랜잭션으로 삭제. **LIVE 계좌(실계좌 read-only) 데이터는 절대 건드리지 않는다.**
 
 > 안전: 이 정리는 read-only 루프와 무관한 1회성 데이터 운영이며, 실거래/주문과 무관하다.
 > `KIS_REAL_TRADING_ENABLED=false` 등 🔒 안전 불변식은 건드리지 않는다.
