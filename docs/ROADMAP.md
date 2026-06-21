@@ -100,6 +100,15 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
    실험 비교 자동 다이제스트.
 3. **보류 항목(§5)** — 외부 자원이 준비되면 진행.
 
+- **C-4.1** ✅: **전략 엔진 확장 — 실전 전략 타입 4종 + 유니버스 신호 스캔**
+  (설계: `docs/design/C-4-strategy-engine.md`). 엔진이 이동평균 교차 변형만 돌던 한계를 깨고
+  `rsi_reversion`(RSI 평균회귀)·`macd_trend`(MACD 추세)·`breakout_high`(전고점 돌파)·
+  `pullback_trend`(눌림목)를 상태 없는 신호 생성기로 추가(기존 지표 재사용, 청산은 SELL 신호).
+  + **유니버스 모드**: 전략 파라미터 `universe`(scanner_candidates/watchlist) 설정 시 종목을
+  하나씩 지정하지 않아도 유니버스 전체에 전략을 돌려 신호 기록(`UniverseResolver`, 러너 확장).
+  안전: universe는 신호 생성 전용 — auto_trade 강제 off(검증으로 차단). 프론트 전략 폼에 타입·
+  유니버스·타입별 파라미터 노출. read-only. (남은 것: 토이 전략 아카이브 + 로그 리셋)
+
 - **C-2.63** ✅: 매크로를 **스캔 단계 후보 점수**에 반영 — `macro_score_adjustment`
   (risk_off ×0.85, risk_on ×1.05, 반도체테마×SOX강세 ×1.15/약세 ×0.9). 스캔 시 regime_as_of +
   반도체 테마 종목 집합 조회해 후보 score 조정(원점수는 facts에 보존).

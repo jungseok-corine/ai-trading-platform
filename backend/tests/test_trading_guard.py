@@ -369,10 +369,10 @@ async def test_strategy_runner_skips_when_paused(db_session: AsyncSession) -> No
     signal_svc_mock.generate_and_log_signal = AsyncMock(return_value=fake_log)
     runner = StrategyRunnerService(db_session, signal_svc_mock, trade_svc_mock)
 
-    result = await runner._run_version(version)
+    results = await runner._run_version(version)
 
-    assert result is not None
-    assert result.trade_attempted is False
+    assert len(results) == 1
+    assert results[0].trade_attempted is False
     trade_svc_mock.execute_signal.assert_not_called()
 
 

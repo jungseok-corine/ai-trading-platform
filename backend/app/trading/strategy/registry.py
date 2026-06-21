@@ -1,8 +1,12 @@
 import logging
 
 from app.trading.strategy.base import Strategy
+from app.trading.strategy.breakout_high import BreakoutHighStrategy
 from app.trading.strategy.flow_confirmed_volume_ma_cross import FlowConfirmedVolumeMACrossStrategy
+from app.trading.strategy.macd_trend import MacdTrendStrategy
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
+from app.trading.strategy.pullback_trend import PullbackTrendStrategy
+from app.trading.strategy.rsi_reversion import RsiReversionStrategy
 from app.trading.strategy.volume_confirmed_ma_cross import VolumeConfirmedMovingAverageCrossStrategy
 
 logger = logging.getLogger(__name__)
@@ -13,6 +17,10 @@ _REGISTRY: dict[str, type[Strategy]] = {
     MovingAverageCrossStrategy.name: MovingAverageCrossStrategy,
     VolumeConfirmedMovingAverageCrossStrategy.name: VolumeConfirmedMovingAverageCrossStrategy,
     FlowConfirmedVolumeMACrossStrategy.name: FlowConfirmedVolumeMACrossStrategy,
+    RsiReversionStrategy.name: RsiReversionStrategy,
+    MacdTrendStrategy.name: MacdTrendStrategy,
+    BreakoutHighStrategy.name: BreakoutHighStrategy,
+    PullbackTrendStrategy.name: PullbackTrendStrategy,
 }
 
 
