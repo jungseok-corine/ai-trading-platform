@@ -125,8 +125,16 @@ class SignalService:
         symbol_code: str,
         strategy_version_id: int | None = None,
         strategy_params: dict | None = None,
+        candle_cache: dict[str, list[MinuteCandle]] | None = None,
     ) -> SignalLog | None:
-        candles = await self._market_data_service.get_recent_candles(symbol_code)
+        # 같은 run에서 여러 전략이 동일 종목을 볼 때 캔들을 1회만 조회하도록 캐시한다.
+        # (KIS 호출 수를 전략 수만큼 줄여 rate limit/지연을 완화)
+        if candle_cache is not None and symbol_code in candle_cache:
+            candles = candle_cache[symbol_code]
+        else:
+            candles = await self._market_data_service.get_recent_candles(symbol_code)
+            if candle_cache is not None:
+                candle_cache[symbol_code] = candles
 
         context: StrategyContext | None = None
         if self._investor_flow_repo is not None and strategy_params:
