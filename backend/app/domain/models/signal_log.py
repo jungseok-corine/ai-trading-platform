@@ -37,6 +37,8 @@ class SignalLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     symbol_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 시장 구분(KR/US) — 시장별 신호 집계/리포트/필터용. enum 없이 String(2).
+    market: Mapped[str] = mapped_column(String(2), nullable=False, server_default="KR")
     strategy_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategy_versions.id", ondelete="SET NULL")
     )

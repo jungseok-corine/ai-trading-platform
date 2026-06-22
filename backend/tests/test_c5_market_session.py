@@ -31,12 +31,46 @@ _SAT = lambda h, m: datetime(2026, 6, 20, h, m, tzinfo=KST)  # noqa: E731
 
 
 def test_kr_phases() -> None:
+    assert kr_market_phase(_MON(8, 15)) == MarketPhase.PRE      # NXT 프리(08:00~)
     assert kr_market_phase(_MON(8, 45)) == MarketPhase.PRE
     assert kr_market_phase(_MON(11, 0)) == MarketPhase.REGULAR
     assert kr_market_phase(_MON(15, 25)) == MarketPhase.CLOSING_AUCTION
     assert kr_market_phase(_MON(16, 30)) == MarketPhase.POST
+    assert kr_market_phase(_MON(19, 0)) == MarketPhase.POST     # NXT 애프터(~20:00)
     assert kr_market_phase(_MON(21, 29)) == MarketPhase.CLOSED  # 캡처의 그 시각
     assert kr_market_phase(_SAT(11, 0)) == MarketPhase.CLOSED   # 주말
+
+
+def test_extended_session_gate() -> None:
+    # 확장 off: 애프터(POST)/프리는 비활성
+    assert is_signal_active("KR", _MON(18, 0)) is False
+    assert is_signal_active("KR", _MON(8, 15)) is False
+    # 확장 on: 프리/애프터(NXT 시간대 포함) 활성
+    assert is_signal_active("KR", _MON(18, 0), include_extended=True) is True   # NXT 애프터
+    assert is_signal_active("KR", _MON(8, 15), include_extended=True) is True   # NXT 프리
+    assert is_signal_active("KR", _MON(21, 0), include_extended=True) is False  # 20시 이후 휴장
+    # US 확장: 22:00 KST = 09:00 EDT → 프리마켓
+    assert is_signal_active("US", _MON(22, 0)) is False
+    assert is_signal_active("US", _MON(22, 0), include_extended=True) is True
+
+
+async def test_runner_extended_session_generates_signal(
+    db_session: AsyncSession, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "app.services.strategy_runner_service.get_settings",
+        lambda: SimpleNamespace(
+            strategy_session_gating_enabled=True, signal_extended_sessions_enabled=True
+        ),
+    )
+    await _create_version(db_session)
+    broker = FakeBrokerClient({"005930": _make_candles([100] * 20 + [200])})
+    runner = _runner(db_session, broker)
+
+    # 확장 세션 켜짐 + 애프터(18:00) → 신호 생성(국장 NXT 시간대 가정)
+    results = await runner.run_once(now=_MON(18, 0))
+    assert len(results) == 1
+    assert results[0].signal_created is True
 
 
 def test_kr_signal_active_and_closing() -> None:
@@ -98,7 +132,7 @@ def _runner(session: AsyncSession, broker: FakeBrokerClient) -> StrategyRunnerSe
 async def test_runner_skips_when_kr_market_closed(db_session: AsyncSession, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.strategy_runner_service.get_settings",
-        lambda: SimpleNamespace(strategy_session_gating_enabled=True),
+        lambda: SimpleNamespace(strategy_session_gating_enabled=True, signal_extended_sessions_enabled=False),
     )
     await _create_version(db_session)
     broker = FakeBrokerClient({"005930": _make_candles([100] * 20 + [200])})  # 골든크로스 → 매수
@@ -117,7 +151,7 @@ async def test_runner_skips_when_kr_market_closed(db_session: AsyncSession, monk
 async def test_gating_disabled_runs_regardless_of_time(db_session: AsyncSession, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.strategy_runner_service.get_settings",
-        lambda: SimpleNamespace(strategy_session_gating_enabled=False),
+        lambda: SimpleNamespace(strategy_session_gating_enabled=False, signal_extended_sessions_enabled=False),
     )
     await _create_version(db_session)
     broker = FakeBrokerClient({"005930": _make_candles([100] * 20 + [200])})
@@ -159,7 +193,7 @@ async def test_exit_on_close_emits_sell_during_closing_auction(
 
     monkeypatch.setattr(
         "app.services.strategy_runner_service.get_settings",
-        lambda: SimpleNamespace(strategy_session_gating_enabled=True),
+        lambda: SimpleNamespace(strategy_session_gating_enabled=True, signal_extended_sessions_enabled=False),
     )
     await _create_exit_version(db_session)
     # 단조 상승 캔들 — 정규장이라면 골든크로스 매수가 났을 데이터.
@@ -187,7 +221,7 @@ async def test_exit_on_close_inactive_during_regular_session(
 
     monkeypatch.setattr(
         "app.services.strategy_runner_service.get_settings",
-        lambda: SimpleNamespace(strategy_session_gating_enabled=True),
+        lambda: SimpleNamespace(strategy_session_gating_enabled=True, signal_extended_sessions_enabled=False),
     )
     await _create_exit_version(db_session)
     broker = FakeBrokerClient({"005930": _make_candles([100] * 20 + [200])})

@@ -164,6 +164,7 @@ export interface Trade {
 export interface SignalLog {
   id: number;
   symbol_code: string;
+  market: string;
   symbol_name?: string | null;
   symbol_display?: string | null;
   strategy_version_id: number | null;

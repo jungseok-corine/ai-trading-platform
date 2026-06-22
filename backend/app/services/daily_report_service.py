@@ -46,9 +46,9 @@ class DailyReportService:
         start = datetime.combine(report_date, time.min, tzinfo=KST)
         end = start + timedelta(days=1)
 
-        signal_total, signal_by_type = await self._signal_stats(start, end)
-        trade_stats = await self._trade_stats(start, end)
-        candidates = await self._count(CandidateEvent, CandidateEvent.triggered_at, start, end)
+        signal_total, signal_by_type = await self._signal_stats(start, end, market)
+        trade_stats = await self._trade_stats(start, end, market)
+        candidates = await self._count_candidates(start, end, market)
         active_strategies = await self._active_strategy_count()
         proposal_activity = await self._proposal_stats(start, end)
         us_prev = await self._us_repo.get_latest()
@@ -110,12 +110,28 @@ class DailyReportService:
         )
         return result.scalar() or 0
 
+    async def _count_candidates(
+        self, start: datetime, end: datetime, market: MarketCode
+    ) -> int:
+        result = await self._session.execute(
+            select(func.count(CandidateEvent.id)).where(
+                CandidateEvent.triggered_at >= start,
+                CandidateEvent.triggered_at < end,
+                CandidateEvent.market == market,
+            )
+        )
+        return result.scalar() or 0
+
     async def _signal_stats(
-        self, start: datetime, end: datetime
+        self, start: datetime, end: datetime, market: MarketCode
     ) -> tuple[int, dict[str, int]]:
         result = await self._session.execute(
             select(SignalLog.signal_type, func.count(SignalLog.id))
-            .where(SignalLog.generated_at >= start, SignalLog.generated_at < end)
+            .where(
+                SignalLog.generated_at >= start,
+                SignalLog.generated_at < end,
+                SignalLog.market == market.value,
+            )
             .group_by(SignalLog.signal_type)
         )
         by_type: dict[str, int] = {}
@@ -126,10 +142,11 @@ class DailyReportService:
             total += count
         return total, by_type
 
-    async def _trade_stats(self, start: datetime, end: datetime) -> dict:
+    async def _trade_stats(self, start: datetime, end: datetime, market: MarketCode) -> dict:
         result = await self._session.execute(
             select(Trade.pnl_amount).where(
-                Trade.created_at >= start, Trade.created_at < end
+                Trade.created_at >= start, Trade.created_at < end,
+                Trade.market == market.value,
             )
         )
         pnls = [row[0] for row in result.all()]

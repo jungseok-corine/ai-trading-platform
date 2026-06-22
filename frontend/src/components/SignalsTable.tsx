@@ -107,6 +107,7 @@ export default function SignalsTable() {
               <tr>
                 <th>{t.signals.colId}</th>
                 <th>{t.signals.colSymbol}</th>
+                <th>{t.signals.colMarket}</th>
                 <th>{t.signals.colType}</th>
                 <th>{t.signals.colSignalPrice}</th>
                 <th>{t.signals.colShortMa}</th>
@@ -126,6 +127,11 @@ export default function SignalsTable() {
                         (signal.symbol_name
                           ? `${signal.symbol_name} (${signal.symbol_code})`
                           : signal.symbol_code)}
+                    </td>
+                    <td>
+                      <span className={`badge market-${(signal.market ?? "KR").toLowerCase()}`}>
+                        {signal.market ?? "KR"}
+                      </span>
                     </td>
                     <td>
                       <span className={`badge side-${signal.signal_type}`}>
@@ -151,7 +157,7 @@ export default function SignalsTable() {
                   {expandedIds.has(signal.id) && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         style={{ padding: 0, background: "#f8f9fa", borderBottom: "1px solid #e0e0e0" }}
                       >
                         <SignalOutcomePanel signalId={signal.id} />

@@ -256,8 +256,10 @@ class SignalService:
             await self._session.commit()
             return None
 
+        eff_market = market or (strategy_params or {}).get("market", "KR")
         log = await self._signal_log_repo.create(
             symbol_code=signal.symbol_code,
+            market=eff_market,
             strategy_version_id=signal.strategy_version_id,
             signal_type=signal.side,
             generated_at=datetime.now(KST),

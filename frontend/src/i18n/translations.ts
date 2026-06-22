@@ -125,6 +125,7 @@ export interface Translations {
     empty: string;
     colId: string;
     colSymbol: string;
+    colMarket: string;
     colType: string;
     colSignalPrice: string;
     colShortMa: string;
@@ -634,6 +635,7 @@ export const translations: Record<Language, Translations> = {
       empty: "생성된 시그널이 없습니다.",
       colId: "ID",
       colSymbol: "종목코드",
+      colMarket: "시장",
       colType: "신호유형",
       colSignalPrice: "시그널 발생가",
       colShortMa: "단기 이동평균",
@@ -1148,6 +1150,7 @@ export const translations: Record<Language, Translations> = {
       empty: "No signals generated.",
       colId: "ID",
       colSymbol: "Symbol",
+      colMarket: "Market",
       colType: "Type",
       colSignalPrice: "Signal Price",
       colShortMa: "Short MA",

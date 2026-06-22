@@ -232,12 +232,16 @@ async def run_daily_report_job(app: FastAPI) -> None:
 
     주문/외부 API 호출 없이 DB 집계만 수행하므로 안전하다.
     """
+    from app.domain.models.enums import MarketCode
     from app.services.daily_report_service import DailyReportService
 
     try:
         async with async_session_factory() as session:
-            report = await DailyReportService(session).generate()
-        logger.info("daily report generated: %s", report.summary)
+            svc = DailyReportService(session)
+            # 시장별로 따로 집계해 KR/US 리포트를 각각 생성한다.
+            for market in (MarketCode.KR, MarketCode.US):
+                report = await svc.generate(market=market)
+                logger.info("daily report generated (%s): %s", market.value, report.summary)
         app.state.daily_report_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 리포트 실패가 스케줄러를 중단시키지 않도록
         logger.error("daily report job failed: %s", exc_message(exc))
