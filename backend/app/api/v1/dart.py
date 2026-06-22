@@ -14,6 +14,7 @@ from app.services.dart_ingest_service import DartIngestService
 from app.services.dart_provider import DartProviderError
 from app.services.disclosure_alert_service import DisclosureAlertService
 from app.services.disclosure_assessment_service import DisclosureAssessmentService
+from app.services.intraday_event_monitor_service import IntradayEventMonitorService
 
 router = APIRouter(prefix="/dart", tags=["dart"])
 
@@ -39,6 +40,18 @@ async def list_alerts(
 ) -> list[dict]:
     """최근 보유/관심 종목의 중요 공시 알림(최신순)."""
     return await service.recent(hours=hours)
+
+
+@router.get("/intraday-events")
+async def intraday_events(
+    hours: int = Query(default=8, ge=1, le=72),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """§7.1 보유/활성 종목 한정 장중 공시 알림. (감시 대상 종목 목록 + 최근 중요 공시)"""
+    service = IntradayEventMonitorService(session)
+    symbols = sorted(await service.resolve_monitored_symbols())
+    alerts = await service.recent_alerts(hours=hours)
+    return {"monitored_symbols": symbols, "alerts": alerts}
 
 
 @router.post("/assess")

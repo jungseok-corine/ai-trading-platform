@@ -58,6 +58,39 @@ async def run_dart_ingest_job(app: FastAPI) -> None:
         app.state.dart_ingest_last_error = exc_message(exc)
 
 
+INTRADAY_EVENT_MONITOR_JOB_ID = "intraday_event_monitor"
+
+
+async def run_intraday_event_monitor_job(app: FastAPI) -> None:
+    """§7.1 보유/활성 종목 한정 장중 공시 감시. 장 마감 후/주말엔 건너뛴다.
+
+    범위를 좁혀(보유 포지션 + 활성 단일종목 전략) 비용·노이즈를 줄인다. read-only.
+    """
+    from app.common.market_session import MarketPhase, kr_market_phase
+    from app.core.config import get_settings
+    from app.services.intraday_event_monitor_service import IntradayEventMonitorService
+
+    # 장중(+장전/장후 NXT 시간대)만 폴링 — 주말/심야 불필요 호출 차단.
+    if kr_market_phase(datetime.now(KST)) == MarketPhase.CLOSED:
+        app.state.intraday_event_monitor_last_run_at = datetime.now(KST)
+        return
+
+    try:
+        settings = get_settings()
+        async with async_session_factory() as session:
+            result = await IntradayEventMonitorService(session).run_once(
+                min_score=settings.intraday_event_monitor_min_score
+            )
+        logger.info(
+            "intraday event monitor: monitored=%s material=%s created=%s",
+            result.get("monitored"), result.get("material"), result.get("created"),
+        )
+        app.state.intraday_event_monitor_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 감시 실패가 스케줄러를 중단시키지 않도록
+        logger.error("intraday event monitor job failed: %s", exc_message(exc))
+        app.state.intraday_event_monitor_last_error = exc_message(exc)
+
+
 async def run_operations_digest_job(app: FastAPI) -> None:
     """운영 다이제스트를 만들어 설정된 알림 채널로 보낸다 (C-3.9).
 

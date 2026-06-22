@@ -374,6 +374,18 @@ export async function getDisclosureAlerts(hours = 48): Promise<DisclosureAlert[]
   return data;
 }
 
+export interface IntradayEvents {
+  monitored_symbols: string[];
+  alerts: DisclosureAlert[];
+}
+
+export async function getIntradayEvents(hours = 8): Promise<IntradayEvents> {
+  const { data } = await apiClient.get<IntradayEvents>("/dart/intraday-events", {
+    params: { hours },
+  });
+  return data;
+}
+
 export async function getResearchStatus(): Promise<ResearchStatus> {
   const { data } = await apiClient.get<ResearchStatus>("/research-status");
   return data;

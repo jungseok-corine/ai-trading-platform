@@ -191,6 +191,10 @@ class Settings(BaseSettings):
     dart_min_materiality: float = 0.5
     dart_ingest_scheduler_enabled: bool = False
     dart_ingest_interval_seconds: int = 600  # 장중 10분 폴링
+    # §7.1 인트라데이 이벤트 감시 — 보유/활성 종목 한정 장중 공시 폴링(기본 off).
+    intraday_event_monitor_scheduler_enabled: bool = False
+    intraday_event_monitor_interval_seconds: int = 600  # 장중 10분
+    intraday_event_monitor_min_score: float = 0.6       # 보유종목은 더 엄격히
 
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
