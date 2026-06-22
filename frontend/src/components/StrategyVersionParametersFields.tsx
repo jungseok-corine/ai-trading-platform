@@ -102,6 +102,31 @@ export default function StrategyVersionParametersFields({
         </select>
       </div>
       <div className="form-row">
+        <label htmlFor={`${idPrefix}-market`}>{sp.labelMarket}</label>
+        <select
+          id={`${idPrefix}-market`}
+          value={parameters.market ?? "KR"}
+          onChange={(e) => update("market", e.target.value)}
+        >
+          <option value="KR">{sp.marketKr}</option>
+          <option value="US">{sp.marketUs}</option>
+        </select>
+      </div>
+      {(parameters.market ?? "KR") === "US" && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-exchange`}>{sp.labelExchange}</label>
+          <select
+            id={`${idPrefix}-exchange`}
+            value={parameters.exchange ?? "NAS"}
+            onChange={(e) => update("exchange", e.target.value)}
+          >
+            <option value="NAS">NAS (NASDAQ)</option>
+            <option value="NYS">NYS (NYSE)</option>
+            <option value="AMS">AMS (AMEX)</option>
+          </select>
+        </div>
+      )}
+      <div className="form-row">
         <label htmlFor={`${idPrefix}-universe`}>{sp.labelUniverse}</label>
         <select
           id={`${idPrefix}-universe`}

@@ -4,7 +4,7 @@ from app.common.timezone import KST
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_broker_client
+from app.api.deps import get_broker_client, get_overseas_client
 from app.db.session import get_db
 from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
@@ -34,9 +34,12 @@ router = APIRouter(prefix="/engine", tags=["engine"])
 def get_strategy_runner_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
+    overseas=Depends(get_overseas_client),
 ) -> StrategyRunnerService:
     signal_service = SignalService(
-        session, MarketDataService(broker, session), InvestorFlowRepository(session)
+        session,
+        MarketDataService(broker, session, overseas_client=overseas),
+        InvestorFlowRepository(session),
     )
     risk_service = RiskService(session, broker)
     trade_service = TradeService(session, broker, risk_service)
