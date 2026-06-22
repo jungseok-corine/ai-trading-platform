@@ -159,6 +159,60 @@ async def test_approved_order_calls_broker_and_saves_trade(
     assert trades[0].id == result.trade.id
 
 
+async def test_us_order_routes_to_overseas_broker_and_records_market(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    account = await _create_account_with_risk_config(db_session)
+    kr_broker = FakeBrokerClient()
+    us_broker = FakeBrokerClient()
+    service = TradeService(
+        db_session, kr_broker, RiskService(db_session, kr_broker), overseas_broker=us_broker
+    )
+
+    request = order_request_factory(
+        account.id, symbol_code="AAPL", price=Decimal("190.50"), market="US", exchange="NAS"
+    )
+    result = await service.place_order(request)
+
+    assert result.approved is True
+    # 미국 주문은 해외 브로커로만 라우팅된다(국내 브로커는 호출되지 않음).
+    assert len(us_broker.place_order_calls) == 1
+    assert kr_broker.place_order_calls == []
+    placed = us_broker.place_order_calls[0]
+    assert placed.exchange == "NAS"
+    # 미국 가격은 센트 단위로 보존된다(KR 정수 호가단위로 깎이지 않음).
+    assert placed.price == Decimal("190.50")
+    assert result.trade is not None
+    assert result.trade.market == "US"
+    assert result.trade.entry_price == Decimal("190.50")
+
+
+async def test_us_order_without_overseas_broker_raises(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    account = await _create_account_with_risk_config(db_session)
+    kr_broker = FakeBrokerClient()
+    service = TradeService(db_session, kr_broker, RiskService(db_session, kr_broker))
+
+    with pytest.raises(RuntimeError):
+        await service.place_order(
+            order_request_factory(account.id, symbol_code="AAPL", market="US", exchange="NAS")
+        )
+
+
+async def test_kr_order_defaults_market_kr(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    account = await _create_account_with_risk_config(db_session)
+    broker = FakeBrokerClient()
+    service = TradeService(db_session, broker, RiskService(db_session, broker))
+
+    result = await service.place_order(order_request_factory(account.id))
+
+    assert result.trade is not None
+    assert result.trade.market == "KR"
+
+
 async def test_get_and_list_trades(db_session: AsyncSession, order_request_factory) -> None:
     account = await _create_account_with_risk_config(db_session)
     broker = FakeBrokerClient()

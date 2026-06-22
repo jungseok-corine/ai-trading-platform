@@ -289,7 +289,10 @@ async def run_strategy_job(app: FastAPI) -> None:
                 InvestorFlowRepository(session),
             )
             risk_service = RiskService(session, broker)
-            trade_service = TradeService(session, broker, risk_service)
+            overseas_broker = getattr(app.state, "overseas_broker_client", None)
+            trade_service = TradeService(
+                session, broker, risk_service, overseas_broker=overseas_broker
+            )
             runner = StrategyRunnerService(session, signal_service, trade_service)
             results = await runner.run_once()
 

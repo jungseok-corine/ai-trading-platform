@@ -44,14 +44,14 @@ async def _seed_candidates(session: AsyncSession, symbols: list[str], days_ago: 
 async def test_resolver_scanner_candidates_returns_recent_distinct(db_session: AsyncSession) -> None:
     await _seed_candidates(db_session, ["005930", "000660", "005930"], days_ago=0)
     symbols = await UniverseResolver(db_session).resolve("scanner_candidates", lookback_days=5)
-    assert sorted(symbols) == ["000660", "005930"]
+    assert sorted(s.symbol_code for s in symbols) == ["000660", "005930"]
 
 
 async def test_resolver_scanner_candidates_excludes_old(db_session: AsyncSession) -> None:
     await _seed_candidates(db_session, ["005930"], days_ago=0)
     await _seed_candidates(db_session, ["999999"], days_ago=30)
     symbols = await UniverseResolver(db_session).resolve("scanner_candidates", lookback_days=5)
-    assert symbols == ["005930"]
+    assert [s.symbol_code for s in symbols] == ["005930"]
 
 
 async def test_resolver_watchlist_returns_enabled(db_session: AsyncSession) -> None:
@@ -64,7 +64,28 @@ async def test_resolver_watchlist_returns_enabled(db_session: AsyncSession) -> N
     ])
     await db_session.commit()
     symbols = await UniverseResolver(db_session).resolve("watchlist")
-    assert symbols == ["005930"]
+    assert [s.symbol_code for s in symbols] == ["005930"]
+
+
+async def test_resolver_watchlist_carries_market_exchange(db_session: AsyncSession) -> None:
+    wl = Watchlist(name="US", enabled=True)
+    db_session.add(wl)
+    await db_session.flush()
+    db_session.add_all([
+        WatchlistSymbol(
+            watchlist_id=wl.id, symbol_code="AAPL", market="US", exchange="NAS", enabled=True
+        ),
+        WatchlistSymbol(
+            watchlist_id=wl.id, symbol_code="JPM", market="US", exchange="NYS", enabled=True
+        ),
+        WatchlistSymbol(watchlist_id=wl.id, symbol_code="005930", market="KR", enabled=True),
+    ])
+    await db_session.commit()
+    symbols = await UniverseResolver(db_session).resolve("watchlist")
+    by_code = {s.symbol_code: s for s in symbols}
+    assert by_code["AAPL"].market == "US" and by_code["AAPL"].exchange == "NAS"
+    assert by_code["JPM"].market == "US" and by_code["JPM"].exchange == "NYS"
+    assert by_code["005930"].market == "KR" and by_code["005930"].exchange is None
 
 
 async def test_resolver_unknown_universe_returns_empty(db_session: AsyncSession) -> None:
@@ -125,3 +146,35 @@ async def test_universe_mode_empty_universe_yields_no_results(db_session: AsyncS
     broker = FakeBrokerClient({})
     results = await _runner(db_session, broker).run_once()
     assert results == []
+
+
+async def test_us_watchlist_universe_routes_per_symbol_exchange(db_session: AsyncSession) -> None:
+    """US watchlist 유니버스: 종목별 시장/거래소가 시세 조회로 그대로 전달돼야 한다."""
+    from unittest.mock import AsyncMock
+
+    wl = Watchlist(name="US", enabled=True)
+    db_session.add(wl)
+    await db_session.flush()
+    db_session.add_all([
+        WatchlistSymbol(
+            watchlist_id=wl.id, symbol_code="AAPL", market="US", exchange="NAS", enabled=True
+        ),
+        WatchlistSymbol(
+            watchlist_id=wl.id, symbol_code="JPM", market="US", exchange="NYS", enabled=True
+        ),
+    ])
+    await db_session.commit()
+    await _create_version(db_session, {**UNIVERSE_PARAMS, "universe": "watchlist"})
+
+    signal_service = SignalService(db_session, MarketDataService(FakeBrokerClient({})))
+    signal_service.generate_and_log_signal = AsyncMock(return_value=None)
+    runner = StrategyRunnerService(db_session, signal_service)
+
+    await runner.run_once()
+
+    routing = {
+        call.args[1]: (call.kwargs["market"], call.kwargs["exchange"])
+        for call in signal_service.generate_and_log_signal.call_args_list
+    }
+    assert routing["AAPL"] == ("US", "NAS")
+    assert routing["JPM"] == ("US", "NYS")

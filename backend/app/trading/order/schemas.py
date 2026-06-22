@@ -14,6 +14,9 @@ class OrderCreateRequest(BaseModel):
     quantity: int
     price: Decimal
     order_type: OrderType = OrderType.LIMIT
+    # 멀티마켓 라우팅: market(KR/US) + 미국 거래소(NAS/NYS/AMS).
+    market: str = "KR"
+    exchange: str | None = None
     strategy_version_id: int | None = None
     reason: str | None = None
 
@@ -26,6 +29,7 @@ class TradeRead(BaseModel):
     strategy_version_id: int | None
     symbol_code: str
     symbol_name: str | None
+    market: str = "KR"
     side: TradeSide
     entry_time: datetime | None
     exit_time: datetime | None

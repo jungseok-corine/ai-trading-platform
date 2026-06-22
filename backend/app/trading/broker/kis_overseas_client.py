@@ -9,12 +9,14 @@
 import logging
 
 from app.trading.broker.kis_client import KISClientBase
-from app.trading.broker.schemas import MinuteCandle
+from app.trading.broker.schemas import MinuteCandle, PriceQuote
 
 logger = logging.getLogger(__name__)
 
 # TR_ID: 해외주식 분봉조회 — 실전 전용, 모의투자 미지원
 TR_ID_OVERSEAS_TIME_ITEMCHARTPRICE = "HHDFS76950200"
+# TR_ID: 해외주식 현재체결가 — 실전 전용
+TR_ID_OVERSEAS_PRICE = "HHDFS00000300"
 
 # 미국 거래소 코드 (EXCD)
 US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
@@ -27,6 +29,31 @@ class KISOverseasClient(KISClientBase):
     분봉 시세는 모의 미지원이므로 실전 도메인+실전 키로만 동작한다.
     주문 메서드는 존재하지 않는다(시세 전용).
     """
+
+    async def get_overseas_price(
+        self, symbol_code: str, exchange: str = _DEFAULT_EXCHANGE
+    ) -> PriceQuote:
+        """해외주식 현재체결가(HHDFS00000300)를 공통 PriceQuote로 조회한다.
+
+        실전 도메인 전용. 모의투자(VTS)는 시세 미지원이므로 항상 실전 키로 호출된다.
+        """
+        data = await self._request(
+            "GET",
+            "/uapi/overseas-price/v1/quotations/price",
+            tr_id=TR_ID_OVERSEAS_PRICE,
+            params={"AUTH": "", "EXCD": exchange, "SYMB": symbol_code},
+        )
+        output = data.get("output") or {}
+        return PriceQuote(
+            symbol_code=symbol_code,
+            current_price=output.get("last") or "0",
+            change=output.get("diff") or "0",
+            change_rate=output.get("rate") or "0",
+            open_price=output.get("open") or "0",
+            high_price=output.get("high") or "0",
+            low_price=output.get("low") or "0",
+            volume=output.get("tvol") or "0",
+        )
 
     async def get_overseas_minute_candles(
         self,

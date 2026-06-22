@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from app.common.timezone import KST
 
@@ -20,6 +21,20 @@ WATCHLIST = "watchlist"
 VALID_UNIVERSES = frozenset({SCANNER_CANDIDATES, WATCHLIST})
 
 
+@dataclass(frozen=True)
+class ResolvedSymbol:
+    """유니버스 해석 결과의 종목 1개 — 종목코드 + 시장/거래소 정보를 함께 담는다.
+
+    멀티마켓(KR/US)에서 종목마다 시장·거래소가 다를 수 있으므로(예: AAPL=NAS,
+    JPM=NYS) 시세 조회 라우팅에 필요한 market/exchange를 종목 단위로 전달한다.
+    exchange는 미국 종목에서만 의미가 있고 KR은 None이다.
+    """
+
+    symbol_code: str
+    market: str = "KR"
+    exchange: str | None = None
+
+
 class UniverseResolver:
     """전략을 적용할 종목 유니버스를 해석한다.
 
@@ -37,24 +52,24 @@ class UniverseResolver:
         market: MarketCode | None = None,
         lookback_days: int = 5,
         limit: int = 200,
-    ) -> list[str]:
-        """universe 이름을 종목코드 리스트로 해석한다.
+    ) -> list[ResolvedSymbol]:
+        """universe 이름을 ResolvedSymbol 리스트로 해석한다.
 
         알 수 없는 universe는 빈 리스트를 반환하고 warning을 남긴다(예외 raise 안 함).
         """
         if universe == SCANNER_CANDIDATES:
             return await self._scanner_candidates(market, lookback_days, limit)
         if universe == WATCHLIST:
-            return await self._watchlist_symbols(limit)
+            return await self._watchlist_symbols(market, limit)
         logger.warning("알 수 없는 universe=%r — 빈 유니버스로 처리합니다.", universe)
         return []
 
     async def _scanner_candidates(
         self, market: MarketCode | None, lookback_days: int, limit: int
-    ) -> list[str]:
+    ) -> list[ResolvedSymbol]:
         since = datetime.now(KST) - timedelta(days=lookback_days)
         stmt = (
-            select(CandidateEvent.symbol_code)
+            select(CandidateEvent.symbol_code, CandidateEvent.market)
             .where(CandidateEvent.triggered_at >= since)
             .distinct()
         )
@@ -62,7 +77,19 @@ class UniverseResolver:
             stmt = stmt.where(CandidateEvent.market == market)
         stmt = stmt.limit(limit)
         result = await self._session.execute(stmt)
-        return [row[0] for row in result.all()]
+        # 스캐너 후보는 거래소 코드를 따로 갖지 않는다(현재 KR 중심) — exchange=None.
+        return [
+            ResolvedSymbol(symbol_code=code, market=mkt.value if mkt else "KR")
+            for code, mkt in result.all()
+        ]
 
-    async def _watchlist_symbols(self, limit: int) -> list[str]:
-        return await WatchlistSymbolRepository(self._session).list_enabled_symbol_codes(limit=limit)
+    async def _watchlist_symbols(
+        self, market: MarketCode | None, limit: int
+    ) -> list[ResolvedSymbol]:
+        rows = await WatchlistSymbolRepository(self._session).list_enabled_symbols(
+            market=market.value if market is not None else None, limit=limit
+        )
+        return [
+            ResolvedSymbol(symbol_code=code, market=mkt, exchange=exc)
+            for code, mkt, exc in rows
+        ]

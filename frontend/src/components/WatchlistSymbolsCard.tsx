@@ -37,6 +37,7 @@ function SymbolRow({ watchlistId, symbol }: { watchlistId: number; symbol: Watch
     <tr>
       <td>{symbol.symbol_code}</td>
       <td>{symbol.symbol_name ?? "-"}</td>
+      <td>{symbol.market === "US" ? `US · ${symbol.exchange ?? "-"}` : symbol.market}</td>
       <td>
         <span className={`pill ${symbol.enabled ? "off" : "on"}`}>
           {symbol.enabled ? t.watchlists.enabledYes : t.watchlists.enabledNo}
@@ -70,6 +71,8 @@ function AddSymbolForm({ watchlistId }: { watchlistId: number }) {
   const { t } = useSettings();
   const [symbolCode, setSymbolCode] = useState("");
   const [symbolName, setSymbolName] = useState("");
+  const [market, setMarket] = useState("KR");
+  const [exchange, setExchange] = useState("NAS");
   const [note, setNote] = useState("");
   const queryClient = useQueryClient();
 
@@ -78,6 +81,8 @@ function AddSymbolForm({ watchlistId }: { watchlistId: number }) {
       addWatchlistSymbol(watchlistId, {
         symbol_code: symbolCode.trim(),
         symbol_name: symbolName.trim() || null,
+        market,
+        exchange: market === "US" ? exchange : null,
         note: note.trim() || null,
       }),
     onSuccess: () => {
@@ -85,6 +90,8 @@ function AddSymbolForm({ watchlistId }: { watchlistId: number }) {
       queryClient.invalidateQueries({ queryKey: ["watchlists"] });
       setSymbolCode("");
       setSymbolName("");
+      setMarket("KR");
+      setExchange("NAS");
       setNote("");
     },
   });
@@ -127,6 +134,31 @@ function AddSymbolForm({ watchlistId }: { watchlistId: number }) {
         />
       </div>
       <div className="form-row">
+        <label htmlFor={`watchlist-${watchlistId}-market`}>{t.watchlists.market}</label>
+        <select
+          id={`watchlist-${watchlistId}-market`}
+          value={market}
+          onChange={(e) => setMarket(e.target.value)}
+        >
+          <option value="KR">KR</option>
+          <option value="US">US</option>
+        </select>
+      </div>
+      {market === "US" && (
+        <div className="form-row">
+          <label htmlFor={`watchlist-${watchlistId}-exchange`}>{t.watchlists.exchange}</label>
+          <select
+            id={`watchlist-${watchlistId}-exchange`}
+            value={exchange}
+            onChange={(e) => setExchange(e.target.value)}
+          >
+            <option value="NAS">NAS</option>
+            <option value="NYS">NYS</option>
+            <option value="AMS">AMS</option>
+          </select>
+        </div>
+      )}
+      <div className="form-row">
         <label htmlFor={`watchlist-${watchlistId}-note`}>{t.watchlists.note}</label>
         <input
           id={`watchlist-${watchlistId}-note`}
@@ -165,6 +197,7 @@ export default function WatchlistSymbolsCard({ watchlistId }: WatchlistSymbolsCa
               <tr>
                 <th>{t.watchlists.colSymbolCode}</th>
                 <th>{t.watchlists.colSymbolName}</th>
+                <th>{t.watchlists.colMarket}</th>
                 <th>{t.watchlists.colEnabled}</th>
                 <th>{t.watchlists.colNote}</th>
                 <th>{t.watchlists.colActions}</th>

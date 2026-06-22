@@ -80,6 +80,8 @@ class OrderRequest(BaseModel):
     quantity: int
     price: Decimal
     order_type: OrderType = OrderType.LIMIT
+    # 해외(미국) 주문 라우팅용 거래소 코드(NAS/NYS/AMS). 국내 주문은 무시한다.
+    exchange: str | None = None
 
 
 class OrderResult(BaseModel):

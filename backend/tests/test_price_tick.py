@@ -3,7 +3,26 @@ from decimal import Decimal
 import pytest
 
 from app.domain.models.enums import TradeSide
-from app.trading.pricing.tick import get_tick_size, round_price_to_tick
+from app.trading.pricing.tick import (
+    get_tick_size,
+    round_price_to_tick,
+    round_us_price_to_cent,
+)
+
+
+def test_us_cent_rounding_preserves_decimals() -> None:
+    # 미국 가격은 센트($0.01) 단위로 보정되며 소수점을 보존한다(KR 정수 라운딩과 다름).
+    assert round_us_price_to_cent(Decimal("190.504"), TradeSide.BUY) == Decimal("190.50")
+    assert round_us_price_to_cent(Decimal("190.501"), TradeSide.SELL) == Decimal("190.51")
+    assert round_us_price_to_cent(Decimal("190.50"), TradeSide.BUY) == Decimal("190.50")
+    # 보수적 정책: BUY 내림, SELL 올림
+    assert round_us_price_to_cent(Decimal("5.009"), TradeSide.BUY) == Decimal("5.00")
+    assert round_us_price_to_cent(Decimal("5.001"), TradeSide.SELL) == Decimal("5.01")
+
+
+def test_us_cent_rounding_rejects_nonpositive() -> None:
+    with pytest.raises(ValueError):
+        round_us_price_to_cent(Decimal("0"), TradeSide.BUY)
 
 
 @pytest.mark.parametrize(

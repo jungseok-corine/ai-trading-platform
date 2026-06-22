@@ -12,7 +12,7 @@ from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
-from app.services.universe_resolver import UniverseResolver
+from app.services.universe_resolver import ResolvedSymbol, UniverseResolver
 from app.trading.broker.error_classifier import classify_exception, exc_message
 from app.trading.strategy.base import Signal, Strategy
 from app.trading.strategy.registry import create_strategy
@@ -68,11 +68,14 @@ class StrategyRunnerService:
             results.extend(await self._run_version(version, candle_cache))
         return results
 
-    async def _resolve_symbols(self, version: StrategyVersion, params: dict) -> list[str]:
+    async def _resolve_symbols(
+        self, version: StrategyVersion, params: dict
+    ) -> list[ResolvedSymbol]:
         """전략 버전이 돌 종목 목록을 해석한다.
 
         universe가 설정돼 있으면 유니버스(스캐너 후보/관심종목)를 해석하고,
-        아니면 단일 symbol_code를 리스트로 반환한다.
+        아니면 단일 symbol_code를 리스트로 반환한다. 멀티마켓(KR/US)에서 종목마다
+        시장/거래소가 다를 수 있어 ResolvedSymbol로 시세 라우팅 정보를 함께 전달한다.
         """
         universe = params.get("universe")
         if universe:
@@ -87,7 +90,14 @@ class StrategyRunnerService:
                 )
             return symbols
         symbol_code = params.get("symbol_code")
-        return [symbol_code] if symbol_code else []
+        if not symbol_code:
+            return []
+        # 단일 종목 모드: 전략 파라미터의 market/exchange를 그대로 사용.
+        return [ResolvedSymbol(
+            symbol_code=symbol_code,
+            market=params.get("market", "KR"),
+            exchange=params.get("exchange"),
+        )]
 
     async def _run_version(
         self, version: StrategyVersion, candle_cache: dict | None = None
@@ -113,10 +123,10 @@ class StrategyRunnerService:
         )
 
         results: list[StrategyRunResult] = []
-        for symbol_code in symbols:
+        for resolved in symbols:
             results.append(
                 await self._run_one(
-                    version, strategy, symbol_code, params, auto_trade_enabled, candle_cache
+                    version, strategy, resolved, params, auto_trade_enabled, candle_cache
                 )
             )
         return results
@@ -125,11 +135,12 @@ class StrategyRunnerService:
         self,
         version: StrategyVersion,
         strategy: Strategy,
-        symbol_code: str,
+        resolved: ResolvedSymbol,
         params: dict,
         auto_trade_enabled: bool,
         candle_cache: dict | None = None,
     ) -> StrategyRunResult:
+        symbol_code = resolved.symbol_code
         result = StrategyRunResult(
             strategy_version_id=version.id,
             symbol_code=symbol_code,
@@ -141,7 +152,8 @@ class StrategyRunnerService:
 
         try:
             log = await self._signal_service.generate_and_log_signal(
-                strategy, symbol_code, version.id, strategy_params=params, candle_cache=candle_cache
+                strategy, symbol_code, version.id, strategy_params=params,
+                candle_cache=candle_cache, market=resolved.market, exchange=resolved.exchange,
             )
         except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
             result.error = f"market data error: {exc_message(exc)}"
@@ -217,7 +229,8 @@ class StrategyRunnerService:
 
         try:
             placement = await self._trade_service.execute_signal(
-                account_id, signal, reason_source="strategy_runner"
+                account_id, signal, reason_source="strategy_runner",
+                market=params.get("market", "KR"), exchange=params.get("exchange"),
             )
         except Exception as exc:  # noqa: BLE001 - 주문 오류가 전체 runner를 중단시키지 않도록
             result.error = f"order error: {exc_message(exc)}"

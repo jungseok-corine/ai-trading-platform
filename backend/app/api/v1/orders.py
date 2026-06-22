@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_broker_client
+from app.api.deps import get_broker_client, get_overseas_broker_client
 from app.db.session import get_db
 from app.services.risk_service import RiskConfigNotFoundError, RiskService
 from app.services.trade_service import TradeService
@@ -15,9 +15,10 @@ router = APIRouter(tags=["orders"])
 def get_trade_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
+    overseas_broker: BrokerClient | None = Depends(get_overseas_broker_client),
 ) -> TradeService:
     risk_service = RiskService(session, broker)
-    return TradeService(session, broker, risk_service)
+    return TradeService(session, broker, risk_service, overseas_broker=overseas_broker)
 
 
 @router.post("/orders", response_model=OrderResponse)
