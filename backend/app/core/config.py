@@ -224,6 +224,17 @@ class Settings(BaseSettings):
     # 별도 설정 항목으로 분리해 두었다.
     trading_commission_rate: Decimal = Decimal("0.00015")
     trading_sell_tax_rate: Decimal = Decimal("0.0018")
+    # 미국 주식 수수료(USD): KR 증권거래세는 없고 매도 시 SEC fee/TAF 등 소액만 부과.
+    # us_trading_commission_rate: 온라인 위탁 수수료 근사(보수적). 0이면 무수수료.
+    # us_trading_sell_fee_rate: 매도 시 SEC fee 등 합산 근사(매우 소액).
+    us_trading_commission_rate: Decimal = Decimal("0.00025")
+    us_trading_sell_fee_rate: Decimal = Decimal("0.0000278")
+    # 리스크 한도(KRW)와 미국 주문(USD) 비교를 위한 환산 환율(USD→KRW) 근사값.
+    # 정확한 실시간 환율 대신 운영 시점에 .env로 조정하는 보수적 상수.
+    usd_krw_rate: Decimal = Decimal("1350")
+    # 국내 시세 분류 코드 — J:KRX(기본), NX:NXT, UN:통합(KRX+NXT). 연구용 시세 수집 범위.
+    # 주문은 항상 KRX(EXCG_ID_DVSN_CD=KRX)로만 나간다(NXT 주문은 실거래 전용/모의 미지원).
+    kr_market_div_code: str = "J"
 
 
 @lru_cache

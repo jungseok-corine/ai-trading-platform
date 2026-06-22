@@ -149,6 +149,21 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   > 6037U)는 **모의투자 미지원 → 실거래 전용**. NXT 실시간 시세 WS도 모의 미지원. 따라서
   > 모의에서 거래 가능한 건 KR 정규장+US 정규장뿐. NXT/US-확장 주문은 §5로 보류(실거래 필요).
 
+- **C-5.7** ✅: **미국 체결 동기화 + US 수수료 모델** — `OrderSyncService`가 pending 주문을
+  `trades.market`(KR/US)별로 분리해 해당 브로커로 동기화(`_sync_group`, `_broker_for`).
+  US stale 판단은 미 동부시간(ET) 날짜 기준, 수수료는 `TradingCostCalculator.for_market`로
+  US 모델(센트 단위, KR 0.18% 거래세 없음, SEC fee 근사) 적용. lifespan/deps/scheduler/
+  trading_state_sync에 해외 브로커 배선. US 브로커 미구성 시 해당 시장만 스킵(에러 표기).
+  > 남은 것(C-5.8 후속): **USD→KRW 리스크 한도 환산**(`usd_krw_rate` 설정은 추가됨).
+  > RiskManager 포지션 한도(KRW)와 US 주문(USD) 비교를 위해 통화 환산을 risk 코어에
+  > 통과시키는 작업 — 안전 경로라 별도 포커스. US auto_trade는 기본 off라 현재 영향 없음.
+
+- **C-5.9** ✅: **NXT/통합(UN) 시세 수집(연구용)** — 국내 시세 분류 코드 설정화
+  (`kr_market_div_code`: J=KRX 기본 / NX=NXT / UN=통합). `KISPaperBrokerClient` 시세·분봉
+  조회에만 적용. **주문은 항상 KRX**(`EXCG_ID_DVSN_CD=KRX`) — NXT 주문은 모의 미지원/실거래
+  전용이라 §5 보류 그대로. 통합(UN)으로 NXT 유동성 포함 데이터 수집·신호 연구 가능.
+  (운영 검증: 네트워크 차단 환경이라 VTS의 UN 분봉 지원 여부는 로컬에서 확인 필요.)
+
 ## 5. 보류 항목
 
 - **NXT/US-확장시간 주문(Phase C/D)**: NXT(넥스트레이드) 및 US 프리/애프터 주문은 KIS

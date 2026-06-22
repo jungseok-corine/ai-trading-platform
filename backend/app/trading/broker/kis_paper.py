@@ -47,13 +47,16 @@ EXCG_ID_DVSN_CD_KRX = "KRX"
 class KISPaperBrokerClient(KISClientBase, BrokerClient):
     """KIS 모의투자(VTS) 서버를 사용하는 BrokerClient 구현체."""
 
-    def __init__(self, *, account_no: str, **kwargs) -> None:
+    def __init__(self, *, account_no: str, market_div_code: str = MARKET_DIV_CODE_KRX, **kwargs) -> None:
         super().__init__(**kwargs)
         # account_no가 비어 있어도(.env 미설정) 앱이 기동되도록 관대하게 분리한다.
         # 실제 호출 시점에 KIS API가 인증 오류를 반환하게 된다.
         parts = account_no.split("-")
         self._cano = parts[0] if parts else ""
         self._acnt_prdt_cd = parts[1] if len(parts) > 1 else ""
+        # 시세 분류 코드: J(KRX)/NX(NXT)/UN(통합). 연구용 시세 수집 범위만 바꾼다.
+        # 주문은 항상 KRX(EXCG_ID_DVSN_CD_KRX)로 나간다(NXT 주문은 모의 미지원).
+        self._market_div_code = market_div_code
 
     async def get_current_price(self, symbol_code: str) -> PriceQuote:
         data = await self._request(
@@ -61,7 +64,7 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             "/uapi/domestic-stock/v1/quotations/inquire-price",
             tr_id=TR_ID_INQUIRE_PRICE,
             params={
-                "FID_COND_MRKT_DIV_CODE": MARKET_DIV_CODE_KRX,
+                "FID_COND_MRKT_DIV_CODE": self._market_div_code,
                 "FID_INPUT_ISCD": symbol_code,
             },
         )
@@ -91,7 +94,7 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
             tr_id=TR_ID_INQUIRE_TIME_ITEMCHARTPRICE,
             params={
-                "FID_COND_MRKT_DIV_CODE": MARKET_DIV_CODE_KRX,
+                "FID_COND_MRKT_DIV_CODE": self._market_div_code,
                 "FID_INPUT_ISCD": symbol_code,
                 "FID_INPUT_HOUR_1": target_time,
                 "FID_PW_DATA_INCU_YN": "Y" if include_past_data else "N",

@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app_key=settings.kis_app_key,
         app_secret=settings.kis_app_secret,
         account_no=settings.kis_account_no,
+        market_div_code=settings.kr_market_div_code,
         http_client=http_client,
         token_cache_path=settings.kis_token_cache_path,
         rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,

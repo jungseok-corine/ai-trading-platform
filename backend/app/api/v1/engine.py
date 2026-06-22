@@ -50,8 +50,9 @@ def get_strategy_runner_service(
 def get_order_sync_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
+    overseas_broker: BrokerClient | None = Depends(get_overseas_broker_client),
 ) -> OrderSyncService:
-    return OrderSyncService(session, broker)
+    return OrderSyncService(session, broker, overseas_broker=overseas_broker)
 
 
 @router.get("/status", response_model=EngineStatusResponse)

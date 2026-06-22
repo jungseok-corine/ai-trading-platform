@@ -38,17 +38,23 @@ class OrderSyncResult:
     skipped_reason: str | None = None
 
 
-def _is_stale(trade: Trade) -> bool:
-    """entry_time이 오늘 KST 날짜 이전인 주문을 stale로 판단한다.
+def _is_stale(trade: Trade, market: str = "KR") -> bool:
+    """entry_time이 해당 시장의 '이전 거래일'에 속하는 주문을 stale로 판단한다.
 
-    KIS VTS는 지정가 주문을 당일 15:30 KST에 자동 취소하므로, 전날 이전
-    주문은 이미 시장에서 취소된 것으로 간주한다.
+    KIS VTS는 지정가 주문을 당일 장 마감에 자동 취소하므로, 전 거래일 이전 주문은
+    이미 시장에서 취소된 것으로 간주한다. KR은 KST, US는 미 동부시간(ET) 날짜 기준.
     """
     if trade.entry_time is None:
         return False
-    today_kst = datetime.now(KST).date()
-    entry_date = trade.entry_time.astimezone(KST).date()
-    return entry_date < today_kst
+    if market == "US":
+        from app.common.market_session import ET  # noqa: PLC0415
+
+        today = datetime.now(ET).date()
+        entry_date = trade.entry_time.astimezone(ET).date()
+    else:
+        today = datetime.now(KST).date()
+        entry_date = trade.entry_time.astimezone(KST).date()
+    return entry_date < today
 
 
 def _build_trade_updates(trade: Trade, execution: OrderExecution) -> dict[str, Any]:
@@ -88,6 +94,20 @@ def _build_trade_updates(trade: Trade, execution: OrderExecution) -> dict[str, A
     return updates
 
 
+def _merge_result(agg: OrderSyncResult, part: OrderSyncResult) -> None:
+    """시장별 동기화 결과를 누적 결과에 합친다(checked는 호출자에서 설정)."""
+    agg.updated += part.updated
+    agg.matched += part.matched
+    agg.unmatched += part.unmatched
+    agg.stale_cancelled += part.stale_cancelled
+    agg.stale_pending_requires_review += part.stale_pending_requires_review
+    agg.unmatched_order_ids.extend(part.unmatched_order_ids)
+    agg.executions.extend(part.executions)
+    agg.errors.extend(part.errors)
+    if agg.error_category is None:
+        agg.error_category = part.error_category
+
+
 class OrderSyncService:
     """KIS 주문체결조회 API로 pending/partial 주문의 실제 체결 상태를 동기화한다.
 
@@ -104,16 +124,23 @@ class OrderSyncService:
             stale 판단 정확도를 높일 수 있다.
     """
 
-    def __init__(self, session: AsyncSession, broker: BrokerClient) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        broker: BrokerClient,
+        overseas_broker: BrokerClient | None = None,
+    ) -> None:
         self._session = session
         self._broker = broker
+        self._overseas_broker = overseas_broker
         self._trade_repo = TradeRepository(session)
         self._position_service = PositionService(session)
-        settings = get_settings()
-        self._cost_calculator = TradingCostCalculator(
-            commission_rate=settings.trading_commission_rate,
-            sell_tax_rate=settings.trading_sell_tax_rate,
-        )
+        self._settings = get_settings()
+
+    def _broker_for(self, market: str) -> BrokerClient | None:
+        if market == "US":
+            return self._overseas_broker
+        return self._broker
 
     async def _get_account_type_map(self, account_ids: set[int]) -> dict[int, AccountType]:
         rows = (
@@ -122,18 +149,50 @@ class OrderSyncService:
         return {a.id: a.account_type for a in rows}
 
     async def sync_pending_orders(self) -> OrderSyncResult:
+        """pending/partial 주문을 시장(KR/US)별로 해당 브로커에서 동기화한다."""
         trades = await self._trade_repo.list_pending_or_partial()
         if not trades:
             return OrderSyncResult(checked=0, updated=0, skipped_reason="no_pending_orders")
 
         account_type_by_id = await self._get_account_type_map({t.account_id for t in trades})
 
+        # 시장별로 분리해 각 브로커로 동기화한다(US는 해외 브로커, KR은 국내 브로커).
+        groups: dict[str, list[Trade]] = {}
+        for t in trades:
+            groups.setdefault(t.market or "KR", []).append(t)
+
+        agg = OrderSyncResult(checked=len(trades), updated=0)
+        for market, group in groups.items():
+            broker = self._broker_for(market)
+            if broker is None:
+                # US 브로커 미구성 등 — 해당 시장 주문은 건너뛴다(에러로 표시).
+                agg.errors.append(f"{market} 브로커 미구성 — {len(group)}건 건너뜀")
+                continue
+            cost_calc = TradingCostCalculator.for_market(market, self._settings)
+            res = await self._sync_group(group, broker, market, account_type_by_id, cost_calc)
+            _merge_result(agg, res)
+
+        await self._session.commit()
+        # 조회 대상(활성 주문)이 전혀 없었으면(전부 stale 처리/조회 불가) 표시한다.
+        if agg.matched == 0 and agg.unmatched == 0 and not agg.executions and not agg.errors:
+            agg.skipped_reason = "no_active_orders"
+        return agg
+
+    async def _sync_group(
+        self,
+        trades: list[Trade],
+        broker: BrokerClient,
+        market: str,
+        account_type_by_id: dict[int, AccountType],
+        cost_calculator: TradingCostCalculator,
+    ) -> OrderSyncResult:
+        """한 시장(KR 또는 US) 주문 그룹을 해당 브로커로 동기화한다(커밋은 호출자에서)."""
         stale_cancelled = 0
         stale_pending_requires_review = 0
         paper_stale_ids: set[int] = set()
 
         for trade in trades:
-            if not _is_stale(trade):
+            if not _is_stale(trade, market):
                 continue
             # 계좌 유형을 알 수 없으면 실전(LIVE)으로 보수적 처리한다
             account_type = account_type_by_id.get(trade.account_id, AccountType.LIVE)
@@ -174,7 +233,6 @@ class OrderSyncService:
         query_trades = [t for t in trades if t.id not in paper_stale_ids]
 
         if not query_trades:
-            await self._session.commit()
             return OrderSyncResult(
                 checked=len(trades),
                 updated=stale_cancelled,
@@ -189,10 +247,9 @@ class OrderSyncService:
         end_date = today_kst.strftime("%Y%m%d")
 
         try:
-            executions = await self._broker.get_daily_executions(start_date=start_date, end_date=end_date)
+            executions = await broker.get_daily_executions(start_date=start_date, end_date=end_date)
         except Exception as exc:  # noqa: BLE001 - 체결 조회 실패가 scheduler를 죽이면 안 됨
-            logger.warning("order sync: get_daily_executions failed: %s", exc)
-            await self._session.commit()
+            logger.warning("order sync: get_daily_executions failed (market=%s): %s", market, exc)
             return OrderSyncResult(
                 checked=len(trades),
                 updated=stale_cancelled,
@@ -244,7 +301,7 @@ class OrderSyncService:
 
             new_fill_quantity = execution.filled_quantity - trade.position_applied_quantity
             if new_fill_quantity > 0 and execution.filled_price is not None:
-                fill_cost = self._cost_calculator.calculate(trade.side, execution.filled_price, new_fill_quantity)
+                fill_cost = cost_calculator.calculate(trade.side, execution.filled_price, new_fill_quantity)
                 try:
                     await self._position_service.apply_fill(
                         account_id=trade.account_id,
@@ -268,7 +325,6 @@ class OrderSyncService:
             if trade.side == TradeSide.SELL and trade.pnl_amount is not None:
                 trade.pnl_amount = trade.pnl_amount - (trade.commission or Decimal("0")) - (trade.tax or Decimal("0"))
 
-        await self._session.commit()
         return OrderSyncResult(
             checked=len(trades),
             updated=updated,

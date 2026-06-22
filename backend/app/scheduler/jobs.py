@@ -375,7 +375,8 @@ async def order_sync_job(app: FastAPI) -> None:
     try:
         async with async_session_factory() as session:
             broker = app.state.broker_client
-            sync_service = OrderSyncService(session, broker)
+            overseas_broker = getattr(app.state, "overseas_broker_client", None)
+            sync_service = OrderSyncService(session, broker, overseas_broker=overseas_broker)
             result = await sync_service.sync_pending_orders()
 
         errors = [{"strategy_version_id": None, "symbol_code": None, "message": e, "category": result.error_category} for e in result.errors]
@@ -445,7 +446,8 @@ async def sync_trading_state_job(app: FastAPI) -> None:
     try:
         async with async_session_factory() as session:
             broker = app.state.broker_client
-            svc = TradingStateSyncService(session, broker)
+            overseas_broker = getattr(app.state, "overseas_broker_client", None)
+            svc = TradingStateSyncService(session, broker, overseas_broker=overseas_broker)
             results = await svc.sync_all_accounts()
 
         total_orders_checked = sum(r.orders_checked for r in results)

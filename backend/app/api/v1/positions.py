@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_broker_client
+from app.api.deps import get_broker_client, get_overseas_broker_client
 from app.db.session import get_db
 from app.domain.repositories.position import PositionRepository
 from app.domain.repositories.position_event import PositionEventRepository
@@ -114,6 +114,7 @@ async def sync_trading_state(
     account_id: int,
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
+    overseas_broker: BrokerClient | None = Depends(get_overseas_broker_client),
 ) -> TradingStateSyncResultRead:
     """pending 주문 체결 동기화 + 포지션 정합성 검사를 한 번에 실행한다 (수동 실행용).
 
@@ -125,7 +126,7 @@ async def sync_trading_state(
 
     order sync 실패 시에도 reconciliation을 계속 시도하며, 결과의 warnings에 기록한다.
     """
-    svc = TradingStateSyncService(session, broker)
+    svc = TradingStateSyncService(session, broker, overseas_broker=overseas_broker)
     result = await svc.sync_account_trading_state(account_id)
     return TradingStateSyncResultRead(
         account_id=result.account_id,
