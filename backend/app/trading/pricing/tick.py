@@ -50,3 +50,25 @@ def round_price_to_tick(price: Decimal, side: TradeSide) -> Decimal:
         rounded_units = Decimal("1")
 
     return (rounded_units * tick).quantize(Decimal("1"))
+
+
+# 미국 주식 최소 호가단위: $0.01 (1주당 1센트, ≥$1.00 종목 기준).
+_US_TICK = Decimal("0.01")
+
+
+def round_us_price_to_cent(price: Decimal, side: TradeSide) -> Decimal:
+    """미국 주식 주문 가격을 1센트($0.01) 단위로 보정한다.
+
+    KR 호가단위(정수)와 달리 미국은 센트 단위이므로 소수점을 보존한다.
+    정책은 KR과 동일하게 보수적이다: BUY는 내림(floor), SELL은 올림(ceil).
+    """
+    if price <= 0:
+        raise ValueError("price must be positive")
+
+    units = price / _US_TICK
+    rounding = ROUND_FLOOR if side == TradeSide.BUY else ROUND_CEILING
+    rounded_units = units.to_integral_value(rounding=rounding)
+    if rounded_units < 1:
+        rounded_units = Decimal("1")
+
+    return (rounded_units * _US_TICK).quantize(_US_TICK)

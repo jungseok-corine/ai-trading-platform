@@ -170,7 +170,7 @@ async def test_us_order_routes_to_overseas_broker_and_records_market(
     )
 
     request = order_request_factory(
-        account.id, symbol_code="AAPL", price=Decimal("190"), market="US", exchange="NAS"
+        account.id, symbol_code="AAPL", price=Decimal("190.50"), market="US", exchange="NAS"
     )
     result = await service.place_order(request)
 
@@ -178,9 +178,13 @@ async def test_us_order_routes_to_overseas_broker_and_records_market(
     # 미국 주문은 해외 브로커로만 라우팅된다(국내 브로커는 호출되지 않음).
     assert len(us_broker.place_order_calls) == 1
     assert kr_broker.place_order_calls == []
-    assert us_broker.place_order_calls[0].exchange == "NAS"
+    placed = us_broker.place_order_calls[0]
+    assert placed.exchange == "NAS"
+    # 미국 가격은 센트 단위로 보존된다(KR 정수 호가단위로 깎이지 않음).
+    assert placed.price == Decimal("190.50")
     assert result.trade is not None
     assert result.trade.market == "US"
+    assert result.trade.entry_price == Decimal("190.50")
 
 
 async def test_us_order_without_overseas_broker_raises(

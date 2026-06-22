@@ -9,7 +9,7 @@ from app.services.risk_service import RiskService
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import OrderRequest, OrderType
 from app.trading.order.schemas import OrderCreateRequest
-from app.trading.pricing.tick import round_price_to_tick
+from app.trading.pricing.tick import round_price_to_tick, round_us_price_to_cent
 from app.trading.strategy.base import Signal
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,11 @@ class TradeService:
         adjusted_price = signal.price
         market_condition: dict | None = None
         if order_type == OrderType.LIMIT:
-            adjusted_price = round_price_to_tick(signal.price, signal.side)
+            # 시장별 호가단위: 미국은 1센트($0.01), 국내는 KRX 정수 호가단위.
+            if market == "US":
+                adjusted_price = round_us_price_to_cent(signal.price, signal.side)
+            else:
+                adjusted_price = round_price_to_tick(signal.price, signal.side)
             if adjusted_price != signal.price:
                 logger.info(
                     "price tick adjustment: source=%s symbol=%s side=%s original_price=%s adjusted_price=%s",
