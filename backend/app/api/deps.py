@@ -11,3 +11,8 @@ def get_broker_client(request: Request) -> BrokerClient:
 def get_overseas_client(request: Request) -> KISOverseasClient | None:
     """미국장 시세 조회용 해외 클라이언트. 미설정 환경(테스트 등)에서는 None."""
     return getattr(request.app.state, "overseas_client", None)
+
+
+def get_overseas_broker_client(request: Request) -> BrokerClient | None:
+    """미국장 모의투자 주문/잔고 브로커. 미설정 환경(테스트 등)에서는 None."""
+    return getattr(request.app.state, "overseas_broker_client", None)

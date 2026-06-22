@@ -53,6 +53,7 @@ from app.db.session import engine
 from app.scheduler.lifecycle import shutdown_scheduler, start_scheduler
 from app.trading.broker.kis_investor_flow_client import KISInvestorFlowClient
 from app.trading.broker.kis_overseas_client import KISOverseasClient
+from app.trading.broker.kis_overseas_paper import KISOverseasPaperBrokerClient
 from app.trading.broker.kis_paper import KISPaperBrokerClient
 
 settings = get_settings()
@@ -103,6 +104,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app_secret=investor_flow_app_secret,
         http_client=http_client,
         token_cache_path=".cache/kis_overseas_token.json",
+        rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,
+        rate_limit_cooldown_seconds=settings.kis_rate_limit_cooldown_seconds,
+        request_max_retries=settings.kis_request_max_retries,
+        request_retry_base_delay_seconds=settings.kis_request_retry_base_delay_seconds,
+        request_retry_max_delay_seconds=settings.kis_request_retry_max_delay_seconds,
+    )
+
+    # 해외주식(미국장) 모의투자 주문/잔고 브로커 (Phase 2).
+    # 주문/잔고는 모의(VTS) 도메인+모의 자격증명, 시세는 위 실전 read-only 클라이언트에 위임.
+    # 실전 주문 tr_id(TTTT)는 사용하지 않는다 — 실거래 비활성 불변식 유지.
+    app.state.overseas_broker_client = KISOverseasPaperBrokerClient(
+        base_url=settings.kis_paper_base_url,
+        app_key=settings.kis_app_key,
+        app_secret=settings.kis_app_secret,
+        account_no=settings.kis_account_no,
+        quotes_client=app.state.overseas_client,
+        http_client=http_client,
+        token_cache_path=".cache/kis_overseas_paper_token.json",
         rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,
         rate_limit_cooldown_seconds=settings.kis_rate_limit_cooldown_seconds,
         request_max_retries=settings.kis_request_max_retries,

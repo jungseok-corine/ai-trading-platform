@@ -229,7 +229,8 @@ class StrategyRunnerService:
 
         try:
             placement = await self._trade_service.execute_signal(
-                account_id, signal, reason_source="strategy_runner"
+                account_id, signal, reason_source="strategy_runner",
+                market=params.get("market", "KR"), exchange=params.get("exchange"),
             )
         except Exception as exc:  # noqa: BLE001 - 주문 오류가 전체 runner를 중단시키지 않도록
             result.error = f"order error: {exc_message(exc)}"

@@ -138,6 +138,7 @@ export interface Trade {
   strategy_version_id: number | null;
   symbol_code: string;
   symbol_name: string | null;
+  market: string;
   side: TradeSide;
   entry_time: string | null;
   exit_time: string | null;

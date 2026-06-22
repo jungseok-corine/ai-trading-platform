@@ -30,11 +30,31 @@ class TradeService:
     통해 동일한 RiskManager/주문 실행 경로를 거친다.
     """
 
-    def __init__(self, session: AsyncSession, broker: BrokerClient, risk_service: RiskService) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        broker: BrokerClient,
+        risk_service: RiskService,
+        overseas_broker: BrokerClient | None = None,
+    ) -> None:
         self._session = session
         self._broker = broker
+        self._overseas_broker = overseas_broker
         self._risk_service = risk_service
         self._trade_repo = TradeRepository(session)
+
+    def _select_broker(self, market: str) -> BrokerClient:
+        """주문 시장(KR/US)에 맞는 브로커를 고른다.
+
+        US는 해외 브로커가 구성된 경우에만 사용한다(없으면 명확히 실패).
+        """
+        if market == "US":
+            if self._overseas_broker is None:
+                raise RuntimeError(
+                    "미국 시장 주문을 위한 해외 브로커(overseas_broker)가 구성되지 않았습니다."
+                )
+            return self._overseas_broker
+        return self._broker
 
     async def place_order(self, request: OrderCreateRequest) -> OrderPlacementResult:
         signal = Signal(
@@ -46,7 +66,8 @@ class TradeService:
             strategy_version_id=request.strategy_version_id,
         )
         return await self.execute_signal(
-            request.account_id, signal, order_type=request.order_type, reason_source="manual"
+            request.account_id, signal, order_type=request.order_type, reason_source="manual",
+            market=request.market, exchange=request.exchange,
         )
 
     async def execute_signal(
@@ -55,19 +76,24 @@ class TradeService:
         signal: Signal,
         order_type: OrderType = OrderType.LIMIT,
         reason_source: str = "manual",
+        market: str = "KR",
+        exchange: str | None = None,
     ) -> OrderPlacementResult:
         """Signal을 RiskManager로 검증 후 승인되면 주문을 실행하고 trades에 기록한다.
 
         거부되면 trades는 저장하지 않는다 (risk_events는 RiskService가 기록).
         """
         logger.info(
-            "execute_signal start: source=%s account_id=%s symbol=%s side=%s qty=%s price=%s",
-            reason_source, account_id, signal.symbol_code, signal.side, signal.quantity, signal.price,
+            "execute_signal start: source=%s account_id=%s market=%s symbol=%s side=%s qty=%s price=%s",
+            reason_source, account_id, market, signal.symbol_code, signal.side,
+            signal.quantity, signal.price,
         )
+
+        broker = self._select_broker(market)
 
         # C-2.13: Real trading disabled guard — defense-in-depth, checked before any DB/broker call.
         # KISRealBrokerClient exposes real_trading_enabled; paper brokers do not have this attr.
-        if not getattr(self._broker, "real_trading_enabled", True):
+        if not getattr(broker, "real_trading_enabled", True):
             logger.warning(
                 "execute_signal blocked: real_trading_enabled=False for account=%s", account_id
             )
@@ -123,13 +149,14 @@ class TradeService:
                 }
             }
 
-        order_result = await self._broker.place_order(
+        order_result = await broker.place_order(
             OrderRequest(
                 symbol_code=signal.symbol_code,
                 side=signal.side,
                 quantity=signal.quantity,
                 price=adjusted_price,
                 order_type=order_type,
+                exchange=exchange,
             )
         )
 
@@ -137,6 +164,7 @@ class TradeService:
             account_id=account_id,
             strategy_version_id=signal.strategy_version_id,
             symbol_code=signal.symbol_code,
+            market=market,
             side=signal.side,
             entry_time=order_result.ordered_at,
             entry_price=adjusted_price,

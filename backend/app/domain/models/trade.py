@@ -22,6 +22,8 @@ class Trade(Base):
     )
     symbol_code: Mapped[str] = mapped_column(String(20), nullable=False)
     symbol_name: Mapped[str | None] = mapped_column(String(100))
+    # 멀티마켓: 이 체결이 속한 시장(KR/US). 브로커 라우팅/회고용. enum 없이 String(2).
+    market: Mapped[str] = mapped_column(String(2), nullable=False, server_default="KR")
     side: Mapped[TradeSide] = mapped_column(pg_enum(TradeSide, "trade_side"), nullable=False)
 
     entry_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
