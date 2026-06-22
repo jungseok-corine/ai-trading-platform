@@ -23,6 +23,8 @@ class Signal:
     reason: str
     strategy_version_id: int | None = None
     metadata: dict[str, Any] | None = None
+    # 시장 코드(KR/US) — 리스크 검증에서 USD→KRW 환산 등 통화 처리에 사용.
+    market: str = "KR"
 
 
 class Strategy(ABC):

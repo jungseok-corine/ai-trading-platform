@@ -154,9 +154,13 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   US stale 판단은 미 동부시간(ET) 날짜 기준, 수수료는 `TradingCostCalculator.for_market`로
   US 모델(센트 단위, KR 0.18% 거래세 없음, SEC fee 근사) 적용. lifespan/deps/scheduler/
   trading_state_sync에 해외 브로커 배선. US 브로커 미구성 시 해당 시장만 스킵(에러 표기).
-  > 남은 것(C-5.8 후속): **USD→KRW 리스크 한도 환산**(`usd_krw_rate` 설정은 추가됨).
-  > RiskManager 포지션 한도(KRW)와 US 주문(USD) 비교를 위해 통화 환산을 risk 코어에
-  > 통과시키는 작업 — 안전 경로라 별도 포커스. US auto_trade는 기본 off라 현재 영향 없음.
+
+- **C-5.8** ✅: **USD 리스크 환산** — `Signal.market` + `RiskContext.usd_krw_rate`(설정 주입)로
+  `MaxPositionSizeRule`이 US 주문(USD)을 KRW로 환산해 포지션 한도와 비교한다. `execute_signal`이
+  주문 시장을 신호에 표시. 안전 강화 방향(US 주문이 한도를 우회하지 못하게). US auto_trade는
+  기본 off라 평시 영향 없음.
+  > 남은 것: 당일손익/연속손실 등 **혼합 통화 집계**(KRW·USD 거래 혼재)는 더 깊은 작업이라
+  > 별도. 현재는 포지션 한도(주문 게이트)만 환산.
 
 - **C-5.9** ✅: **NXT/통합(UN) 시세 수집(연구용)** — 국내 시세 분류 코드 설정화
   (`kr_market_div_code`: J=KRX 기본 / NX=NXT / UN=통합). `KISPaperBrokerClient` 시세·분봉

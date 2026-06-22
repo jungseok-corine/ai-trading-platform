@@ -46,6 +46,9 @@ class MaxPositionSizeRule(RiskRule):
 
     def check(self, signal: Signal, config: RiskConfig, context: RiskContext) -> RiskCheckResult:
         order_amount = signal.price * signal.quantity
+        # US 주문(USD)은 KRW 한도와 비교하기 위해 환율로 환산한다.
+        if signal.market == "US":
+            order_amount = order_amount * context.usd_krw_rate
         if order_amount > config.max_position_size:
             return RiskCheckResult(
                 False,

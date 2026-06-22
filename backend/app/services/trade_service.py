@@ -90,6 +90,8 @@ class TradeService:
         )
 
         broker = self._select_broker(market)
+        # 리스크 검증에서 통화 환산(USD→KRW)을 적용하도록 신호에 시장을 표시한다.
+        signal.market = market
 
         # C-2.13: Real trading disabled guard — defense-in-depth, checked before any DB/broker call.
         # KISRealBrokerClient exposes real_trading_enabled; paper brokers do not have this attr.

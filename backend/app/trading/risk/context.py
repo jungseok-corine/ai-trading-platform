@@ -24,6 +24,8 @@ class RiskContext:
     open_positions_count: int
     consecutive_losses: int
     current_position_value: dict[str, Decimal] = field(default_factory=dict)
+    # USD→KRW 환산 환율 — US 주문 금액을 KRW 한도와 비교할 때 사용(기본 1=환산 없음).
+    usd_krw_rate: Decimal = Decimal("1")
 
 
 class RiskContextBuilder:
@@ -41,6 +43,8 @@ class RiskContextBuilder:
 
         today_start = datetime.now(KST).replace(hour=0, minute=0, second=0, microsecond=0)
 
+        from app.core.config import get_settings  # noqa: PLC0415
+
         return RiskContext(
             account_id=account_id,
             account_balance=balance.summary.total_deposit,
@@ -49,6 +53,7 @@ class RiskContextBuilder:
             open_positions_count=len(balance.holdings),
             consecutive_losses=await self._count_consecutive_losses(account_id),
             current_position_value=current_position_value,
+            usd_krw_rate=get_settings().usd_krw_rate,
         )
 
     async def _count_today_trades(self, account_id: int, today_start: datetime) -> int:
