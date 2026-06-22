@@ -35,6 +35,9 @@ class WatchlistSymbol(Base):
     )
     symbol_code: Mapped[str] = mapped_column(String(20), nullable=False)
     symbol_name: Mapped[str | None] = mapped_column(String(100))
+    # 멀티마켓: 시장 구분(KR/US)과 미국 거래소 코드(NAS/NYS/AMS). enum 없이 String.
+    market: Mapped[str] = mapped_column(String(2), nullable=False, server_default="KR")
+    exchange: Mapped[str | None] = mapped_column(String(8))
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

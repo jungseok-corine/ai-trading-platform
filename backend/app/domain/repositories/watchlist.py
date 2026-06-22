@@ -46,6 +46,31 @@ class WatchlistSymbolRepository(BaseRepository[WatchlistSymbol]):
         result = await self.session.execute(stmt)
         return [row[0] for row in result.all()]
 
+    async def list_enabled_symbols(
+        self, market: str | None = None, limit: int | None = None
+    ) -> list[tuple[str, str, str | None]]:
+        """enabled 종목을 (symbol_code, market, exchange) 튜플로 반환한다(중복 제거).
+
+        멀티마켓 유니버스 해석용 — 종목마다 시장/거래소가 달라 시세 라우팅에 필요하다.
+        market이 주어지면 해당 시장 종목만 필터링한다.
+        """
+        stmt = (
+            select(
+                WatchlistSymbol.symbol_code,
+                WatchlistSymbol.market,
+                WatchlistSymbol.exchange,
+            )
+            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
+            .where(Watchlist.enabled.is_(True), WatchlistSymbol.enabled.is_(True))
+            .distinct()
+        )
+        if market is not None:
+            stmt = stmt.where(WatchlistSymbol.market == market)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
     async def get_by_symbol_code(self, watchlist_id: int, symbol_code: str) -> WatchlistSymbol | None:
         result = await self.session.execute(
             select(WatchlistSymbol).where(

@@ -224,12 +224,15 @@ export interface Translations {
     symbolsEmpty: string;
     colSymbolCode: string;
     colSymbolName: string;
+    colMarket: string;
     colNote: string;
     colActions: string;
     addSymbolTitle: string;
     symbolCode: string;
     symbolCodePlaceholder: string;
     symbolName: string;
+    market: string;
+    exchange: string;
     note: string;
     addSymbol: string;
     addSymbolFailed: string;
@@ -729,12 +732,15 @@ export const translations: Record<Language, Translations> = {
       symbolsEmpty: "등록된 종목이 없습니다.",
       colSymbolCode: "종목코드",
       colSymbolName: "종목명",
+      colMarket: "시장",
       colNote: "메모",
       colActions: "작업",
       addSymbolTitle: "종목 추가",
       symbolCode: "종목코드",
-      symbolCodePlaceholder: "예: 005930",
+      symbolCodePlaceholder: "예: 005930 / AAPL",
       symbolName: "종목명",
+      market: "시장",
+      exchange: "거래소",
       note: "메모",
       addSymbol: "추가",
       addSymbolFailed: "추가 실패",
@@ -1237,12 +1243,15 @@ export const translations: Record<Language, Translations> = {
       symbolsEmpty: "No symbols registered.",
       colSymbolCode: "Symbol Code",
       colSymbolName: "Symbol Name",
+      colMarket: "Market",
       colNote: "Note",
       colActions: "Actions",
       addSymbolTitle: "Add Symbol",
       symbolCode: "Symbol Code",
-      symbolCodePlaceholder: "e.g. 005930",
+      symbolCodePlaceholder: "e.g. 005930 / AAPL",
       symbolName: "Symbol Name",
+      market: "Market",
+      exchange: "Exchange",
       note: "Note",
       addSymbol: "Add",
       addSymbolFailed: "Failed to add",

@@ -83,6 +83,8 @@ async def add_watchlist_symbol(
             watchlist_id,
             symbol_code=payload.symbol_code,
             symbol_name=payload.symbol_name,
+            market=payload.market,
+            exchange=payload.exchange,
             enabled=payload.enabled,
             note=payload.note,
         )

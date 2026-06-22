@@ -56,6 +56,8 @@ class WatchlistService:
         watchlist_id: int,
         symbol_code: str,
         symbol_name: str | None = None,
+        market: str = "KR",
+        exchange: str | None = None,
         enabled: bool = True,
         note: str | None = None,
     ) -> WatchlistSymbol:
@@ -71,6 +73,8 @@ class WatchlistService:
             watchlist_id=watchlist_id,
             symbol_code=symbol_code,
             symbol_name=symbol_name,
+            market=market,
+            exchange=exchange,
             enabled=enabled,
             note=note,
         )

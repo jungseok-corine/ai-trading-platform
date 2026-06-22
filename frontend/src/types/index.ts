@@ -305,6 +305,8 @@ export interface WatchlistSymbol {
   watchlist_id: number;
   symbol_code: string;
   symbol_name: string | null;
+  market: string;
+  exchange: string | null;
   enabled: boolean;
   note: string | null;
   created_at: string;
@@ -314,12 +316,16 @@ export interface WatchlistSymbol {
 export interface WatchlistSymbolCreateRequest {
   symbol_code: string;
   symbol_name?: string | null;
+  market?: string;
+  exchange?: string | null;
   enabled?: boolean;
   note?: string | null;
 }
 
 export interface WatchlistSymbolUpdateRequest {
   symbol_name?: string | null;
+  market?: string;
+  exchange?: string | null;
   enabled?: boolean;
   note?: string | null;
 }

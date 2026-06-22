@@ -455,15 +455,38 @@ class WatchlistRead(BaseModel):
     updated_at: datetime
 
 
+_VALID_WATCHLIST_MARKETS = frozenset({"KR", "US"})
+_VALID_WATCHLIST_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
+
+
+def _validate_market_exchange(market: str, exchange: str | None) -> None:
+    if market not in _VALID_WATCHLIST_MARKETS:
+        raise ValueError(f"market은 {sorted(_VALID_WATCHLIST_MARKETS)} 중 하나여야 합니다: {market!r}")
+    if market == "US":
+        if exchange not in _VALID_WATCHLIST_US_EXCHANGES:
+            raise ValueError(
+                f"US 종목은 exchange가 {sorted(_VALID_WATCHLIST_US_EXCHANGES)} 중 하나여야 합니다: {exchange!r}"
+            )
+
+
 class WatchlistSymbolCreateRequest(BaseModel):
     symbol_code: str
     symbol_name: str | None = None
+    market: str = "KR"
+    exchange: str | None = None
     enabled: bool = True
     note: str | None = None
+
+    @model_validator(mode="after")
+    def _check_market(self) -> "WatchlistSymbolCreateRequest":
+        _validate_market_exchange(self.market, self.exchange)
+        return self
 
 
 class WatchlistSymbolUpdateRequest(BaseModel):
     symbol_name: str | None = None
+    market: str | None = None
+    exchange: str | None = None
     enabled: bool | None = None
     note: str | None = None
 
@@ -475,6 +498,8 @@ class WatchlistSymbolRead(BaseModel):
     watchlist_id: int
     symbol_code: str
     symbol_name: str | None
+    market: str = "KR"
+    exchange: str | None = None
     enabled: bool
     note: str | None
     created_at: datetime

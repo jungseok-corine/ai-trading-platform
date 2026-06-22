@@ -126,9 +126,12 @@ class SignalService:
         strategy_version_id: int | None = None,
         strategy_params: dict | None = None,
         candle_cache: dict[str, list[MinuteCandle]] | None = None,
+        market: str | None = None,
+        exchange: str | None = None,
     ) -> SignalLog | None:
         # 같은 run에서 여러 전략이 동일 종목을 볼 때 캔들을 1회만 조회하도록 캐시한다.
         # (KIS 호출 수를 전략 수만큼 줄여 rate limit/지연을 완화)
+        # market/exchange 인자(유니버스 종목별 라우팅)가 주어지면 전략 파라미터보다 우선한다.
         if candle_cache is not None and symbol_code in candle_cache:
             candles = candle_cache[symbol_code]
         else:
@@ -136,8 +139,8 @@ class SignalService:
             candles = await self._market_data_service.get_recent_candles(
                 symbol_code,
                 timeframe=params.get("timeframe", "1m"),
-                market=params.get("market", "KR"),
-                exchange=params.get("exchange", "NAS"),
+                market=market or params.get("market", "KR"),
+                exchange=exchange or params.get("exchange", "NAS"),
             )
             if candle_cache is not None:
                 candle_cache[symbol_code] = candles
