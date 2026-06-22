@@ -148,6 +148,20 @@ export default function StrategyVersionParametersFields({
           ))}
         </select>
       </div>
+      {universeMode && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-universe-market`}>{sp.labelUniverseMarket}</label>
+          <select
+            id={`${idPrefix}-universe-market`}
+            value={parameters.universe_market ?? ""}
+            onChange={(e) => update("universe_market", e.target.value || null)}
+          >
+            <option value="">{sp.universeMarketAll}</option>
+            <option value="KR">KR</option>
+            <option value="US">US</option>
+          </select>
+        </div>
+      )}
       {!universeMode && (
         <div className="form-row">
           <label htmlFor={`${idPrefix}-symbol-code`}>{sp.labelSymbolCode}</label>

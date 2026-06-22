@@ -88,8 +88,47 @@ async def test_resolver_watchlist_carries_market_exchange(db_session: AsyncSessi
     assert by_code["005930"].market == "KR" and by_code["005930"].exchange is None
 
 
+async def test_resolver_watchlist_market_filter(db_session: AsyncSession) -> None:
+    from app.domain.models.enums import MarketCode
+
+    wl = Watchlist(name="mix", enabled=True)
+    db_session.add(wl)
+    await db_session.flush()
+    db_session.add_all([
+        WatchlistSymbol(watchlist_id=wl.id, symbol_code="AAPL", market="US", exchange="NAS", enabled=True),
+        WatchlistSymbol(watchlist_id=wl.id, symbol_code="005930", market="KR", enabled=True),
+    ])
+    await db_session.commit()
+
+    kr = await UniverseResolver(db_session).resolve("watchlist", market=MarketCode.KR)
+    us = await UniverseResolver(db_session).resolve("watchlist", market=MarketCode.US)
+    assert [s.symbol_code for s in kr] == ["005930"]
+    assert [s.symbol_code for s in us] == ["AAPL"]
+
+
 async def test_resolver_unknown_universe_returns_empty(db_session: AsyncSession) -> None:
     assert await UniverseResolver(db_session).resolve("whole_market") == []
+
+
+async def test_universe_market_param_restricts_runner_to_kr(db_session: AsyncSession) -> None:
+    """universe_market='KR' 전략은 관심종목 중 KR 종목만 돈다(미장 종목 제외)."""
+    wl = Watchlist(name="mix", enabled=True)
+    db_session.add(wl)
+    await db_session.flush()
+    db_session.add_all([
+        WatchlistSymbol(watchlist_id=wl.id, symbol_code="005930", market="KR", enabled=True),
+        WatchlistSymbol(watchlist_id=wl.id, symbol_code="AAPL", market="US", exchange="NAS", enabled=True),
+    ])
+    await db_session.commit()
+
+    params = {**UNIVERSE_PARAMS, "universe": "watchlist", "universe_market": "KR"}
+    await _create_version(db_session, params)
+    golden = _make_candles([100] * 20 + [200])
+    broker = FakeBrokerClient({"005930": golden, "AAPL": golden})
+
+    results = await _runner(db_session, broker).run_once()
+
+    assert {r.symbol_code for r in results} == {"005930"}  # 미장 종목 제외
 
 
 # --------------------------------------------------------------------------- #

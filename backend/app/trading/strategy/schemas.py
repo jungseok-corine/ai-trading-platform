@@ -247,6 +247,8 @@ class StrategyVersionParameters(BaseModel):
     # 유니버스 신호 스캔: 설정 시 단일 symbol_code 대신 유니버스 전체에 전략을 돌린다.
     # (scanner_candidates / watchlist). read-only 신호 생성 전용 — auto_trade와 양립 불가.
     universe: str | None = None
+    # 유니버스를 특정 시장(KR/US)으로 제한한다. None이면 전체 시장 종목을 본다.
+    universe_market: str | None = None
     universe_lookback_days: int = Field(default=5, gt=0)
     # 멀티마켓: market=US이면 KIS 해외 분봉(exchange=EXCD)으로 시세를 조회한다. 기본 KR(국내).
     market: str = "KR"
@@ -307,6 +309,11 @@ class StrategyVersionParameters(BaseModel):
             # 안전: 유니버스 전체에 자동매매를 거는 것은 금지(read-only 신호 생성 전용).
             if self.auto_trade_enabled:
                 raise ValueError("universe 모드에서는 auto_trade_enabled를 켤 수 없습니다(신호 생성 전용).")
+            if self.universe_market is not None and self.universe_market not in _VALID_MARKETS:
+                raise ValueError(
+                    f"universe_market={self.universe_market!r}은 유효하지 않습니다. "
+                    f"허용값: {sorted(_VALID_MARKETS)}"
+                )
         elif not self.symbol_code:
             raise ValueError("universe가 없으면 symbol_code가 필요합니다.")
         if self.auto_trade_enabled and self.account_id is None:
