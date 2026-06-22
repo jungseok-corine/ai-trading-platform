@@ -212,6 +212,19 @@ STRATEGY_TYPES_METADATA: list[StrategyTypeMeta] = [
             StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
         ],
     ),
+    StrategyTypeMeta(
+        strategy_type="momentum_surge",
+        display_name="Momentum Surge",
+        display_name_ko="급등 모멘텀",
+        parameters=[
+            StrategyParameterMeta(name="surge_lookback", type="int", default=5, min=1, description="모멘텀 측정 구간 (직전 N봉 수익률)"),
+            StrategyParameterMeta(name="surge_threshold_pct", type="float", default=5.0, min=0.01, description="급등 진입 기준 수익률(%) — 클수록 더 강한 급등만"),
+            StrategyParameterMeta(name="exit_drop_pct", type="float", default=3.0, min=0.01, description="모멘텀 소멸 청산 기준 하락률(%)"),
+            StrategyParameterMeta(name="volume_window", type="int", default=20, min=1, description="거래량 SMA 기간"),
+            StrategyParameterMeta(name="volume_multiplier", type="float", default=2.0, min=0.01, description="거래량 급증 확인 배수 (volume_sma 대비)"),
+            StrategyParameterMeta(name="quantity", type="int", default=1, min=1, description="주문 수량"),
+        ],
+    ),
 ]
 
 
@@ -289,6 +302,10 @@ class StrategyVersionParameters(BaseModel):
     breakout_lookback: int = Field(default=20, gt=0)
     exit_lookback: int = Field(default=10, gt=0)
     volume_confirm: bool = False
+    # momentum_surge 전용 파라미터
+    surge_lookback: int = Field(default=5, gt=0)
+    surge_threshold_pct: float = Field(default=5.0, gt=0)
+    exit_drop_pct: float = Field(default=3.0, gt=0)
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":

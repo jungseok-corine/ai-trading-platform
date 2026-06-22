@@ -242,6 +242,10 @@ export interface StrategyVersionParameters {
   breakout_lookback?: number;
   exit_lookback?: number;
   volume_confirm?: boolean;
+  // momentum_surge 전용
+  surge_lookback?: number;
+  surge_threshold_pct?: number;
+  exit_drop_pct?: number;
 }
 
 export interface StrategyParameterMeta {
@@ -561,4 +565,7 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   breakout_lookback: 20,
   exit_lookback: 10,
   volume_confirm: false,
+  surge_lookback: 5,
+  surge_threshold_pct: 5,
+  exit_drop_pct: 3,
 };

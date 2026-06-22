@@ -185,6 +185,18 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   `UniverseResolver.resolve(market=...)`로 필터링. 기존 국장 전략을 KR 전용으로 묶거나 US 전용
   전략을 만들 때 사용. 프론트 전략 폼에 '유니버스 시장 필터' 드롭다운. 기본 전체(하위호환).
 
+- **C-5.13** ✅: **신호 결과/AI분석 timeframe 정합성** — `signal_logs.timeframe` 추가, 신호 생성
+  시 전략 timeframe 기록. `SignalOutcomeService`가 1m 고정이 아니라 신호 timeframe으로
+  market_data를 조회 → 미장·5m 전략의 '결과 보기'와 AI 분석 forward return이 정상 동작.
+
+- **C-5.14** ✅: **전략 이름/설명 편집** — `PATCH /strategies/{id}` + 프론트 전략 목록 인라인 수정.
+  같은 이름(관심종목용/스캐너용) 구분용.
+
+- **C-5.15** ✅: **급등 모멘텀 전략(momentum_surge) + 미국장 전략 시드** — 단기 급등(N봉 수익률
+  >= 임계%) + 거래량 급증 동시 충족 시 BUY, 모멘텀 소멸(<= -청산%) 시 SELL. 미국 급등주 초입
+  포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
+  전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
+
 ## 5. 보류 항목
 
 - **NXT/US-확장시간 주문(Phase C/D)**: NXT(넥스트레이드) 및 US 프리/애프터 주문은 KIS
