@@ -62,8 +62,10 @@ class StrategyRunnerService:
     async def run_once(self) -> list[StrategyRunResult]:
         versions = await self._strategy_version_repo.list_active()
         results: list[StrategyRunResult] = []
+        # 이번 run 동안 종목별 캔들을 1회만 조회해 전략들이 공유한다(KIS 호출 절감).
+        candle_cache: dict[str, list] = {}
         for version in versions:
-            results.extend(await self._run_version(version))
+            results.extend(await self._run_version(version, candle_cache))
         return results
 
     async def _resolve_symbols(self, version: StrategyVersion, params: dict) -> list[str]:
@@ -87,7 +89,9 @@ class StrategyRunnerService:
         symbol_code = params.get("symbol_code")
         return [symbol_code] if symbol_code else []
 
-    async def _run_version(self, version: StrategyVersion) -> list[StrategyRunResult]:
+    async def _run_version(
+        self, version: StrategyVersion, candle_cache: dict | None = None
+    ) -> list[StrategyRunResult]:
         params = version.parameters or {}
 
         if not params.get("enabled", True):
@@ -111,7 +115,9 @@ class StrategyRunnerService:
         results: list[StrategyRunResult] = []
         for symbol_code in symbols:
             results.append(
-                await self._run_one(version, strategy, symbol_code, params, auto_trade_enabled)
+                await self._run_one(
+                    version, strategy, symbol_code, params, auto_trade_enabled, candle_cache
+                )
             )
         return results
 
@@ -122,6 +128,7 @@ class StrategyRunnerService:
         symbol_code: str,
         params: dict,
         auto_trade_enabled: bool,
+        candle_cache: dict | None = None,
     ) -> StrategyRunResult:
         result = StrategyRunResult(
             strategy_version_id=version.id,
@@ -134,7 +141,7 @@ class StrategyRunnerService:
 
         try:
             log = await self._signal_service.generate_and_log_signal(
-                strategy, symbol_code, version.id, strategy_params=params
+                strategy, symbol_code, version.id, strategy_params=params, candle_cache=candle_cache
             )
         except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
             result.error = f"market data error: {exc_message(exc)}"
