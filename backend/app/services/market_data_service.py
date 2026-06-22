@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,6 @@ from app.trading.strategy.schemas import (
     MarketDataTimeframeSummary,
 )
 
-KST = ZoneInfo("Asia/Seoul")
 log = logging.getLogger(__name__)
 
 

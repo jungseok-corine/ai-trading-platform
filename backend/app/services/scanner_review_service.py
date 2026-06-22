@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,6 @@ from app.domain.repositories.scanner_proposal import ScannerRuleProposalReposito
 from app.services.scanner_proposal_generator import ScannerProposalGenerator
 from app.services.scheduler_run_service import SchedulerRunService
 
-KST = ZoneInfo("Asia/Seoul")
 SCANNER_REVIEW_JOB_ID = "scanner_review"
 
 

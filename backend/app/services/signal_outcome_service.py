@@ -16,9 +16,8 @@
   - horizon: 5, 15, 30, 60분
   - timeframe: 기본 "1m" (전략 러너가 저장하는 단위)
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, DivisionByZero, InvalidOperation
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +35,6 @@ from app.trading.strategy.schemas import (
     SignalOutcomeSummary,
 )
 
-KST = ZoneInfo("Asia/Seoul")
 
 HORIZONS: list[int] = [5, 15, 30, 60]
 _FETCH_BUFFER_MINUTES = 2  # 마지막 horizon 이후 약간 더 가져와 경계 candle 확보
@@ -92,14 +90,9 @@ class SignalOutcomeService:
             symbol_code=symbol_code,
         )
 
-        outcomes: list[SignalOutcomeRead] = []
-        skipped = 0
-        for sig in signals:
-            outcome = await self._compute_outcome(sig)
-            if outcome.available:
-                outcomes.append(outcome)
-            else:
-                skipped += 1
+        all_outcomes = await self._compute_outcomes_batch(signals)
+        outcomes = [o for o in all_outcomes if o.available]
+        skipped = len(all_outcomes) - len(outcomes)
 
         return self._aggregate(
             total=len(signals),
@@ -111,31 +104,24 @@ class SignalOutcomeService:
     # computation
     # ------------------------------------------------------------------
 
-    async def _compute_outcome(self, signal: SignalLog) -> SignalOutcomeRead:
+    def _ref_ts_or_unavailable(self, signal: SignalLog) -> datetime | SignalOutcomeRead:
+        """분석 가능하면 ref_ts(datetime)를, 아니면 _unavailable 결과를 반환한다."""
         # BUY/SELL만 분석 대상 (HOLD 등 추가 시 여기서 skip)
         if signal.signal_type not in (TradeSide.BUY, TradeSide.SELL):
             return self._unavailable(signal, note="unsupported signal_type (skipped)")
-
         ref_ts = signal.candle_ts or signal.generated_at
         if ref_ts is None:
             return self._unavailable(signal, note="no reference timestamp")
+        return ref_ts
 
-        max_horizon = HORIZONS[-1]
-        until_ts = ref_ts + timedelta(minutes=max_horizon + _FETCH_BUFFER_MINUTES)
-
-        candles = await self._md_repo.get_candles_between(
-            symbol_code=signal.symbol_code,
-            timeframe=self.DEFAULT_TIMEFRAME,
-            after_ts=ref_ts,
-            until_ts=until_ts,
-        )
-
+    def _outcome_from_candles(
+        self, signal: SignalLog, ref_ts: datetime, candles: list[MarketData]
+    ) -> SignalOutcomeRead:
+        """이미 조회된 캔들(ref_ts 이후 구간)로 outcome을 계산한다."""
         if not candles:
             return self._unavailable(signal, ref_ts=ref_ts, note="no market_data after signal")
 
-        entry_candle = candles[0]
-        entry_price = entry_candle.open
-
+        entry_price = candles[0].open
         if entry_price <= 0:
             return self._unavailable(signal, ref_ts=ref_ts, note="invalid entry_price (≤ 0)")
 
@@ -155,6 +141,62 @@ class SignalOutcomeService:
             available=True,
             note=None,
         )
+
+    async def _compute_outcome(self, signal: SignalLog) -> SignalOutcomeRead:
+        ref = self._ref_ts_or_unavailable(signal)
+        if isinstance(ref, SignalOutcomeRead):
+            return ref
+        ref_ts = ref
+        until_ts = ref_ts + timedelta(minutes=HORIZONS[-1] + _FETCH_BUFFER_MINUTES)
+        candles = await self._md_repo.get_candles_between(
+            symbol_code=signal.symbol_code,
+            timeframe=self.DEFAULT_TIMEFRAME,
+            after_ts=ref_ts,
+            until_ts=until_ts,
+        )
+        return self._outcome_from_candles(signal, ref_ts, candles)
+
+    async def _compute_outcomes_batch(self, signals: list[SignalLog]) -> list[SignalOutcomeRead]:
+        """여러 신호의 outcome을 배치로 계산한다 (신호별 candle 조회 N+1 제거).
+
+        심볼별로 필요한 시간 구간을 합쳐 1회씩만 조회하고, 신호별로 인메모리에서
+        get_candles_between과 동일한 경계(ts > ref_ts, ts <= until_ts)로 슬라이스한다.
+        """
+        from collections import defaultdict
+
+        max_until = HORIZONS[-1] + _FETCH_BUFFER_MINUTES
+        windows: dict[int, tuple[datetime, datetime]] = {}
+        pre: dict[int, SignalOutcomeRead] = {}
+        by_symbol: dict[str, list[SignalLog]] = defaultdict(list)
+        for sig in signals:
+            ref = self._ref_ts_or_unavailable(sig)
+            if isinstance(ref, SignalOutcomeRead):
+                pre[sig.id] = ref
+                continue
+            windows[sig.id] = (ref, ref + timedelta(minutes=max_until))
+            by_symbol[sig.symbol_code].append(sig)
+
+        candles_by_symbol: dict[str, list[MarketData]] = {}
+        for symbol, sigs in by_symbol.items():
+            refs = [windows[s.id] for s in sigs]
+            candles_by_symbol[symbol] = await self._md_repo.get_candles_between(
+                symbol_code=symbol,
+                timeframe=self.DEFAULT_TIMEFRAME,
+                after_ts=min(r for r, _ in refs),
+                until_ts=max(u for _, u in refs),
+            )
+
+        outcomes: list[SignalOutcomeRead] = []
+        for sig in signals:
+            if sig.id in pre:
+                outcomes.append(pre[sig.id])
+                continue
+            ref_ts, until_ts = windows[sig.id]
+            window = [
+                c for c in candles_by_symbol.get(sig.symbol_code, []) if ref_ts < c.ts <= until_ts
+            ]
+            outcomes.append(self._outcome_from_candles(sig, ref_ts, window))
+        return outcomes
 
     def _compute_horizons(
         self,

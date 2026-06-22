@@ -2,20 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import SchedulerRunStatus
-from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 from app.domain.repositories.scanner import ScannerRuleVersionRepository
+from app.domain.repositories.watchlist import WatchlistSymbolRepository
 from app.services.assignment_service import AssignmentService
 from app.services.market_context_capture_service import MarketContextCaptureService
 from app.services.scanner_scan_service import ScannerScanService
 from app.services.scheduler_run_service import SchedulerRunService
 
-KST = ZoneInfo("Asia/Seoul")
 PIPELINE_JOB_ID = "research_pipeline"
 
 
@@ -109,13 +107,7 @@ class ResearchPipelineService:
         return await self._run_service.list_by_job(PIPELINE_JOB_ID, limit)
 
     async def _watchlist_symbols(self) -> list[str]:
-        result = await self._session.execute(
-            select(WatchlistSymbol.symbol_code)
-            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
-            .where(Watchlist.enabled.is_(True), WatchlistSymbol.enabled.is_(True))
-            .distinct()
-        )
-        return [row[0] for row in result.all()]
+        return await WatchlistSymbolRepository(self._session).list_enabled_symbol_codes()
 
     async def run_once(
         self,

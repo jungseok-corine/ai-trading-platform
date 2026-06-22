@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,6 @@ from app.trading.broker.base import BrokerClient
 from app.trading.broker.error_classifier import exc_message
 
 logger = logging.getLogger(__name__)
-_KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass
@@ -76,7 +75,7 @@ class TradingStateSyncService:
 
         order sync 실패 시 reconciliation을 계속 시도한다.
         """
-        started_at = datetime.now(_KST)
+        started_at = datetime.now(KST)
         warnings: list[str] = []
 
         account = await self._account_repo.get(account_id)
@@ -88,7 +87,7 @@ class TradingStateSyncService:
         order_result = await self._run_order_sync(warnings)
         recon_result, position_errors = await self._run_reconciliation(account_id, warnings)
 
-        completed_at = datetime.now(_KST)
+        completed_at = datetime.now(KST)
         return _build_result(
             account_id=account_id,
             broker_mode=broker_mode,
@@ -106,7 +105,7 @@ class TradingStateSyncService:
         order sync는 1회만 실행하고, 각 계좌의 reconciliation을 순서대로 처리한다.
         어느 한 계좌의 reconciliation 실패가 다른 계좌 처리를 막지 않는다.
         """
-        started_at = datetime.now(_KST)
+        started_at = datetime.now(KST)
         warnings: list[str] = []
 
         accounts = await self._account_repo.list()
@@ -120,7 +119,7 @@ class TradingStateSyncService:
         for account in accounts:
             acc_warnings: list[str] = list(warnings)
             recon_result, position_errors = await self._run_reconciliation(account.id, acc_warnings)
-            completed_at = datetime.now(_KST)
+            completed_at = datetime.now(KST)
             results.append(_build_result(
                 account_id=account.id,
                 broker_mode=_broker_mode(account.account_type),

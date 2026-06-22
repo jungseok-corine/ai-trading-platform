@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,6 @@ from app.services.macro_regime_service import classify_macro_regime
 from app.services.market_context_service import MarketContextService
 from app.trading.scanner.facts import time_bucket
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class MarketContextCaptureService:

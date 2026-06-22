@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,6 @@ from app.services.scanner_service import (
 )
 from app.trading.scanner.conditions import validate_conditions
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class ScannerProposalNotFoundError(Exception):

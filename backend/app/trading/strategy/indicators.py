@@ -2,11 +2,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Sequence
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from app.trading.broker.schemas import MinuteCandle
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 def calculate_sma(candles: list[MinuteCandle], period: int) -> Decimal | None:

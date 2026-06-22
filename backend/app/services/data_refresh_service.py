@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.watchlist import Watchlist, WatchlistSymbol
+from app.domain.repositories.watchlist import WatchlistSymbolRepository
 from app.services.investor_flow_service import InvestorFlowService
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass
@@ -38,13 +36,7 @@ class DataRefreshService:
 
     async def watchlist_symbols(self) -> list[str]:
         """enabled watchlist에 속한 enabled 종목 코드 목록(중복 제거)을 반환한다."""
-        result = await self._session.execute(
-            select(WatchlistSymbol.symbol_code)
-            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
-            .where(Watchlist.enabled.is_(True), WatchlistSymbol.enabled.is_(True))
-            .distinct()
-        )
-        return [row[0] for row in result.all()]
+        return await WatchlistSymbolRepository(self._session).list_enabled_symbol_codes()
 
     async def refresh_investor_flows(
         self,

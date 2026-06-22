@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,6 @@ from app.domain.repositories.strategy_proposal import StrategyProposalRepository
 from app.services.strategy_service import StrategyNotFoundError, StrategyService
 from app.trading.strategy.registry import registered_types
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class ProposalNotFoundError(Exception):

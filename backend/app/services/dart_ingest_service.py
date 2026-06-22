@@ -2,18 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import MarketCode
-from app.domain.models.watchlist import Watchlist, WatchlistSymbol
 from app.domain.repositories.news_context import NewsEventRepository
+from app.domain.repositories.watchlist import WatchlistSymbolRepository
 from app.services.dart_provider import DartProvider
 from app.trading.analysis.news_materiality import score_materiality
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass
@@ -51,13 +49,7 @@ class DartIngestService:
         self._provider = provider
 
     async def _watchlist_symbols(self) -> set[str]:
-        result = await self._session.execute(
-            select(WatchlistSymbol.symbol_code)
-            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
-            .where(Watchlist.enabled.is_(True), WatchlistSymbol.enabled.is_(True))
-            .distinct()
-        )
-        return {row[0] for row in result.all()}
+        return set(await WatchlistSymbolRepository(self._session).list_enabled_symbol_codes())
 
     async def ingest(
         self,

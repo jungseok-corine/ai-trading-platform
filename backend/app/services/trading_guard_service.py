@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,6 @@ from app.domain.repositories.risk import RiskConfigRepository
 from app.domain.repositories.trading_guard import TradingGuardRepository
 
 logger = logging.getLogger(__name__)
-_KST = ZoneInfo("Asia/Seoul")
 
 
 class TradingGuardService:
@@ -54,7 +53,7 @@ class TradingGuardService:
         이미 pause 상태이면 reason/source를 최신 정보로 갱신하고 paused_at은 유지한다.
         """
         state = await self._repo.get_by_account_id(account_id)
-        now = datetime.now(_KST)
+        now = datetime.now(KST)
 
         if state is None:
             state = await self._repo.create(
@@ -97,7 +96,7 @@ class TradingGuardService:
     ) -> TradingGuardState:
         """사용자가 수동으로 pause 상태로 전환한다."""
         state = await self._repo.get_by_account_id(account_id)
-        now = datetime.now(_KST)
+        now = datetime.now(KST)
 
         if state is None:
             state = await self._repo.create(
@@ -137,7 +136,7 @@ class TradingGuardService:
         AI 분석 결과가 이 함수를 호출하면 안 된다. 반드시 사람이 명시적으로 API를 통해 호출해야 한다.
         """
         state = await self._repo.get_by_account_id(account_id)
-        now = datetime.now(_KST)
+        now = datetime.now(KST)
 
         if state is None:
             state = await self._repo.create(

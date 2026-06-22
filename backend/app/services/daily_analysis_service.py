@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,6 @@ from app.trading.analysis.activity import assess_activity
 from app.trading.analysis.analysis_output import JSON_OUTPUT_INSTRUCTION
 from app.trading.analysis.bundle_prompt import format_bundle_for_prompt
 
-KST = ZoneInfo("Asia/Seoul")
 DAILY_ANALYSIS_JOB_ID = "daily_analysis"
 
 

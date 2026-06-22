@@ -1,5 +1,5 @@
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,6 @@ from app.trading.strategy.schemas import (
 
 router = APIRouter(prefix="/engine", tags=["engine"])
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 def get_strategy_runner_service(

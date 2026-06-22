@@ -31,7 +31,6 @@ sys.path.insert(0, __file__.split("/scripts/")[0])
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import async_session_factory, engine
 from app.domain.models.account import Account
 from app.domain.models.enums import AccountType, StrategyVersionStatus
 from app.domain.models.experiment import Experiment, ExperimentResult, ExperimentVariant
@@ -40,6 +39,7 @@ from app.domain.models.position_event import PositionEvent
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
 from app.domain.models.trade import Trade
+from scripts._common import db_session
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -168,9 +168,8 @@ async def main(apply: bool, reset_experiments: bool) -> int:
             print("\n중단됨.")
             return 1
 
-    async with async_session_factory() as session:
+    async with db_session() as session:
         counts = await run(session, apply=apply, reset_experiments=reset_experiments)
-    await engine.dispose()
 
     _print(counts, dry_run=not apply, reset_experiments=reset_experiments)
     return 0

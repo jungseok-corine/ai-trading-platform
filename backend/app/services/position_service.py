@@ -300,6 +300,44 @@ class PositionService:
                 )
         return mismatches
 
+    async def diagnose_all_position_mismatches(self) -> list[PositionMismatch]:
+        """모든 계좌의 포지션 불일치를 배치로 탐지한다 (계좌·포지션별 N+1 제거).
+
+        positions 1회 + position_events 합산(group by) 1회, 총 2쿼리로 처리한다.
+        """
+        from sqlalchemy import func, select
+
+        from app.domain.models.position_event import PositionEvent
+
+        positions = list((await self._session.execute(select(Position))).scalars().all())
+        if not positions:
+            return []
+        sum_rows = (
+            await self._session.execute(
+                select(
+                    PositionEvent.position_id,
+                    func.coalesce(func.sum(PositionEvent.quantity_delta), 0),
+                ).group_by(PositionEvent.position_id)
+            )
+        ).all()
+        event_sums = {row[0]: int(row[1]) for row in sum_rows}
+
+        mismatches: list[PositionMismatch] = []
+        for position in positions:
+            event_sum = event_sums.get(position.id, 0)
+            if position.quantity != event_sum:
+                mismatches.append(
+                    PositionMismatch(
+                        position_id=position.id,
+                        symbol_code=position.symbol_code,
+                        account_id=position.account_id,
+                        position_quantity=position.quantity,
+                        event_quantity_sum=event_sum,
+                        discrepancy=position.quantity - event_sum,
+                    )
+                )
+        return mismatches
+
     async def refresh_all_prices(self, account_id: int) -> list[Position]:
         """계좌의 보유수량(quantity != 0) 포지션의 현재가를 모두 갱신하고 평가손익을 재계산한다.
 
