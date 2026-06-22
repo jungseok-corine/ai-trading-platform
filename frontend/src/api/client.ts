@@ -180,6 +180,14 @@ export async function createStrategy(payload: {
   return data;
 }
 
+export async function updateStrategy(
+  strategyId: number,
+  payload: { name?: string; description?: string | null },
+): Promise<Strategy> {
+  const { data } = await apiClient.patch<Strategy>(`/strategies/${strategyId}`, payload);
+  return data;
+}
+
 export async function getStrategyVersions(
   strategyId: number,
   includeArchived = false,

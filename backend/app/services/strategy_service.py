@@ -47,6 +47,15 @@ class StrategyService:
         await self._session.commit()
         return strategy
 
+    async def update_strategy(self, strategy_id: int, **fields: Any) -> Strategy:
+        """전략의 이름/설명 등 메타데이터를 수정한다(버전 파라미터와 무관)."""
+        strategy = await self._strategy_repo.get(strategy_id)
+        if strategy is None:
+            raise StrategyNotFoundError(strategy_id)
+        await self._strategy_repo.update(strategy, **fields)
+        await self._session.commit()
+        return strategy
+
     async def list_versions(
         self, strategy_id: int, include_archived: bool = False
     ) -> list[StrategyVersion]:
