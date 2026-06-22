@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     # Strategy Engine 스케줄러 (APScheduler)
     strategy_scheduler_enabled: bool = True
     strategy_scheduler_interval_seconds: int = 60
+    # 신호 생성 시 최신 캔들 신선도(분) 가드 — 장 마감/휴장으로 시세가 멈춰 캔들이
+    # 이 값보다 오래되면 신호를 생성하지 않는다(스테일 데이터로 인한 허위 신호 방지).
+    # 0 이하로 두면 가드를 비활성화한다.
+    signal_max_candle_staleness_minutes: int = 15
 
     # 주문 체결 동기화 스케줄러 (APScheduler)
     order_sync_scheduler_enabled: bool = True
