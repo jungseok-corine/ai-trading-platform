@@ -120,6 +120,20 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   싼 모델이 0~1 점수로 보강. `final=max(rule, llm)`. `news_llm_score`(프롬프트/파서) +
   `NewsCuratorService(llm_provider=)`. 실패 시 룰로 폴백. config `news_curator_llm_*`.
 
+- **C-5.1~5.3** ✅: **멀티마켓(미국장) 기반** — 해외 시세 read-only 클라이언트
+  (`KISOverseasClient`, 분봉 HHDFS76950200 / 현재가 HHDFS00000300, 실전 도메인 전용),
+  `MarketDataService` 시장 라우팅(strategy params `market`/`exchange`, `timeframe`→NMIN),
+  멀티마켓 watchlist(`watchlist_symbols.market/exchange`) + 시장 인지 유니버스
+  (`ResolvedSymbol`로 종목별 시장/거래소를 러너→신호 서비스에 전달). US 주요종목 시드
+  (`scripts/seed_us_majors_watchlist.py`). 프론트 watchlist 폼에 시장/거래소 선택.
+
+- **C-5.4 (Phase 2)** ✅: **미국 페이퍼 트레이딩** — 모의투자(VTS) 해외 주문/잔고 브로커
+  (`KISOverseasPaperBrokerClient`: 매수 VTTT1002U/매도 VTTT1001U 비대칭, 잔고 VTTS3012R,
+  체결 VTTS3035R; 시세는 실전 read-only 클라이언트에 위임). `TradeService` 시장 인지
+  라우팅(`_select_broker`), `trades.market` 기록, 미국 가격 센트($0.01) 호가단위 보정.
+  안전: 모의 tr_id 전용(실전 TTTT 미사용), 실거래 비활성 불변식 유지, US는 해외 브로커
+  구성 시에만 동작. (남은 것: US 체결 동기화(order_sync)·USD 리스크 환산은 후속.)
+
 ## 5. 보류 항목
 
 - **US 실시간(분봉/틱)**: KIS 해외 실시간 승인 또는 Polygon 유료. 현재는 일별 EOD로 충분.
