@@ -66,6 +66,31 @@ export async function getSchedulerSettings(): Promise<SchedulerSettings> {
   return data;
 }
 
+export interface AutonomousJob {
+  job_id: string;
+  label: string;
+  schedule: string;
+  enabled: boolean;
+  overridden: boolean;
+  running: boolean;
+  last_run_at: string | null;
+  last_error: string | null;
+}
+
+export async function getAutonomousJobs(): Promise<AutonomousJob[]> {
+  const { data } = await apiClient.get<AutonomousJob[]>("/autonomous-jobs");
+  return data;
+}
+
+export async function toggleAutonomousJob(jobId: string, enabled: boolean): Promise<AutonomousJob> {
+  const { data } = await apiClient.patch<AutonomousJob>(`/autonomous-jobs/${jobId}`, { enabled });
+  return data;
+}
+
+export async function runAutonomousJob(jobId: string): Promise<void> {
+  await apiClient.post(`/autonomous-jobs/${jobId}/run`);
+}
+
 export async function updateSchedulerSettings(
   payload: SchedulerSettingsUpdateRequest,
 ): Promise<SchedulerSettings> {

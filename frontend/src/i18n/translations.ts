@@ -80,6 +80,22 @@ export interface Translations {
     invalidInterval: (min: number) => string;
     updatedAt: string;
   };
+  autonomousJobs: {
+    title: string;
+    description: string;
+    colJob: string;
+    colSchedule: string;
+    colStatus: string;
+    colActions: string;
+    on: string;
+    off: string;
+    turnOn: string;
+    turnOff: string;
+    runNow: string;
+    runTriggered: string;
+    lastRun: string;
+    runningNow: string;
+  };
   risk: {
     title: string;
     accountId: string;
@@ -562,6 +578,22 @@ export const translations: Record<Language, Translations> = {
       saveFailed: "저장 실패",
       invalidInterval: (min: number) => `${min}초 이상으로 설정해야 합니다.`,
       updatedAt: "마지막 변경 시각",
+    },
+    autonomousJobs: {
+      title: "자율 잡 제어판",
+      description: "장마감 후 AI 분석·제안 등 자율 잡을 웹에서 켜고 끄거나 즉시 실행합니다. 설정은 DB에 저장되어 .env를 못 만지는 환경에서도 유지됩니다. 기본값은 모두 OFF이며, 켜도 실거래는 일어나지 않습니다.",
+      colJob: "잡",
+      colSchedule: "주기",
+      colStatus: "상태",
+      colActions: "동작",
+      on: "ON",
+      off: "OFF",
+      turnOn: "켜기",
+      turnOff: "끄기",
+      runNow: "지금 실행",
+      runTriggered: "실행을 시작했습니다.",
+      lastRun: "마지막 실행",
+      runningNow: "실행 중",
     },
     risk: {
       title: "리스크 제어",
@@ -1050,6 +1082,22 @@ export const translations: Record<Language, Translations> = {
       saveFailed: "Save failed",
       invalidInterval: (min: number) => `Must be ${min} seconds or more.`,
       updatedAt: "Last Updated",
+    },
+    autonomousJobs: {
+      title: "Autonomous Jobs Control",
+      description: "Turn autonomous jobs (post-close AI analysis, proposals, etc.) on/off or run them now from the web. Settings persist in the DB so they survive restarts and work even when you can't edit .env. All default to OFF, and enabling them does not place any real orders.",
+      colJob: "Job",
+      colSchedule: "Schedule",
+      colStatus: "Status",
+      colActions: "Actions",
+      on: "ON",
+      off: "OFF",
+      turnOn: "Turn on",
+      turnOff: "Turn off",
+      runNow: "Run now",
+      runTriggered: "Run started.",
+      lastRun: "Last run",
+      runningNow: "running",
     },
     risk: {
       title: "Risk Controls",

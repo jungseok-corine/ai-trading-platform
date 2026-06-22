@@ -22,10 +22,12 @@ import DataFreshnessSection from "../components/research/DataFreshnessSection";
 import TradeActivitySection from "../components/research/TradeActivitySection";
 import RiskEventsSection from "../components/research/RiskEventsSection";
 import PromotionReadinessSection from "../components/research/PromotionReadinessSection";
+import AutonomousJobsSection from "../components/research/AutonomousJobsSection";
 
 type Section =
   | "ops"
   | "ops-trend"
+  | "autonomous-jobs"
   | "pipeline"
   | "proposals"
   | "scanner-proposals"
@@ -51,6 +53,7 @@ type Section =
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "ops", label: "운영 종합" },
   { key: "ops-trend", label: "운영 추세" },
+  { key: "autonomous-jobs", label: "자율 잡 제어" },
   { key: "pipeline", label: "파이프라인" },
   { key: "proposals", label: "AI 전략 제안" },
   { key: "scanner-proposals", label: "AI 스캐너 제안" },
@@ -94,6 +97,7 @@ export default function ResearchPage() {
 
       {section === "ops" && <OperationsSection />}
       {section === "ops-trend" && <OperationsTrendSection />}
+      {section === "autonomous-jobs" && <AutonomousJobsSection />}
       {section === "pipeline" && <PipelineSection />}
       {section === "proposals" && <ProposalsSection />}
       {section === "scanner-proposals" && <ScannerProposalsSection />}
