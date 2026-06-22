@@ -67,12 +67,21 @@ class RiskContextBuilder:
         return result.scalar_one()
 
     async def _sum_today_realized_pnl(self, account_id: int, today_start: datetime) -> Decimal:
+        # 시장(통화)별로 합산한 뒤 US(USD)는 환율로 KRW 환산해 합친다(KRW 한도와 비교용).
         result = await self._session.execute(
-            select(func.coalesce(func.sum(Trade.pnl_amount), 0))
+            select(Trade.market, func.coalesce(func.sum(Trade.pnl_amount), 0))
             .where(Trade.account_id == account_id)
             .where(Trade.exit_time >= today_start)
+            .group_by(Trade.market)
         )
-        return Decimal(result.scalar_one())
+        from app.core.config import get_settings  # noqa: PLC0415
+
+        rate = get_settings().usd_krw_rate
+        total = Decimal("0")
+        for market, pnl_sum in result.all():
+            pnl = Decimal(pnl_sum)
+            total += pnl * rate if market == "US" else pnl
+        return total
 
     async def _count_consecutive_losses(self, account_id: int) -> int:
         result = await self._session.execute(

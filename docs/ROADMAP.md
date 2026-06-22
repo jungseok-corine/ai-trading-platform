@@ -197,6 +197,12 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.16** ✅: **혼합 통화 리스크 집계 + 스케줄러 로그 노이즈 정리** —
+  (①) `RiskContextBuilder`의 당일 실현손익을 시장별로 합산 후 US(USD)는 `usd_krw_rate`로
+  KRW 환산해 합쳐 `max_daily_loss`(KRW 한도)와 정확히 비교. (②) 레이트리밋(EGW00201)·장마감
+  같은 일시/예상 오류만 있는 스케줄러 run은 FAILED로 표시하지 않는다(`is_transient_error`,
+  요약에는 그대로 기록). 네트워크/타임아웃은 실제 문제일 수 있어 실패 유지.
+
 ## 5. 보류 항목
 
 - **NXT/US-확장시간 주문(Phase C/D)**: NXT(넥스트레이드) 및 US 프리/애프터 주문은 KIS

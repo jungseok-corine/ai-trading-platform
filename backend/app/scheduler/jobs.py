@@ -15,7 +15,11 @@ from app.services.signal_service import SignalService
 from app.services.strategy_runner_service import StrategyRunnerService
 from app.services.trade_service import TradeService
 from app.services.trading_state_sync_service import TradingStateSyncService
-from app.trading.broker.error_classifier import classify_exception, exc_message
+from app.trading.broker.error_classifier import (
+    classify_exception,
+    exc_message,
+    is_transient_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -340,12 +344,14 @@ async def run_strategy_job(app: FastAPI) -> None:
             )
 
         # Status 정책:
-        # - FAILED: job 자체가 crash하거나 모든 version이 실패한 경우
+        # - FAILED: job 자체가 crash하거나, 모든 version이 '실질적' 오류로 실패한 경우.
+        #   레이트리밋/장외/네트워크 일시 오류만 있으면 FAILED로 보지 않는다(노이즈 억제).
         # - SKIPPED: 실행할 전략이 없음
-        # - SUCCESS: 일부라도 성공하면 SUCCESS (per-symbol 오류는 summary에 기록)
-        if errors and versions_succeeded == 0:
+        # - SUCCESS: 일부라도 성공 또는 일시적 오류만 (per-symbol 오류는 summary에 기록)
+        non_transient = [e for e in errors if not is_transient_error(e["category"])]
+        if errors and versions_succeeded == 0 and non_transient:
             status = SchedulerRunStatus.FAILED
-            error_message = "; ".join(e["message"] for e in errors)
+            error_message = "; ".join(e["message"] for e in non_transient)
         elif not results:
             status = SchedulerRunStatus.SKIPPED
 
@@ -406,10 +412,11 @@ async def order_sync_job(app: FastAPI) -> None:
             )
 
         # Status 정책:
-        # - FAILED: KIS API 자체 조회 실패 (error_category 설정됨)
+        # - FAILED: KIS API 자체 조회 실패 (error_category 설정됨) — 단 레이트리밋/장외/네트워크
+        #   일시 오류는 FAILED로 보지 않는다(노이즈 억제, summary에는 기록).
         # - SKIPPED: pending 주문 없음
         # - SUCCESS: API 성공 (per-trade 오류는 summary.errors에 기록)
-        if result.error_category:
+        if result.error_category and not is_transient_error(result.error_category):
             status = SchedulerRunStatus.FAILED
             error_message = "; ".join(result.errors)
         elif result.skipped_reason:
