@@ -257,6 +257,8 @@ class StrategyVersionParameters(BaseModel):
     account_id: int | None = None
     enabled: bool = True
     auto_trade_enabled: bool = False
+    # Phase B: 장 마감 동시호가 단계에서 당일 포지션을 '종가 청산' 매도로 정리한다(인트라데이).
+    exit_on_close: bool = False
     # volume_confirmed_ma_cross 전용 파라미터
     volume_window: int = Field(default=20, gt=0)
     volume_multiplier: float = Field(default=1.5, gt=0)

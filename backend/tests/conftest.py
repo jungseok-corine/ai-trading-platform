@@ -13,6 +13,9 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 # 캔들 신선도 가드는 wall-clock now와 비교한다. 대부분의 테스트는 고정 과거 날짜의
 # 캔들을 쓰므로 기본적으로 가드를 끈다(0). 가드 전용 테스트는 명시적으로 활성화한다.
 os.environ.setdefault("SIGNAL_MAX_CANDLE_STALENESS_MINUTES", "0")
+# 시장 세션 게이팅도 wall-clock 기준이라(테스트는 임의 시각에 실행) 기본 비활성.
+# 세션 전용 테스트는 now를 주입해 명시적으로 활성화한다.
+os.environ.setdefault("STRATEGY_SESSION_GATING_ENABLED", "false")
 
 import pytest
 import pytest_asyncio

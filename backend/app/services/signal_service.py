@@ -16,7 +16,7 @@ from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.signal_log import SignalLogRepository
 from app.services.market_data_service import MarketDataService, _timeframe_to_nmin
 from app.trading.broker.schemas import MinuteCandle
-from app.trading.strategy.base import Strategy
+from app.trading.strategy.base import Signal, Strategy
 from app.trading.strategy.context import StrategyContext
 from app.trading.strategy.indicators import candle_timestamp
 from app.trading.strategy.schemas import SignalLogRead
@@ -38,6 +38,35 @@ def _latest_candle_age_minutes(candles: list[MinuteCandle], now: datetime) -> fl
     except (ValueError, TypeError):
         return None
     return (now - latest_ts).total_seconds() / 60.0
+
+
+def _build_closing_exit_signal(
+    symbol_code: str,
+    candles: list[MinuteCandle],
+    strategy_version_id: int | None,
+    quantity: int,
+) -> Signal | None:
+    """장 마감 동시호가 청산용 매도 신호를 만든다(최신 종가 기준).
+
+    인트라데이 전략이 당일 포지션을 종가에 정리하도록 하는 '종가 매도 결정' 신호.
+    실제 청산 여부는 이후 자동매매/리스크/보유수량 검증에서 가려진다(보유 없으면 미체결).
+    """
+    if not candles:
+        return None
+    last = candles[-1]
+    try:
+        ts = candle_timestamp(last)
+    except (ValueError, TypeError):
+        ts = None
+    return Signal(
+        symbol_code=symbol_code,
+        side=TradeSide.SELL,
+        quantity=quantity,
+        price=last.close_price,
+        reason="종가 청산 (장 마감 동시호가)",
+        strategy_version_id=strategy_version_id,
+        metadata={"candle_ts": ts, "exit_on_close": True},
+    )
 
 
 def _is_candle_stale(
@@ -167,6 +196,7 @@ class SignalService:
         candle_cache: dict[str, list[MinuteCandle]] | None = None,
         market: str | None = None,
         exchange: str | None = None,
+        force_exit: bool = False,
     ) -> SignalLog | None:
         # 같은 run에서 여러 전략이 동일 종목을 볼 때 캔들을 1회만 조회하도록 캐시한다.
         # (KIS 호출 수를 전략 수만큼 줄여 rate limit/지연을 완화)
@@ -198,11 +228,20 @@ class SignalService:
             await self._session.commit()
             return None
 
-        context: StrategyContext | None = None
-        if self._investor_flow_repo is not None and strategy_params:
-            context = await self._build_strategy_context(symbol_code, candles, strategy_params)
-
-        signal = strategy.generate_signal(symbol_code, candles, strategy_version_id, context=context)
+        # Phase B 종가 매도 결정: 장 마감 동시호가 단계에서 exit_on_close 전략은
+        # 일반 신호 대신 '종가 청산' 매도 신호를 낸다(인트라데이 전략의 당일 청산).
+        if force_exit:
+            signal = _build_closing_exit_signal(
+                symbol_code, candles, strategy_version_id,
+                quantity=(strategy_params or {}).get("quantity", 1),
+            )
+        else:
+            context: StrategyContext | None = None
+            if self._investor_flow_repo is not None and strategy_params:
+                context = await self._build_strategy_context(symbol_code, candles, strategy_params)
+            signal = strategy.generate_signal(
+                symbol_code, candles, strategy_version_id, context=context
+            )
         if signal is None:
             # 시그널 없어도 get_recent_candles에서 flush된 market_data를 커밋한다.
             await self._session.commit()

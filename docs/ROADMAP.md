@@ -134,7 +134,28 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   안전: 모의 tr_id 전용(실전 TTTT 미사용), 실거래 비활성 불변식 유지, US는 해외 브로커
   구성 시에만 동작. (남은 것: US 체결 동기화(order_sync)·USD 리스크 환산은 후속.)
 
+- **C-5.5** ✅: **장 마감 후 허위 신호 수정** — 국장 마감 후에도 KIS가 마지막(종가로 평탄한)
+  캔들을 계속 돌려줘 RSI=100 허위 매도가 양산되던 문제. (1) 캔들 신선도 가드(SignalService,
+  `SIGNAL_MAX_CANDLE_STALENESS_MINUTES`, wall-clock 기준이라 KR/US·휴장 자동 처리),
+  (2) `calculate_rsi` 완전 평탄 시 None(정의불가). 모든 전략에 적용.
+
+- **C-5.6 (Phase A+B)** ✅: **시장 세션 인지 + 종가 매도 결정** — "스케줄러를 끄는" 대신
+  세션 기준으로 동작. `app/common/market_session.py`(KR: 장전/정규/종가동시호가/장후,
+  US: ET 변환·서머타임 자동). 러너 세션 게이팅(`strategy_session_gating_enabled`): 종목
+  시장이 정규/종가동시호가 단계가 아니면 신호 생성·KIS 호출 스킵(휴장일은 신선도 가드 백스톱).
+  **Phase B 종가 매도**: 전략 파라미터 `exit_on_close` — 종가 동시호가(15:20~15:30)에 당일
+  포지션을 '종가 청산' 매도로 정리(인트라데이 오버나잇 방지). 프론트 폼에 체크박스 노출.
+  > **KIS 제약(중요)**: NXT 주문(`EXCG_ID_DVSN_CD`=NXT)·US 주간거래(프리/애프터, TTTS6036U/
+  > 6037U)는 **모의투자 미지원 → 실거래 전용**. NXT 실시간 시세 WS도 모의 미지원. 따라서
+  > 모의에서 거래 가능한 건 KR 정규장+US 정규장뿐. NXT/US-확장 주문은 §5로 보류(실거래 필요).
+
 ## 5. 보류 항목
+
+- **NXT/US-확장시간 주문(Phase C/D)**: NXT(넥스트레이드) 및 US 프리/애프터 주문은 KIS
+  모의 미지원이라 **실거래에서만** 가능. 안전 불변식(`KIS_REAL_TRADING_ENABLED=false`)과
+  충돌하므로 실거래 활성화 전까지 보류. 세션 캘린더(`market_session.py`)가 토대 — 실거래를
+  켜는 시점에 거래소 코드(KRX/NXT/SOR), 통합 시세(`UN`/`NX`), 미국주간주문 TR을 얹는다.
+  시세 수집·연구(주문 없이)는 통합(`UN`)으로 먼저 가능.
 
 - **US 실시간(분봉/틱)**: KIS 해외 실시간 승인 또는 Polygon 유료. 현재는 일별 EOD로 충분.
 - **Mac mini 배포**: `.github/workflows/deploy.yml` + launchd + self-hosted runner
