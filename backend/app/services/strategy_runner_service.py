@@ -122,9 +122,13 @@ class StrategyRunnerService:
 
         # 시장 세션 게이팅: 종목의 시장(KR/US)이 정규/종가동시호가 단계가 아니면 건너뛴다.
         # (장외 시간 KIS 호출/허위 신호 절감. 휴장일은 신선도 가드가 백스톱.)
-        if get_settings().strategy_session_gating_enabled:
+        settings = get_settings()
+        if settings.strategy_session_gating_enabled:
             ref = now or datetime.now(KST)
-            active = [r for r in symbols if is_signal_active(r.market, ref)]
+            include_extended = settings.signal_extended_sessions_enabled
+            active = [
+                r for r in symbols if is_signal_active(r.market, ref, include_extended)
+            ]
             if not active:
                 logger.debug(
                     "strategy_version_id=%s 모든 종목 시장 세션 비활성 — 건너뜁니다.", version.id

@@ -32,30 +32,36 @@ class MarketPhase(str, Enum):
     POST = "post"                           # 장후 시간외/애프터마켓
 
 
-# 연속 시세가 흐르며 신호 생성이 의미 있는 단계.
+# 연속 시세가 흐르며 신호 생성이 의미 있는 단계(정규장).
 _SIGNAL_ACTIVE_PHASES = frozenset({MarketPhase.REGULAR, MarketPhase.CLOSING_AUCTION})
+# 확장 세션까지 포함(프리/애프터/NXT). 옵트인.
+_SIGNAL_ACTIVE_PHASES_EXTENDED = _SIGNAL_ACTIVE_PHASES | {MarketPhase.PRE, MarketPhase.POST}
 
 
 def kr_market_phase(now: datetime) -> MarketPhase:
-    """KRX(한국거래소) 정규장 기준 현재 시장 단계를 반환한다(KST).
+    """KRX/NXT 기준 현재 시장 단계를 반환한다(KST).
 
-    - 08:30~09:00  장전 동시호가(PRE)
+    NXT(넥스트레이드)까지 포함한 확장 운영시간을 반영한다(확장 신호용):
+    - 08:00~09:00  장전(NXT 프리마켓 + KRX 장전 동시호가) (PRE)
     - 09:00~15:20  정규 연속매매(REGULAR)
     - 15:20~15:30  종가 동시호가(CLOSING_AUCTION)
-    - 15:30~18:00  장후/시간외단일가(POST)
+    - 15:30~20:00  장후(시간외단일가 + NXT 애프터마켓) (POST)
     - 그 외/주말    휴장(CLOSED)
+
+    주의: PRE/POST는 기본 게이트(is_signal_active)에선 비활성이며, 확장 세션을 켜고
+    국내 시세 코드를 UN(통합)으로 둬야 NXT 시간대 데이터로 신호가 흐른다.
     """
     now = now.astimezone(KST)
     if now.weekday() >= 5:  # 5=토, 6=일
         return MarketPhase.CLOSED
     t = now.time()
-    if time(8, 30) <= t < time(9, 0):
+    if time(8, 0) <= t < time(9, 0):
         return MarketPhase.PRE
     if time(9, 0) <= t < time(15, 20):
         return MarketPhase.REGULAR
     if time(15, 20) <= t < time(15, 30):
         return MarketPhase.CLOSING_AUCTION
-    if time(15, 30) <= t < time(18, 0):
+    if time(15, 30) <= t < time(20, 0):
         return MarketPhase.POST
     return MarketPhase.CLOSED
 
@@ -88,9 +94,13 @@ def market_phase(market: str, now: datetime) -> MarketPhase:
     return kr_market_phase(now)
 
 
-def is_signal_active(market: str, now: datetime) -> bool:
-    """해당 시장에서 지금 신호 생성이 의미 있는 단계(정규/종가동시호가)인지 여부."""
-    return market_phase(market, now) in _SIGNAL_ACTIVE_PHASES
+def is_signal_active(market: str, now: datetime, include_extended: bool = False) -> bool:
+    """해당 시장에서 지금 신호 생성이 의미 있는 단계인지 여부.
+
+    include_extended=True면 프리/애프터(및 NXT 시간대 POST)까지 활성으로 본다.
+    """
+    active = _SIGNAL_ACTIVE_PHASES_EXTENDED if include_extended else _SIGNAL_ACTIVE_PHASES
+    return market_phase(market, now) in active
 
 
 def is_closing_auction(market: str, now: datetime) -> bool:
