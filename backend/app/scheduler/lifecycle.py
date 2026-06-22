@@ -1,48 +1,40 @@
 import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.db.session import async_session_factory
 from app.scheduler.jobs import (
-    DAILY_REPORT_JOB_ID,
-    DATA_REFRESH_JOB_ID,
-    DAILY_ANALYSIS_JOB_ID,
-    DART_INGEST_JOB_ID,
     ORDER_SYNC_JOB_ID,
-    RESEARCH_PIPELINE_JOB_ID,
-    SCANNER_REVIEW_JOB_ID,
-    STRATEGY_REVIEW_JOB_ID,
     STRATEGY_RUNNER_JOB_ID,
     TRADING_STATE_SYNC_JOB_ID,
-    OPERATIONS_DIGEST_JOB_ID,
-    US_MARKET_REFRESH_JOB_ID,
     order_sync_job,
-    run_daily_report_job,
-    run_data_refresh_job,
-    run_daily_analysis_job,
-    run_dart_ingest_job,
-    run_operations_digest_job,
-    run_research_pipeline_job,
-    run_scanner_review_job,
     run_strategy_job,
-    run_strategy_review_job,
-    run_us_market_refresh_job,
     sync_trading_state_job,
 )
+from app.scheduler.registry import CONTROLLABLE_JOBS
+from app.services.scheduler_control_service import SchedulerControlService
 from app.services.scheduler_settings_service import SchedulerSettingsService
 
 logger = logging.getLogger(__name__)
 
 
-async def _load_scheduler_intervals() -> tuple[int, int]:
-    """DB에 저장된 스케줄러 주기 설정을 읽는다 (없으면 config 기본값으로 생성)."""
+async def _load_startup_config(settings) -> tuple[int, int, dict[str, bool]]:
+    """DB에서 스케줄러 주기 + 자율 잡 실효 활성 상태를 읽는다.
+
+    주기는 scheduler_settings(없으면 config 기본값으로 생성), 자율 잡 활성은
+    scheduler_job_overrides 우선(없으면 env 기본값).
+    """
     async with async_session_factory() as session:
-        settings = await SchedulerSettingsService(session).get_settings()
-        return settings.strategy_scheduler_interval_seconds, settings.order_sync_scheduler_interval_seconds
+        sched_settings = await SchedulerSettingsService(session).get_settings()
+        effective = await SchedulerControlService(session).effective_enabled_map(settings)
+        return (
+            sched_settings.strategy_scheduler_interval_seconds,
+            sched_settings.order_sync_scheduler_interval_seconds,
+            effective,
+        )
 
 
 async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
@@ -52,7 +44,7 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
     app.core.config의 기본값으로 singleton row를 생성한다.
     """
     settings = get_settings()
-    strategy_interval, order_sync_interval = await _load_scheduler_intervals()
+    strategy_interval, order_sync_interval, effective_enabled = await _load_startup_config(settings)
 
     app.state.scheduler_last_run_at = None
     app.state.scheduler_last_error = None
@@ -96,116 +88,17 @@ async def start_scheduler(app: FastAPI) -> AsyncIOScheduler:
             replace_existing=True,
         )
 
-    if settings.daily_report_scheduler_enabled:
-        scheduler.add_job(
-            run_daily_report_job,
-            trigger=CronTrigger(
-                hour=settings.daily_report_scheduler_hour,
-                minute=settings.daily_report_scheduler_minute,
-            ),
-            id=DAILY_REPORT_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.data_refresh_scheduler_enabled:
-        scheduler.add_job(
-            run_data_refresh_job,
-            trigger=CronTrigger(
-                hour=settings.data_refresh_scheduler_hour,
-                minute=settings.data_refresh_scheduler_minute,
-            ),
-            id=DATA_REFRESH_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.research_pipeline_scheduler_enabled:
-        scheduler.add_job(
-            run_research_pipeline_job,
-            trigger=IntervalTrigger(seconds=settings.research_pipeline_interval_seconds),
-            id=RESEARCH_PIPELINE_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.scanner_review_scheduler_enabled:
-        scheduler.add_job(
-            run_scanner_review_job,
-            trigger=CronTrigger(
-                hour=settings.scanner_review_scheduler_hour,
-                minute=settings.scanner_review_scheduler_minute,
-            ),
-            id=SCANNER_REVIEW_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.strategy_review_scheduler_enabled:
-        scheduler.add_job(
-            run_strategy_review_job,
-            trigger=CronTrigger(
-                hour=settings.strategy_review_scheduler_hour,
-                minute=settings.strategy_review_scheduler_minute,
-            ),
-            id=STRATEGY_REVIEW_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.us_market_refresh_scheduler_enabled:
-        scheduler.add_job(
-            run_us_market_refresh_job,
-            trigger=CronTrigger(
-                hour=settings.us_market_refresh_scheduler_hour,
-                minute=settings.us_market_refresh_scheduler_minute,
-            ),
-            id=US_MARKET_REFRESH_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.ai_daily_analysis_enabled:
-        scheduler.add_job(
-            run_daily_analysis_job,
-            trigger=CronTrigger(
-                hour=settings.ai_daily_analysis_scheduler_hour,
-                minute=settings.ai_daily_analysis_scheduler_minute,
-            ),
-            id=DAILY_ANALYSIS_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.dart_ingest_scheduler_enabled:
-        scheduler.add_job(
-            run_dart_ingest_job,
-            trigger=IntervalTrigger(seconds=settings.dart_ingest_interval_seconds),
-            id=DART_INGEST_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
-
-    if settings.operations_digest_scheduler_enabled:
-        scheduler.add_job(
-            run_operations_digest_job,
-            trigger=CronTrigger(
-                hour=settings.operations_digest_scheduler_hour,
-                minute=settings.operations_digest_scheduler_minute,
-            ),
-            id=OPERATIONS_DIGEST_JOB_ID,
-            args=[app],
-            max_instances=1,
-            replace_existing=True,
-        )
+    # 자율(연구/분석) 잡: DB 오버라이드 우선, 없으면 env 기본값(기본 OFF). 웹에서 토글 가능.
+    for job in CONTROLLABLE_JOBS:
+        if effective_enabled.get(job.job_id, False):
+            scheduler.add_job(
+                job.func,
+                trigger=job.build_trigger(settings),
+                id=job.job_id,
+                args=[app],
+                max_instances=1,
+                replace_existing=True,
+            )
 
     scheduler.start()
     app.state.scheduler = scheduler

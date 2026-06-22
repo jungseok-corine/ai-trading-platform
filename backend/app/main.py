@@ -16,6 +16,7 @@ from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import data_freshness as data_freshness_api
 from app.api.v1 import data_refresh as data_refresh_api
+from app.api.v1 import autonomous_jobs as autonomous_jobs_api
 from app.api.v1 import engine as engine_api
 from app.api.v1 import experiments as experiments_api
 from app.api.v1 import investor_flows as investor_flows_api
@@ -121,6 +122,7 @@ app.include_router(signals.router, prefix="/api/v1")
 app.include_router(strategies.router, prefix="/api/v1")
 app.include_router(watchlists.router, prefix="/api/v1")
 app.include_router(engine_api.router, prefix="/api/v1")
+app.include_router(autonomous_jobs_api.router, prefix="/api/v1")
 app.include_router(market_data_api.router, prefix="/api/v1")
 app.include_router(analysis_runs_api.router, prefix="/api/v1")
 app.include_router(analysis_bundle_api.router, prefix="/api/v1")

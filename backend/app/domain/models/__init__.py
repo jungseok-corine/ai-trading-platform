@@ -22,6 +22,7 @@ from app.domain.models.position_event import PositionEvent
 from app.domain.models.risk import RiskConfig, RiskEvent
 from app.domain.models.scanner import ScannerRule, ScannerRuleVersion
 from app.domain.models.scanner_proposal import ScannerRuleProposal
+from app.domain.models.scheduler_job_override import SchedulerJobOverride
 from app.domain.models.scheduler_run import SchedulerRun
 from app.domain.models.scheduler_settings import SchedulerSettings
 from app.domain.models.signal_log import SignalLog
@@ -62,6 +63,7 @@ __all__ = [
     "ScannerRuleProposal",
     "ScannerRuleVersion",
     "SchedulerRun",
+    "SchedulerJobOverride",
     "SchedulerSettings",
     "SignalLog",
     "Strategy",
