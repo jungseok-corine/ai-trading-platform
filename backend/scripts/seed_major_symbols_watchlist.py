@@ -126,11 +126,10 @@ def _print(info: dict, *, dry_run: bool) -> None:
 
 
 async def main(apply: bool, name: str) -> int:
-    from app.db.session import async_session_factory, engine
+    from scripts._common import db_session
 
-    async with async_session_factory() as session:
+    async with db_session() as session:
         info = await run(session, apply=apply, name=name)
-    await engine.dispose()
     _print(info, dry_run=not apply)
     return 0
 

@@ -104,7 +104,7 @@ def _print(targets: list[PurgeTarget], *, dry_run: bool) -> None:
 
 
 async def main(apply: bool) -> int:
-    from app.db.session import async_session_factory, engine
+    from scripts._common import db_session
 
     if apply:
         print("\n⚠️  APPLY 모드: 전략이 영구 삭제됩니다(되돌릴 수 없음). 중단하려면 Ctrl-C.")
@@ -114,9 +114,8 @@ async def main(apply: bool) -> int:
             print("\n중단됨.")
             return 1
 
-    async with async_session_factory() as session:
+    async with db_session() as session:
         targets = await run(session, apply=apply)
-    await engine.dispose()
     _print(targets, dry_run=not apply)
     return 0
 

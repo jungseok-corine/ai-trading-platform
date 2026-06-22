@@ -176,11 +176,10 @@ def _print(results: list[SeedResult], *, dry_run: bool, universe: str, timeframe
 
 
 async def main(apply: bool, universe: str, timeframe: str) -> int:
-    from app.db.session import async_session_factory, engine
+    from scripts._common import db_session
 
-    async with async_session_factory() as session:
+    async with db_session() as session:
         results = await run(session, apply=apply, universe=universe, timeframe=timeframe)
-    await engine.dispose()
     _print(results, dry_run=not apply, universe=universe, timeframe=timeframe)
     return 0
 

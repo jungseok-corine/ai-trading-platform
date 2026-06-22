@@ -45,21 +45,17 @@ async def fetch_null_risk_event_inputs(session: AsyncSession) -> list[NullRiskEv
 
 
 async def fetch_position_mismatch_inputs(session: AsyncSession) -> list[PositionMismatchInput]:
-    accounts = (await session.execute(select(Account))).scalars().all()
-    result: list[PositionMismatchInput] = []
-    for account in accounts:
-        service = PositionService(session)
-        for m in await service.diagnose_position_mismatch(account.id):
-            result.append(
-                PositionMismatchInput(
-                    position_id=m.position_id,
-                    symbol_code=m.symbol_code,
-                    account_id=m.account_id,
-                    position_quantity=m.position_quantity,
-                    event_quantity_sum=m.event_quantity_sum,
-                )
-            )
-    return result
+    mismatches = await PositionService(session).diagnose_all_position_mismatches()
+    return [
+        PositionMismatchInput(
+            position_id=m.position_id,
+            symbol_code=m.symbol_code,
+            account_id=m.account_id,
+            position_quantity=m.position_quantity,
+            event_quantity_sum=m.event_quantity_sum,
+        )
+        for m in mismatches
+    ]
 
 
 async def fetch_active_strategy_version_inputs(
