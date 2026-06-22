@@ -76,12 +76,14 @@ export default function StrategyVersionParametersFields({
 
   const isVolumeType =
     parameters.strategy_type === "volume_confirmed_ma_cross" ||
-    parameters.strategy_type === "flow_confirmed_volume_ma_cross";
+    parameters.strategy_type === "flow_confirmed_volume_ma_cross" ||
+    parameters.strategy_type === "momentum_surge";
   const isFlowType = parameters.strategy_type === "flow_confirmed_volume_ma_cross";
   const isMaType = MA_WINDOW_TYPES.has(parameters.strategy_type);
   const isRsiType = parameters.strategy_type === "rsi_reversion";
   const isMacdType = parameters.strategy_type === "macd_trend";
   const isBreakoutType = parameters.strategy_type === "breakout_high";
+  const isMomentumSurgeType = parameters.strategy_type === "momentum_surge";
   const universeMode = !!parameters.universe;
   const validationErrors = getValidationErrors(parameters, t);
 
@@ -319,6 +321,42 @@ export default function StrategyVersionParametersFields({
               type="checkbox"
               checked={parameters.volume_confirm ?? false}
               onChange={(e) => update("volume_confirm", e.target.checked)}
+            />
+          </div>
+        </>
+      )}
+      {isMomentumSurgeType && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-surge-lookback`}>{sp.labelSurgeLookback}</label>
+            <input
+              id={`${idPrefix}-surge-lookback`}
+              type="number"
+              min={1}
+              value={parameters.surge_lookback ?? 5}
+              onChange={(e) => update("surge_lookback", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-surge-threshold`}>{sp.labelSurgeThresholdPct}</label>
+            <input
+              id={`${idPrefix}-surge-threshold`}
+              type="number"
+              min={0.01}
+              step={0.1}
+              value={parameters.surge_threshold_pct ?? 5}
+              onChange={(e) => update("surge_threshold_pct", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-exit-drop`}>{sp.labelExitDropPct}</label>
+            <input
+              id={`${idPrefix}-exit-drop`}
+              type="number"
+              min={0.01}
+              step={0.1}
+              value={parameters.exit_drop_pct ?? 3}
+              onChange={(e) => update("exit_drop_pct", Number(e.target.value) || 0)}
             />
           </div>
         </>

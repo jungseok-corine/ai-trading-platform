@@ -432,6 +432,9 @@ export interface Translations {
     labelBreakoutLookback: string;
     labelExitLookback: string;
     labelVolumeConfirm: string;
+    labelSurgeLookback: string;
+    labelSurgeThresholdPct: string;
+    labelExitDropPct: string;
     labelMarket: string;
     marketKr: string;
     marketUs: string;
@@ -951,6 +954,9 @@ export const translations: Record<Language, Translations> = {
       labelRequireAboveZero: "0선 위에서만 매수",
       labelBreakoutLookback: "돌파 비교 구간 (봉)",
       labelExitLookback: "이탈 비교 구간 (봉)",
+      labelSurgeLookback: "모멘텀 측정 구간 (봉)",
+      labelSurgeThresholdPct: "급등 진입 기준 (%)",
+      labelExitDropPct: "모멘텀 소멸 청산 (%)",
       labelVolumeConfirm: "거래량 확인 사용",
       labelMarket: "시장",
       marketKr: "국내 (KR)",
@@ -1468,6 +1474,9 @@ export const translations: Record<Language, Translations> = {
       labelRequireAboveZero: "Buy only above zero line",
       labelBreakoutLookback: "Breakout Lookback (bars)",
       labelExitLookback: "Exit Lookback (bars)",
+      labelSurgeLookback: "Momentum Lookback (bars)",
+      labelSurgeThresholdPct: "Surge Entry Threshold (%)",
+      labelExitDropPct: "Momentum Fade Exit (%)",
       labelVolumeConfirm: "Use Volume Confirmation",
       labelMarket: "Market",
       marketKr: "Korea (KR)",
