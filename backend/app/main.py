@@ -52,6 +52,7 @@ from app.core.logging import setup_logging
 from app.db.session import engine
 from app.scheduler.lifecycle import shutdown_scheduler, start_scheduler
 from app.trading.broker.kis_investor_flow_client import KISInvestorFlowClient
+from app.trading.broker.kis_overseas_client import KISOverseasClient
 from app.trading.broker.kis_paper import KISPaperBrokerClient
 
 settings = get_settings()
@@ -87,6 +88,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app_secret=investor_flow_app_secret,
         http_client=http_client,
         token_cache_path=".cache/kis_investor_flow_token.json",
+        rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,
+        rate_limit_cooldown_seconds=settings.kis_rate_limit_cooldown_seconds,
+        request_max_retries=settings.kis_request_max_retries,
+        request_retry_base_delay_seconds=settings.kis_request_retry_base_delay_seconds,
+        request_retry_max_delay_seconds=settings.kis_request_retry_max_delay_seconds,
+    )
+
+    # 해외주식(미국장) 시세 조회 클라이언트 (실전 도메인 전용 read-only, 주문 없음).
+    # 미국 분봉은 모의 미지원이므로 실전 자격증명 우선 사용.
+    app.state.overseas_client = KISOverseasClient(
+        base_url=settings.kis_real_base_url,
+        app_key=investor_flow_app_key,
+        app_secret=investor_flow_app_secret,
+        http_client=http_client,
+        token_cache_path=".cache/kis_overseas_token.json",
         rate_limit_min_interval_seconds=settings.kis_rate_limit_min_interval_seconds,
         rate_limit_cooldown_seconds=settings.kis_rate_limit_cooldown_seconds,
         request_max_retries=settings.kis_request_max_retries,

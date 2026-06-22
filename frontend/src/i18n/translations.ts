@@ -424,6 +424,10 @@ export interface Translations {
     labelBreakoutLookback: string;
     labelExitLookback: string;
     labelVolumeConfirm: string;
+    labelMarket: string;
+    marketKr: string;
+    marketUs: string;
+    labelExchange: string;
   };
 }
 
@@ -931,6 +935,10 @@ export const translations: Record<Language, Translations> = {
       labelBreakoutLookback: "돌파 비교 구간 (봉)",
       labelExitLookback: "이탈 비교 구간 (봉)",
       labelVolumeConfirm: "거래량 확인 사용",
+      labelMarket: "시장",
+      marketKr: "국내 (KR)",
+      marketUs: "미국 (US)",
+      labelExchange: "거래소 (미국)",
     },
   },
   en: {
@@ -1435,6 +1443,10 @@ export const translations: Record<Language, Translations> = {
       labelBreakoutLookback: "Breakout Lookback (bars)",
       labelExitLookback: "Exit Lookback (bars)",
       labelVolumeConfirm: "Use Volume Confirmation",
+      labelMarket: "Market",
+      marketKr: "Korea (KR)",
+      marketUs: "US",
+      labelExchange: "Exchange (US)",
     },
   },
 };

@@ -1,10 +1,12 @@
 import logging
+import re
 from datetime import datetime
 from decimal import Decimal
-from app.common.timezone import KST
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.timezone import KST
 from app.domain.models.market_data import MarketData
 from app.domain.repositories.market_data import MarketDataRepository
 from app.trading.broker.base import BrokerClient
@@ -17,7 +19,16 @@ from app.trading.strategy.schemas import (
     MarketDataTimeframeSummary,
 )
 
+if TYPE_CHECKING:
+    from app.trading.broker.kis_overseas_client import KISOverseasClient
+
 log = logging.getLogger(__name__)
+
+
+def _timeframe_to_nmin(timeframe: str) -> int:
+    """'5m'/'1m' 같은 타임프레임 문자열을 해외 분봉 NMIN(분 단위)로 변환한다. 기본 1."""
+    m = re.match(r"^(\d+)\s*m$", (timeframe or "").strip().lower())
+    return int(m.group(1)) if m else 1
 
 
 def _candle_ts(business_date: str, trade_time: str) -> datetime:
@@ -33,22 +44,39 @@ class MarketDataService:
     session이 없으면 브로커 조회만 수행한다(저장 건너뜀).
     """
 
-    def __init__(self, broker: BrokerClient | None = None, session: AsyncSession | None = None) -> None:
+    def __init__(
+        self,
+        broker: BrokerClient | None = None,
+        session: AsyncSession | None = None,
+        overseas_client: "KISOverseasClient | None" = None,
+    ) -> None:
         self._broker = broker
         self._session = session
+        self._overseas_client = overseas_client
 
     async def get_recent_candles(
         self,
         symbol_code: str,
         count: int = 30,
         timeframe: str = "1m",
+        market: str = "KR",
+        exchange: str = "NAS",
     ) -> list[MinuteCandle]:
         """최근 분봉을 오래된 순으로 정렬해 최대 count개 반환한다.
 
+        market="US"이면 KIS 해외 분봉(overseas_client)으로, 그 외(KR)는 국내 broker로 조회한다.
         session이 주입되어 있으면 반환 전에 market_data에 upsert를 시도한다.
         저장 실패는 경고 로그로만 기록하고 전략 실행을 중단하지 않는다.
         """
-        candles = await self._broker.get_minute_candles(symbol_code)
+        if market == "US":
+            if self._overseas_client is None:
+                raise RuntimeError("US 시장 캔들 조회에 overseas_client가 필요합니다.")
+            nmin = _timeframe_to_nmin(timeframe)
+            candles = await self._overseas_client.get_overseas_minute_candles(
+                symbol_code, exchange=exchange, nmin=nmin
+            )
+        else:
+            candles = await self._broker.get_minute_candles(symbol_code)
         candles = sorted(candles, key=lambda c: (c.business_date, c.trade_time))
         candles = candles[-count:]
 

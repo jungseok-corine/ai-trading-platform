@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_broker_client
+from app.api.deps import get_broker_client, get_overseas_client
 from app.db.session import get_db
 from app.domain.models.enums import TradeSide
 from app.services.market_data_service import MarketDataService
@@ -25,8 +25,9 @@ router = APIRouter(prefix="/signals", tags=["signals"])
 def get_signal_service(
     session: AsyncSession = Depends(get_db),
     broker: BrokerClient = Depends(get_broker_client),
+    overseas=Depends(get_overseas_client),
 ) -> SignalService:
-    return SignalService(session, MarketDataService(broker, session))
+    return SignalService(session, MarketDataService(broker, session, overseas_client=overseas))
 
 
 def get_outcome_service(session: AsyncSession = Depends(get_db)) -> SignalOutcomeService:

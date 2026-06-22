@@ -132,7 +132,13 @@ class SignalService:
         if candle_cache is not None and symbol_code in candle_cache:
             candles = candle_cache[symbol_code]
         else:
-            candles = await self._market_data_service.get_recent_candles(symbol_code)
+            params = strategy_params or {}
+            candles = await self._market_data_service.get_recent_candles(
+                symbol_code,
+                timeframe=params.get("timeframe", "1m"),
+                market=params.get("market", "KR"),
+                exchange=params.get("exchange", "NAS"),
+            )
             if candle_cache is not None:
                 candle_cache[symbol_code] = candles
 

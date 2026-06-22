@@ -228,6 +228,10 @@ _VALID_EXIT_MODES = frozenset({"overbought", "midline"})
 # 유니버스 신호 스캔에서 허용되는 universe 이름 (UniverseResolver와 동일하게 유지).
 _VALID_UNIVERSES = frozenset({"scanner_candidates", "watchlist"})
 
+# 멀티마켓: 시장 구분 + 미국 거래소 코드(EXCD).
+_VALID_MARKETS = frozenset({"KR", "US"})
+_VALID_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
+
 
 class StrategyVersionParameters(BaseModel):
     """strategy_versions.parameters JSONB에 저장되는 구조.
@@ -243,6 +247,9 @@ class StrategyVersionParameters(BaseModel):
     # (scanner_candidates / watchlist). read-only 신호 생성 전용 — auto_trade와 양립 불가.
     universe: str | None = None
     universe_lookback_days: int = Field(default=5, gt=0)
+    # 멀티마켓: market=US이면 KIS 해외 분봉(exchange=EXCD)으로 시세를 조회한다. 기본 KR(국내).
+    market: str = "KR"
+    exchange: str = "NAS"
     short_window: int = Field(default=5, gt=0)
     long_window: int = Field(default=20, gt=0)
     quantity: int = Field(default=1, gt=0)
@@ -279,6 +286,15 @@ class StrategyVersionParameters(BaseModel):
         if self.strategy_type in _MA_WINDOW_STRATEGY_TYPES and self.long_window <= self.short_window:
             raise ValueError(
                 f"long_window({self.long_window})은 short_window({self.short_window})보다 커야 합니다."
+            )
+        if self.market not in _VALID_MARKETS:
+            raise ValueError(
+                f"market={self.market!r}은 유효하지 않습니다. 허용값: {sorted(_VALID_MARKETS)}"
+            )
+        if self.market == "US" and self.exchange not in _VALID_US_EXCHANGES:
+            raise ValueError(
+                f"미국 시장 exchange={self.exchange!r}은 유효하지 않습니다. "
+                f"허용값: {sorted(_VALID_US_EXCHANGES)}"
             )
         if self.universe is not None:
             if self.universe not in _VALID_UNIVERSES:

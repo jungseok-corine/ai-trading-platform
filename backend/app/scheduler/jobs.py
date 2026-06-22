@@ -282,8 +282,11 @@ async def run_strategy_job(app: FastAPI) -> None:
     try:
         async with async_session_factory() as session:
             broker = app.state.broker_client
+            overseas_client = getattr(app.state, "overseas_client", None)
             signal_service = SignalService(
-                session, MarketDataService(broker, session), InvestorFlowRepository(session)
+                session,
+                MarketDataService(broker, session, overseas_client=overseas_client),
+                InvestorFlowRepository(session),
             )
             risk_service = RiskService(session, broker)
             trade_service = TradeService(session, broker, risk_service)
