@@ -1,8 +1,6 @@
 """indicators.py 신규 함수 테스트 (EMA, RSI, MACD, Volume SMA, Volume Ratio)."""
 from decimal import Decimal
 
-import pytest
-
 from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.indicators import (
     MACDResult,
@@ -96,9 +94,16 @@ def test_ema_boundary_exactly_period_candles() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_rsi_flat_prices_returns_100() -> None:
-    """가격 변화 없음 → avg_loss=0 → RSI=100."""
+def test_rsi_flat_prices_returns_none() -> None:
+    """가격 변화 전혀 없음 → RSI 정의 불가 → None (장 마감 스테일 캔들의 허위 과열 방지)."""
     candles = _make_candles([100] * 16)
+    result = calculate_rsi(candles, period=14)
+    assert result is None
+
+
+def test_rsi_all_up_returns_100() -> None:
+    """상승만 있고 하락 없음 → avg_loss=0, avg_gain>0 → RSI=100."""
+    candles = _make_candles(list(range(100, 116)))  # 16개 단조 상승
     result = calculate_rsi(candles, period=14)
     assert result == Decimal("100")
 

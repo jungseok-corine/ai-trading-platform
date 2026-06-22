@@ -47,7 +47,11 @@ def calculate_ema(candles: list[MinuteCandle], period: int) -> Decimal | None:
 def calculate_rsi(candles: list[MinuteCandle], period: int = 14) -> Decimal | None:
     """RSI(Relative Strength Index)를 계산한다.
 
-    period+1개 이상의 캔들이 필요하다. 0-division(avg_loss=0) 시 100을 반환한다.
+    period+1개 이상의 캔들이 필요하다.
+    - 상승만 있고 하락이 없으면(avg_loss=0, avg_gain>0) RSI=100.
+    - 가격 변화가 전혀 없으면(avg_gain=avg_loss=0) RSI는 정의되지 않으므로 None을 반환한다.
+      (장 마감 후 시세가 종가로 평탄하게 채워진 스테일 캔들이 '과열(RSI=100)'로
+      오인되어 허위 매도 신호를 내는 것을 방지한다.)
     """
     if len(candles) < period + 1:
         return None
@@ -57,6 +61,9 @@ def calculate_rsi(candles: list[MinuteCandle], period: int = 14) -> Decimal | No
     avg_gain = sum((max(c, Decimal(0)) for c in last_changes), Decimal(0)) / period
     avg_loss = sum((max(-c, Decimal(0)) for c in last_changes), Decimal(0)) / period
     if avg_loss == Decimal(0):
+        # 완전 평탄(상승·하락 모두 없음) → RSI 정의 불가 → None
+        if avg_gain == Decimal(0):
+            return None
         return Decimal(100)
     rs = avg_gain / avg_loss
     return Decimal(100) - Decimal(100) / (1 + rs)

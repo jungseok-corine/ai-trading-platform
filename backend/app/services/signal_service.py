@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from app.common.timezone import KST
@@ -7,18 +8,56 @@ from app.common.timezone import KST
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.domain.models.enums import TradeSide
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.watchlist import WatchlistSymbol
 from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.signal_log import SignalLogRepository
-from app.services.market_data_service import MarketDataService
+from app.services.market_data_service import MarketDataService, _timeframe_to_nmin
 from app.trading.broker.schemas import MinuteCandle
 from app.trading.strategy.base import Strategy
 from app.trading.strategy.context import StrategyContext
+from app.trading.strategy.indicators import candle_timestamp
 from app.trading.strategy.schemas import SignalLogRead
 
+logger = logging.getLogger(__name__)
+
 _METADATA_SKIP_KEYS = frozenset({"candle_ts", "short_ma", "long_ma"})
+
+
+def _latest_candle_age_minutes(candles: list[MinuteCandle], now: datetime) -> float | None:
+    """가장 최신 캔들이 now 기준 몇 분 전 데이터인지 반환한다.
+
+    캔들의 business_date/trade_time을 파싱할 수 없으면 None(판단 불가).
+    """
+    if not candles:
+        return None
+    try:
+        latest_ts = candle_timestamp(candles[-1])
+    except (ValueError, TypeError):
+        return None
+    return (now - latest_ts).total_seconds() / 60.0
+
+
+def _is_candle_stale(
+    candles: list[MinuteCandle], timeframe: str, now: datetime, max_staleness_minutes: int
+) -> bool:
+    """최신 캔들이 신선도 임계치를 초과해 오래되었는지(스테일) 판단한다.
+
+    장 마감/휴장으로 시세가 멈추면 KIS는 마지막(또는 종가로 평탄한) 캔들을 계속
+    돌려준다. 이때 임계치를 넘는 오래된 캔들이면 신호를 만들지 않는다.
+    임계치는 설정값과 캔들 간격(timeframe)의 3배 중 큰 값을 사용한다(저유동 종목의
+    정상적인 캔들 공백으로 인한 허위 차단을 줄이기 위함).
+    max_staleness_minutes <= 0 이면 가드를 비활성화한다.
+    """
+    if max_staleness_minutes <= 0:
+        return False
+    age = _latest_candle_age_minutes(candles, now)
+    if age is None:
+        return False  # 판단 불가 시 차단하지 않음(다른 가드가 보완)
+    threshold = max(float(max_staleness_minutes), _timeframe_to_nmin(timeframe) * 3.0)
+    return age > threshold
 
 
 def _build_indicators(metadata: dict) -> dict | None:
@@ -144,6 +183,20 @@ class SignalService:
             )
             if candle_cache is not None:
                 candle_cache[symbol_code] = candles
+
+        # 신선도 가드: 장 마감/휴장으로 시세가 멈춰 캔들이 오래되면 신호를 만들지 않는다.
+        # (KIS는 장이 끝났음을 알려주지 않고 마지막 캔들을 계속 돌려주므로 서버에서 판단)
+        timeframe = (strategy_params or {}).get("timeframe", "1m")
+        now = datetime.now(KST)
+        max_staleness = get_settings().signal_max_candle_staleness_minutes
+        if _is_candle_stale(candles, timeframe, now, max_staleness):
+            age = _latest_candle_age_minutes(candles, now)
+            logger.debug(
+                "stale candle 가드: symbol=%s 최신 캔들이 %.0f분 전 — 신호 생성 건너뜀(장 마감/휴장 추정)",
+                symbol_code, age if age is not None else -1,
+            )
+            await self._session.commit()
+            return None
 
         context: StrategyContext | None = None
         if self._investor_flow_repo is not None and strategy_params:
