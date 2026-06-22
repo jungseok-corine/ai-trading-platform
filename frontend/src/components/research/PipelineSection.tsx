@@ -1,6 +1,42 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getDisclosureAlerts, getPipelineRuns, getResearchStatus, runPipeline } from "../../api/research";
+import {
+  getDisclosureAlerts,
+  getIntradayEvents,
+  getPipelineRuns,
+  getResearchStatus,
+  runPipeline,
+} from "../../api/research";
 import type { PipelineSummary } from "../../types/research";
+
+function IntradayEvents() {
+  const { data } = useQuery({ queryKey: ["intraday-events"], queryFn: () => getIntradayEvents(8), refetchInterval: 60000 });
+  if (!data || data.monitored_symbols.length === 0) return null;
+  return (
+    <div className="card" style={{ background: "#fff3e0" }}>
+      <strong>🔔 보유종목 장중 공시 감시 (대상 {data.monitored_symbols.length}종목)</strong>
+      <p className="muted">감시: {data.monitored_symbols.join(", ")}</p>
+      {data.alerts.length === 0 ? (
+        <p className="muted">최근 8시간 내 중요 공시 없음.</p>
+      ) : (
+        <div className="table-wrapper">
+          <table>
+            <thead><tr><th>종목</th><th>공시</th><th>중요도</th><th>시각</th></tr></thead>
+            <tbody>
+              {data.alerts.slice(0, 15).map((a, i) => (
+                <tr key={i}>
+                  <td>{a.symbol_code}</td>
+                  <td>{a.url ? <a href={a.url} target="_blank" rel="noreferrer">{a.headline}</a> : a.headline}</td>
+                  <td>{a.materiality ?? "-"}</td>
+                  <td>{a.published_at ? new Date(a.published_at).toLocaleString() : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DisclosureAlerts() {
   const { data } = useQuery({ queryKey: ["disclosure-alerts"], queryFn: () => getDisclosureAlerts(48) });
@@ -100,6 +136,7 @@ export default function PipelineSection() {
       </p>
 
       <ControlTower />
+      <IntradayEvents />
       <DisclosureAlerts />
 
       <div className="form-row">

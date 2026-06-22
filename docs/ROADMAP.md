@@ -197,6 +197,12 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.17** ✅: **인트라데이 이벤트 감시(§7.1) 1차** — 보유 포지션 + 활성 단일종목 전략 종목에
+  한해 장중 DART 공시를 좁게 폴링(`IntradayEventMonitorService`). 잡 `intraday_event_monitor`
+  (기본 off, 장중 게이트, 자율 잡 제어판 노출), 보유종목 한정 알림 `GET /dart/intraday-events`
+  + 프론트 카드. 범위를 좁혀 비용·노이즈 최소화. read-only(감지·표시만). DART=한국 전용이라
+  미국 공시는 SEC EDGAR 연동 후 합류.
+
 - **C-5.16** ✅: **혼합 통화 리스크 집계 + 스케줄러 로그 노이즈 정리** —
   (①) `RiskContextBuilder`의 당일 실현손익을 시장별로 합산 후 US(USD)는 `usd_krw_rate`로
   KRW 환산해 합쳐 `max_daily_loss`(KRW 한도)와 정확히 비교. (②) 레이트리밋(EGW00201)·장마감
@@ -275,7 +281,11 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
 - **C-2.62** ✅: 공시 온디맨드 AI 평가 — `DisclosureAssessmentService`(공시→LLM→JSON:
   impact/severity/action_hint/rationale, enum 보정). API `POST /dart/assess`. AI는 평가만, 대응은 사람.
 
-### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — 계획
+### 7.1 인트라데이 이벤트 감시 (보유 종목 실시간 공시/뉴스) — ✅ 1차 구현(C-5.17)
+> 구현: 보유 포지션 + 활성 단일종목 전략 종목에 한해 장중 DART 공시 폴링
+> (`IntradayEventMonitorService`, 잡 `intraday_event_monitor` 기본 off·장중 게이트),
+> 보유종목 한정 알림 `GET /dart/intraday-events` + 프론트 카드. 큰 그림은 아래 원안 유지.
+> (남은 것: 온디맨드 AI 평가 자동 트리거, 미국 공시는 SEC EDGAR 연동 후.)
 > 일일 분석과 별개로, **전략이 매매 중인 종목**에 한해 장중 중요 이벤트를 감시.
 - **1차 소스 = DART 공시**(전자공시, 무료 OpenAPI, 구조화·고신호). 일반 뉴스보다 신호/노이즈 우수.
 - **중요만 필터**: ①룰(공시유형 화이트리스트: 실적/공급계약/유증·무증/합병/자기주식/횡령배임/

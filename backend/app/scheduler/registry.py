@@ -19,6 +19,7 @@ from app.scheduler.jobs import (
     DAILY_REPORT_JOB_ID,
     DART_INGEST_JOB_ID,
     DATA_REFRESH_JOB_ID,
+    INTRADAY_EVENT_MONITOR_JOB_ID,
     OPERATIONS_DIGEST_JOB_ID,
     RESEARCH_PIPELINE_JOB_ID,
     SCANNER_REVIEW_JOB_ID,
@@ -28,6 +29,7 @@ from app.scheduler.jobs import (
     run_daily_report_job,
     run_dart_ingest_job,
     run_data_refresh_job,
+    run_intraday_event_monitor_job,
     run_operations_digest_job,
     run_research_pipeline_job,
     run_scanner_review_job,
@@ -132,6 +134,16 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
         func=run_dart_ingest_job,
         build_trigger=lambda s: IntervalTrigger(seconds=s.dart_ingest_interval_seconds),
         env_enabled=lambda s: s.dart_ingest_scheduler_enabled,
+    ),
+    ControllableJob(
+        job_id=INTRADAY_EVENT_MONITOR_JOB_ID,
+        label_ko="보유종목 장중 공시 감시",
+        schedule_desc="10분 간격(장중)",
+        func=run_intraday_event_monitor_job,
+        build_trigger=lambda s: IntervalTrigger(
+            seconds=s.intraday_event_monitor_interval_seconds
+        ),
+        env_enabled=lambda s: s.intraday_event_monitor_scheduler_enabled,
     ),
 ]
 
