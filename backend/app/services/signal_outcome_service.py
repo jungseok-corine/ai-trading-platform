@@ -133,7 +133,7 @@ class SignalOutcomeService:
             symbol_code=signal.symbol_code,
             signal_type=signal.signal_type,
             signal_ts=ref_ts,
-            timeframe=self.DEFAULT_TIMEFRAME,
+            timeframe=signal.timeframe or self.DEFAULT_TIMEFRAME,
             entry_price=entry_price,
             horizons=horizon_results,
             mfe_pct=mfe_pct,
@@ -150,7 +150,7 @@ class SignalOutcomeService:
         until_ts = ref_ts + timedelta(minutes=HORIZONS[-1] + _FETCH_BUFFER_MINUTES)
         candles = await self._md_repo.get_candles_between(
             symbol_code=signal.symbol_code,
-            timeframe=self.DEFAULT_TIMEFRAME,
+            timeframe=signal.timeframe or self.DEFAULT_TIMEFRAME,
             after_ts=ref_ts,
             until_ts=until_ts,
         )
@@ -167,21 +167,22 @@ class SignalOutcomeService:
         max_until = HORIZONS[-1] + _FETCH_BUFFER_MINUTES
         windows: dict[int, tuple[datetime, datetime]] = {}
         pre: dict[int, SignalOutcomeRead] = {}
-        by_symbol: dict[str, list[SignalLog]] = defaultdict(list)
+        # 같은 종목이라도 신호마다 timeframe이 다를 수 있어 (symbol, timeframe)로 묶는다.
+        by_key: dict[tuple[str, str], list[SignalLog]] = defaultdict(list)
         for sig in signals:
             ref = self._ref_ts_or_unavailable(sig)
             if isinstance(ref, SignalOutcomeRead):
                 pre[sig.id] = ref
                 continue
             windows[sig.id] = (ref, ref + timedelta(minutes=max_until))
-            by_symbol[sig.symbol_code].append(sig)
+            by_key[(sig.symbol_code, sig.timeframe or self.DEFAULT_TIMEFRAME)].append(sig)
 
-        candles_by_symbol: dict[str, list[MarketData]] = {}
-        for symbol, sigs in by_symbol.items():
+        candles_by_key: dict[tuple[str, str], list[MarketData]] = {}
+        for (symbol, tf), sigs in by_key.items():
             refs = [windows[s.id] for s in sigs]
-            candles_by_symbol[symbol] = await self._md_repo.get_candles_between(
+            candles_by_key[(symbol, tf)] = await self._md_repo.get_candles_between(
                 symbol_code=symbol,
-                timeframe=self.DEFAULT_TIMEFRAME,
+                timeframe=tf,
                 after_ts=min(r for r, _ in refs),
                 until_ts=max(u for _, u in refs),
             )
@@ -192,9 +193,8 @@ class SignalOutcomeService:
                 outcomes.append(pre[sig.id])
                 continue
             ref_ts, until_ts = windows[sig.id]
-            window = [
-                c for c in candles_by_symbol.get(sig.symbol_code, []) if ref_ts < c.ts <= until_ts
-            ]
+            key = (sig.symbol_code, sig.timeframe or self.DEFAULT_TIMEFRAME)
+            window = [c for c in candles_by_key.get(key, []) if ref_ts < c.ts <= until_ts]
             outcomes.append(self._outcome_from_candles(sig, ref_ts, window))
         return outcomes
 
@@ -369,7 +369,7 @@ class SignalOutcomeService:
             symbol_code=signal.symbol_code,
             signal_type=signal.signal_type,
             signal_ts=ts,
-            timeframe=SignalOutcomeService.DEFAULT_TIMEFRAME,
+            timeframe=signal.timeframe or SignalOutcomeService.DEFAULT_TIMEFRAME,
             entry_price=None,
             horizons=[
                 SignalOutcomeHorizonResult(

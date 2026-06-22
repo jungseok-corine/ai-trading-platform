@@ -39,6 +39,8 @@ class SignalLog(Base):
     symbol_code: Mapped[str] = mapped_column(String(20), nullable=False)
     # 시장 구분(KR/US) — 시장별 신호 집계/리포트/필터용. enum 없이 String(2).
     market: Mapped[str] = mapped_column(String(2), nullable=False, server_default="KR")
+    # 신호가 사용한 분봉 단위(예: '1m','5m') — 신호 결과 조회 시 같은 timeframe의 market_data를 본다.
+    timeframe: Mapped[str] = mapped_column(String(8), nullable=False, server_default="1m")
     strategy_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategy_versions.id", ondelete="SET NULL")
     )

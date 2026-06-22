@@ -260,6 +260,7 @@ class SignalService:
         log = await self._signal_log_repo.create(
             symbol_code=signal.symbol_code,
             market=eff_market,
+            timeframe=timeframe,
             strategy_version_id=signal.strategy_version_id,
             signal_type=signal.side,
             generated_at=datetime.now(KST),

@@ -151,6 +151,32 @@ async def test_buy_signal_returns_across_horizons(db_session: AsyncSession) -> N
     assert hr[60].return_pct == Decimal("50.0000")
 
 
+async def test_outcome_uses_signal_timeframe_not_hardcoded_1m(db_session: AsyncSession) -> None:
+    """5m 신호(미장 등)는 5m market_data로 결과를 계산한다(이전엔 1m 고정이라 미조회)."""
+    ver = await _add_strategy(db_session)
+    sig = SignalLog(
+        symbol_code="AAPL", market="US", timeframe="5m",
+        strategy_version_id=ver.id, signal_type=TradeSide.BUY,
+        generated_at=datetime.now(KST), candle_ts=_ts(30),
+    )
+    db_session.add(sig)
+    await db_session.flush()
+
+    # 5m 시세: 진입(09:35 open=100) → 5분(09:40 close=110)
+    db_session.add(_candle(db_session, symbol="AAPL", tf="5m", minute=35, open_=100, close=103))
+    db_session.add(_candle(db_session, symbol="AAPL", tf="5m", minute=40, open_=103, close=110))
+    # 1m 시세(엉뚱한 값) — timeframe이 달라 결과 계산에 쓰이면 안 된다.
+    db_session.add(_candle(db_session, symbol="AAPL", tf="1m", minute=35, open_=999, close=999))
+    await db_session.flush()
+
+    outcome = await SignalOutcomeService(db_session).get_outcome(sig.id)
+
+    assert outcome is not None
+    assert outcome.available is True       # 1m 고정이었으면 'no market_data' 였을 것
+    assert outcome.timeframe == "5m"
+    assert outcome.entry_price == Decimal("100")  # 5m 진입가(1m 999 아님)
+
+
 # ---------------------------------------------------------------------------
 # 2. market_data 부족 → unavailable
 # ---------------------------------------------------------------------------
