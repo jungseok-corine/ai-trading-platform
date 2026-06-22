@@ -25,6 +25,7 @@ from app.trading.strategy.schemas import (
     StrategyCreateRequest,
     StrategyRead,
     StrategyTypeMeta,
+    StrategyUpdateRequest,
     StrategyVersionCreateRequest,
     StrategyVersionPerformanceRead,
     StrategyVersionRead,
@@ -96,6 +97,28 @@ async def create_strategy(
         description=strategy.description,
         created_at=strategy.created_at,
         version_count=0,
+    )
+
+
+@router.patch("/{strategy_id}", response_model=StrategyRead)
+async def update_strategy(
+    strategy_id: int,
+    payload: StrategyUpdateRequest,
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyRead:
+    """전략 이름/설명을 수정한다(같은 이름으로 헷갈리는 전략 구분용)."""
+    fields = payload.model_dump(exclude_unset=True)
+    try:
+        strategy = await service.update_strategy(strategy_id, **fields)
+        versions = await service.list_versions(strategy_id, include_archived=True)
+    except StrategyNotFoundError as e:
+        raise HTTPException(status_code=404, detail="strategy not found") from e
+    return StrategyRead(
+        id=strategy.id,
+        name=strategy.name,
+        description=strategy.description,
+        created_at=strategy.created_at,
+        version_count=len(versions),
     )
 
 

@@ -212,3 +212,35 @@ async def test_list_active_versions_includes_active_status(db_session: AsyncSess
     symbol_codes = {v.parameters["symbol_code"] for v in active}
     assert "005930" in symbol_codes
     assert "000660" not in symbol_codes
+
+
+async def test_update_strategy_name_and_description(db_session: AsyncSession) -> None:
+    """PATCH /strategies/{id}로 이름/설명을 수정할 수 있다(같은 이름 구분용)."""
+    app.dependency_overrides[get_db] = _override_get_db(db_session)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            created = (await client.post(
+                "/api/v1/strategies", json={"name": "[유니버스] RSI 평균회귀", "description": "C-4"}
+            )).json()
+            sid = created["id"]
+
+            resp = await client.patch(
+                f"/api/v1/strategies/{sid}",
+                json={"name": "[관심종목] RSI 평균회귀", "description": "KR 관심종목 전용"},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["name"] == "[관심종목] RSI 평균회귀"
+            assert body["description"] == "KR 관심종목 전용"
+
+            # 부분 수정(설명만)
+            resp2 = await client.patch(f"/api/v1/strategies/{sid}", json={"description": "설명만 변경"})
+            assert resp2.status_code == 200
+            assert resp2.json()["name"] == "[관심종목] RSI 평균회귀"  # 이름 유지
+            assert resp2.json()["description"] == "설명만 변경"
+
+            # 없는 전략
+            assert (await client.patch("/api/v1/strategies/999999", json={"name": "x"})).status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_db, None)

@@ -85,6 +85,11 @@ class StrategyCreateRequest(BaseModel):
     description: str | None = None
 
 
+class StrategyUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
 class StrategyRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
