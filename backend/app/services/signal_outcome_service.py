@@ -18,7 +18,6 @@
 """
 from datetime import timedelta
 from decimal import Decimal, DivisionByZero, InvalidOperation
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +35,6 @@ from app.trading.strategy.schemas import (
     SignalOutcomeSummary,
 )
 
-KST = ZoneInfo("Asia/Seoul")
 
 HORIZONS: list[int] = [5, 15, 30, 60]
 _FETCH_BUFFER_MINUTES = 2  # 마지막 horizon 이후 약간 더 가져와 경계 candle 확보

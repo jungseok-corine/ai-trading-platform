@@ -44,7 +44,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,7 +66,6 @@ from app.services.strategy_analysis_prompt_service import (
 
 logger = logging.getLogger(__name__)
 
-KST = ZoneInfo("Asia/Seoul")
 
 _ROLE_PRIMARY = "primary_analysis"
 _ROLE_SECONDARY = "secondary_analysis"

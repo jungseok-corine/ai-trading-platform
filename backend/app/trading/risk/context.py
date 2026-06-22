@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,6 @@ from app.domain.models.enums import OrderStatus
 from app.domain.models.trade import Trade
 from app.trading.broker.base import BrokerClient
 
-KST = ZoneInfo("Asia/Seoul")
 
 # 연속 손실 횟수를 계산할 때 조회할 최근 청산 거래 수
 CONSECUTIVE_LOSS_LOOKBACK = 20

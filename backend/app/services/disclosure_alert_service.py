@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.news_context import NewsEventRepository
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class DisclosureAlertService:

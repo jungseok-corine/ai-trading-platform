@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +44,6 @@ def _build_indicators(metadata: dict) -> dict | None:
     return indicators or None
 
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 def _candle_date(candles: list[MinuteCandle]) -> date | None:

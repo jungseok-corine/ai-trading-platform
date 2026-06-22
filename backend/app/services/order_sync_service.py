@@ -1,9 +1,9 @@
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from app.common.timezone import KST
 from decimal import Decimal
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,6 @@ from app.trading.broker.schemas import OrderExecution
 from app.trading.pricing.fees import TradingCostCalculator
 
 logger = logging.getLogger(__name__)
-_KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass
@@ -47,8 +46,8 @@ def _is_stale(trade: Trade) -> bool:
     """
     if trade.entry_time is None:
         return False
-    today_kst = datetime.now(_KST).date()
-    entry_date = trade.entry_time.astimezone(_KST).date()
+    today_kst = datetime.now(KST).date()
+    entry_date = trade.entry_time.astimezone(KST).date()
     return entry_date < today_kst
 
 
@@ -158,7 +157,7 @@ class OrderSyncService:
                 trade.partial_fill = {
                     **(trade.partial_fill or {}),
                     "stale_warning": {
-                        "detected_at": datetime.now(_KST).isoformat(),
+                        "detected_at": datetime.now(KST).isoformat(),
                         "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
                         "message": "Unresolved order past market close — manual review required.",
                     },
@@ -184,8 +183,8 @@ class OrderSyncService:
                 skipped_reason="no_active_orders",
             )
 
-        today_kst = datetime.now(_KST).date()
-        min_date = min(t.entry_time.astimezone(_KST).date() for t in query_trades)
+        today_kst = datetime.now(KST).date()
+        min_date = min(t.entry_time.astimezone(KST).date() for t in query_trades)
         start_date = min_date.strftime("%Y%m%d")
         end_date = today_kst.strftime("%Y%m%d")
 

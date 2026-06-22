@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, time
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 def time_bucket(dt: datetime) -> str:

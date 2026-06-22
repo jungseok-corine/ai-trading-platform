@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,6 @@ from app.domain.repositories.strategy import StrategyVersionRepository
 from app.domain.repositories.trade import TradeRepository
 from app.trading.analysis.trade_tape import Candle, TradeEvent, build_trade_tape
 
-KST = ZoneInfo("Asia/Seoul")
 # KR 정규장 (09:00~15:30 KST). 마감 후 평평한/단일대량 캔들 노이즈를 제외하기 위함.
 KR_SESSION_OPEN = time(9, 0)
 KR_SESSION_CLOSE = time(15, 30)

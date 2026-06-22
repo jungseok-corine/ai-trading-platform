@@ -4,7 +4,7 @@ import logging
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 import httpx
 
@@ -13,7 +13,6 @@ from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
-KST = ZoneInfo("Asia/Seoul")
 
 # 토큰 만료 전 미리 갱신하기 위한 여유 시간
 TOKEN_REFRESH_BUFFER = timedelta(minutes=5)

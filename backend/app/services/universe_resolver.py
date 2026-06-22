@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.candidate_event import CandidateEvent
 from app.domain.models.enums import MarketCode
-from app.domain.models.watchlist import Watchlist, WatchlistSymbol
+from app.domain.repositories.watchlist import WatchlistSymbolRepository
 
 logger = logging.getLogger(__name__)
 
-KST = ZoneInfo("Asia/Seoul")
 
 # 전략 파라미터 universe 필드에 허용되는 값.
 SCANNER_CANDIDATES = "scanner_candidates"
@@ -66,13 +65,4 @@ class UniverseResolver:
         return [row[0] for row in result.all()]
 
     async def _watchlist_symbols(self, limit: int) -> list[str]:
-        stmt = (
-            select(WatchlistSymbol.symbol_code)
-            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
-            .where(WatchlistSymbol.enabled.is_(True))
-            .where(Watchlist.enabled.is_(True))
-            .distinct()
-            .limit(limit)
-        )
-        result = await self._session.execute(stmt)
-        return [row[0] for row in result.all()]
+        return await WatchlistSymbolRepository(self._session).list_enabled_symbol_codes(limit=limit)

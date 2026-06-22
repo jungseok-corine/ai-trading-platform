@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from fastapi import FastAPI
 
@@ -19,7 +19,6 @@ from app.trading.broker.error_classifier import classify_exception, exc_message
 
 logger = logging.getLogger(__name__)
 
-KST = ZoneInfo("Asia/Seoul")
 
 STRATEGY_RUNNER_JOB_ID = "strategy_runner"
 ORDER_SYNC_JOB_ID = "order_sync"

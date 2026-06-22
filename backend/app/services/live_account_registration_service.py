@@ -15,8 +15,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from app.common.timezone import KST
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,6 @@ from app.domain.repositories.trading_guard import TradingGuardRepository
 
 logger = logging.getLogger(__name__)
 
-_KST = ZoneInfo("Asia/Seoul")
 
 # 실전 계좌 초기 RiskConfig 보수적 기본값
 # 실전 운영 전 반드시 검토하고 조정할 것.
@@ -167,7 +166,7 @@ class LiveAccountRegistrationService:
             result.emergency_stop = True
 
         # 3. TradingGuardState 초기화 (멱등 + 보수적)
-        now = datetime.now(_KST)
+        now = datetime.now(KST)
         guard = await self._guard_repo.get_by_account_id(result.account_id)
         if guard is None:
             await self._guard_repo.create(

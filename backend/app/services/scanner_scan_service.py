@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,6 @@ from app.services.macro_regime_service import MacroRegimeService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 from app.trading.scanner.facts import assign_turnover_ranks, compute_symbol_facts
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class ScannerScanService:

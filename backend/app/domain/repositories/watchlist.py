@@ -30,6 +30,22 @@ class WatchlistSymbolRepository(BaseRepository[WatchlistSymbol]):
         )
         return list(result.scalars().all())
 
+    async def list_enabled_symbol_codes(self, limit: int | None = None) -> list[str]:
+        """enabled watchlist에 속한 enabled 종목 코드 목록(중복 제거)을 반환한다.
+
+        유니버스/스캔/수집 등 여러 서비스가 공유하는 공통 조회.
+        """
+        stmt = (
+            select(WatchlistSymbol.symbol_code)
+            .join(Watchlist, Watchlist.id == WatchlistSymbol.watchlist_id)
+            .where(Watchlist.enabled.is_(True), WatchlistSymbol.enabled.is_(True))
+            .distinct()
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
+
     async def get_by_symbol_code(self, watchlist_id: int, symbol_code: str) -> WatchlistSymbol | None:
         result = await self.session.execute(
             select(WatchlistSymbol).where(

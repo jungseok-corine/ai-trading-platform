@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,6 @@ from app.domain.models.trade import Trade
 from app.domain.repositories.daily_report import DailyResearchReportRepository
 from app.domain.repositories.news_context import UsMarketSnapshotRepository
 
-KST = ZoneInfo("Asia/Seoul")
 
 
 class DailyReportService:

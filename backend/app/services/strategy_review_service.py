@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,6 @@ from app.domain.repositories.strategy_proposal import StrategyProposalRepository
 from app.services.proposal_generator import ProposalGeneratorService
 from app.services.scheduler_run_service import SchedulerRunService
 
-KST = ZoneInfo("Asia/Seoul")
 STRATEGY_REVIEW_JOB_ID = "strategy_review"
 
 
