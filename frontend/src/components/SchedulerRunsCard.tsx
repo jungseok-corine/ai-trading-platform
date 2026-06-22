@@ -73,22 +73,34 @@ function SummaryCounts({ summary, t }: { summary: SchedulerRunSummary; t: Transl
 
 function ErrorList({ errors, t }: { errors: SchedulerRunErrorEntry[]; t: Translations }) {
   if (errors.length === 0) return null;
+  // 종목마다 한 줄씩 나열하면 감시 종목이 많을 때 너무 길어진다.
+  // 같은 오류(카테고리/메시지)끼리 묶어 "오류명 (N) + 상세 접기"로 압축한다.
+  const groups = new Map<string, SchedulerRunErrorEntry[]>();
+  for (const err of errors) {
+    const key = err.category ?? err.message ?? "unknown";
+    const arr = groups.get(key);
+    if (arr) arr.push(err);
+    else groups.set(key, [err]);
+  }
   return (
     <ul className="scheduler-error-list">
-      {errors.map((err, idx) => {
-        const category = describeCategory(err.category, t);
-        const hasDetail = !!(category?.description || err.message);
+      {Array.from(groups.entries()).map(([key, errs]) => {
+        const category = describeCategory(errs[0].category, t);
+        const title = category ? category.title : errs[0].message || "-";
+        const symbols = errs.map((e) => e.symbol_code).filter(Boolean) as string[];
+        const rawMessage = errs[0].message;
         return (
-          <li key={idx}>
-            {err.symbol_code && <span className="muted">[{err.symbol_code}] </span>}
-            <span className="value error">{category ? category.title : (err.message || "-")}</span>
-            {hasDetail && (
-              <details>
-                <summary>{t.scheduler.showDetails}</summary>
-                {category?.description && <div className="muted">{category.description}</div>}
-                {err.message && <div className="muted scheduler-error-raw">{err.message}</div>}
-              </details>
-            )}
+          <li key={key}>
+            <span className="value error">{title}</span>
+            {errs.length > 1 && <span className="muted"> ({errs.length})</span>}
+            <details>
+              <summary>{t.scheduler.showDetails}</summary>
+              {category?.description && <div className="muted">{category.description}</div>}
+              {rawMessage && <div className="muted scheduler-error-raw">{rawMessage}</div>}
+              {symbols.length > 0 && (
+                <div className="muted scheduler-error-raw">{symbols.join(", ")}</div>
+              )}
+            </details>
           </li>
         );
       })}
@@ -101,6 +113,8 @@ export default function SchedulerRunsCard() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["scheduler-runs"],
     queryFn: () => getSchedulerRuns(20),
+    // 새 실행 로그가 생기면 수동 새로고침 없이 주기적으로 갱신한다(탭이 보일 때만).
+    refetchInterval: 20000,
   });
 
   const statusLabel = (status: string) =>

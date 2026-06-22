@@ -29,6 +29,8 @@ export default function SignalsTable() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["signals", params],
     queryFn: () => getSignals(params),
+    // 새 시그널이 들어오면 수동 새로고침 없이 주기적으로 갱신한다(탭이 보일 때만).
+    refetchInterval: 20000,
   });
 
   const toggleExpand = (id: number) => {
