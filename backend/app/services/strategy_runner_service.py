@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.market_session import is_closing_auction, is_signal_active
 from app.core.config import get_settings
-from app.domain.models.enums import TradeAttemptStatus
+from app.domain.models.enums import MarketCode, TradeAttemptStatus
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
 from app.domain.repositories.signal_log import SignalLogRepository
@@ -83,13 +83,17 @@ class StrategyRunnerService:
         universe = params.get("universe")
         if universe:
             resolver = UniverseResolver(self._session)
+            # universe_market(KR/US)가 설정되면 해당 시장 종목만 해석한다(미설정=전체).
+            universe_market = params.get("universe_market")
+            market_filter = MarketCode(universe_market) if universe_market else None
             symbols = await resolver.resolve(
-                universe, lookback_days=int(params.get("universe_lookback_days", 5))
+                universe, market=market_filter,
+                lookback_days=int(params.get("universe_lookback_days", 5)),
             )
             if not symbols:
                 logger.info(
-                    "strategy_version_id=%s universe=%r 해석 결과 종목 없음 — 건너뜁니다.",
-                    version.id, universe,
+                    "strategy_version_id=%s universe=%r market=%s 해석 결과 종목 없음 — 건너뜁니다.",
+                    version.id, universe, universe_market,
                 )
             return symbols
         symbol_code = params.get("symbol_code")

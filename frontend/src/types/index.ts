@@ -223,6 +223,7 @@ export interface StrategyVersionParameters {
   require_flow_data: boolean;
   // 유니버스 신호 스캔 (종목 자동 선택) — null이면 단일 종목 모드
   universe?: string | null;
+  universe_market?: string | null;
   universe_lookback_days?: number;
   // 멀티마켓: market=US이면 KIS 해외 분봉(exchange=EXCD)으로 조회
   market?: string;
@@ -545,6 +546,7 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   flow_mode: "foreign_or_institution",
   require_flow_data: true,
   universe: null,
+  universe_market: null,
   universe_lookback_days: 5,
   market: "KR",
   exchange: "NAS",

@@ -416,6 +416,8 @@ export interface Translations {
     universeNone: string;
     universeScannerCandidates: string;
     universeWatchlist: string;
+    labelUniverseMarket: string;
+    universeMarketAll: string;
     hintUniverse: string;
     labelRsiPeriod: string;
     labelOversold: string;
@@ -930,6 +932,8 @@ export const translations: Record<Language, Translations> = {
       strategyTypeBreakoutHigh: "전고점 돌파",
       strategyTypePullbackTrend: "눌림목 매수",
       labelUniverse: "유니버스 (종목 자동 선택)",
+      labelUniverseMarket: "유니버스 시장 필터",
+      universeMarketAll: "전체 (KR+US)",
       universeNone: "없음 (단일 종목)",
       universeScannerCandidates: "스캐너 후보",
       universeWatchlist: "관심종목",
@@ -1445,6 +1449,8 @@ export const translations: Record<Language, Translations> = {
       strategyTypeBreakoutHigh: "Breakout High",
       strategyTypePullbackTrend: "Pullback Trend",
       labelUniverse: "Universe (auto symbol selection)",
+      labelUniverseMarket: "Universe market filter",
+      universeMarketAll: "All (KR+US)",
       universeNone: "None (single symbol)",
       universeScannerCandidates: "Scanner Candidates",
       universeWatchlist: "Watchlist",
