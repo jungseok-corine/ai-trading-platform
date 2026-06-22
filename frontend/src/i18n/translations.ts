@@ -386,6 +386,8 @@ export interface Translations {
     labelTimeframe: string;
     labelAccountId: string;
     labelEnabled: string;
+    labelExitOnClose: string;
+    hintExitOnClose: string;
     labelVolumeWindow: string;
     labelVolumeMultiplier: string;
     strategyTypeMovingAverage: string;
@@ -897,6 +899,9 @@ export const translations: Record<Language, Translations> = {
       labelTimeframe: "타임프레임",
       labelAccountId: "계정 ID",
       labelEnabled: "활성화",
+      labelExitOnClose: "종가 청산 (장 마감 동시호가)",
+      hintExitOnClose:
+        "켜면 정규장 마감 동시호가(15:20~15:30)에 당일 포지션을 종가로 청산하는 매도 신호를 냅니다. 인트라데이 전략의 오버나잇 보유 방지용.",
       labelVolumeWindow: "거래량 SMA 기간",
       labelVolumeMultiplier: "거래량 배수",
       strategyTypeMovingAverage: "이동평균 교차",
@@ -1408,6 +1413,9 @@ export const translations: Record<Language, Translations> = {
       labelTimeframe: "Timeframe",
       labelAccountId: "Account ID",
       labelEnabled: "Enabled",
+      labelExitOnClose: "Exit on close (closing auction)",
+      hintExitOnClose:
+        "When on, emits a sell signal to liquidate the day's position at the closing auction (15:20–15:30 KST). Prevents intraday strategies from holding overnight.",
       labelVolumeWindow: "Volume SMA Period",
       labelVolumeMultiplier: "Volume Multiplier",
       strategyTypeMovingAverage: "Moving Average Cross",

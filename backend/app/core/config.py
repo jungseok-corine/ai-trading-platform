@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     # 이 값보다 오래되면 신호를 생성하지 않는다(스테일 데이터로 인한 허위 신호 방지).
     # 0 이하로 두면 가드를 비활성화한다.
     signal_max_candle_staleness_minutes: int = 15
+    # 시장 세션 게이팅 — 종목의 시장(KR/US)이 정규/종가동시호가 단계가 아니면 신호 생성을
+    # 건너뛴다(장외 시간 KIS 호출/허위 신호 절감). 휴장일은 신선도 가드가 백스톱.
+    strategy_session_gating_enabled: bool = True
 
     # 주문 체결 동기화 스케줄러 (APScheduler)
     order_sync_scheduler_enabled: bool = True

@@ -5,6 +5,8 @@ from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.market_session import is_closing_auction, is_signal_active
+from app.core.config import get_settings
 from app.domain.models.enums import TradeAttemptStatus
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
@@ -59,13 +61,14 @@ class StrategyRunnerService:
         self._strategy_version_repo = StrategyVersionRepository(session)
         self._signal_log_repo = SignalLogRepository(session)
 
-    async def run_once(self) -> list[StrategyRunResult]:
+    async def run_once(self, now: datetime | None = None) -> list[StrategyRunResult]:
+        now = now or datetime.now(KST)
         versions = await self._strategy_version_repo.list_active()
         results: list[StrategyRunResult] = []
         # 이번 run 동안 종목별 캔들을 1회만 조회해 전략들이 공유한다(KIS 호출 절감).
         candle_cache: dict[str, list] = {}
         for version in versions:
-            results.extend(await self._run_version(version, candle_cache))
+            results.extend(await self._run_version(version, candle_cache, now))
         return results
 
     async def _resolve_symbols(
@@ -100,7 +103,8 @@ class StrategyRunnerService:
         )]
 
     async def _run_version(
-        self, version: StrategyVersion, candle_cache: dict | None = None
+        self, version: StrategyVersion, candle_cache: dict | None = None,
+        now: datetime | None = None,
     ) -> list[StrategyRunResult]:
         params = version.parameters or {}
 
@@ -116,17 +120,35 @@ class StrategyRunnerService:
         if not symbols:
             return []
 
+        # 시장 세션 게이팅: 종목의 시장(KR/US)이 정규/종가동시호가 단계가 아니면 건너뛴다.
+        # (장외 시간 KIS 호출/허위 신호 절감. 휴장일은 신선도 가드가 백스톱.)
+        if get_settings().strategy_session_gating_enabled:
+            ref = now or datetime.now(KST)
+            active = [r for r in symbols if is_signal_active(r.market, ref)]
+            if not active:
+                logger.debug(
+                    "strategy_version_id=%s 모든 종목 시장 세션 비활성 — 건너뜁니다.", version.id
+                )
+                return []
+            symbols = active
+
         # 안전: universe 모드는 신호 생성 전용 — 자동매매를 절대 켜지 않는다.
         universe_mode = bool(params.get("universe"))
         auto_trade_enabled = (
             False if universe_mode else bool(params.get("auto_trade_enabled", False))
         )
 
+        ref = now or datetime.now(KST)
+        exit_on_close = bool(params.get("exit_on_close", False))
+
         results: list[StrategyRunResult] = []
         for resolved in symbols:
+            # Phase B: 종가 동시호가 단계 + exit_on_close 전략이면 '종가 청산' 매도로 강제.
+            force_exit = exit_on_close and is_closing_auction(resolved.market, ref)
             results.append(
                 await self._run_one(
-                    version, strategy, resolved, params, auto_trade_enabled, candle_cache
+                    version, strategy, resolved, params, auto_trade_enabled,
+                    candle_cache, force_exit,
                 )
             )
         return results
@@ -139,6 +161,7 @@ class StrategyRunnerService:
         params: dict,
         auto_trade_enabled: bool,
         candle_cache: dict | None = None,
+        force_exit: bool = False,
     ) -> StrategyRunResult:
         symbol_code = resolved.symbol_code
         result = StrategyRunResult(
@@ -154,6 +177,7 @@ class StrategyRunnerService:
             log = await self._signal_service.generate_and_log_signal(
                 strategy, symbol_code, version.id, strategy_params=params,
                 candle_cache=candle_cache, market=resolved.market, exchange=resolved.exchange,
+                force_exit=force_exit,
             )
         except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
             result.error = f"market data error: {exc_message(exc)}"

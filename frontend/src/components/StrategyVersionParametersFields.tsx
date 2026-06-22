@@ -421,6 +421,16 @@ export default function StrategyVersionParametersFields({
           onChange={(e) => update("enabled", e.target.checked)}
         />
       </div>
+      <div className="form-row">
+        <label htmlFor={`${idPrefix}-exit-on-close`}>{sp.labelExitOnClose}</label>
+        <input
+          id={`${idPrefix}-exit-on-close`}
+          type="checkbox"
+          checked={parameters.exit_on_close}
+          onChange={(e) => update("exit_on_close", e.target.checked)}
+        />
+      </div>
+      <p className="section-description">{sp.hintExitOnClose}</p>
       {!universeMode && (
         <div className="form-row">
           <AutoTradeToggle
