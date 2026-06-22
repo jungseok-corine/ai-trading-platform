@@ -63,10 +63,15 @@ class TradingStateSyncService:
     전체 account 대상 scheduler 호출(sync_all_accounts) 두 가지 진입점을 제공한다.
     """
 
-    def __init__(self, session: AsyncSession, broker: BrokerClient) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        broker: BrokerClient,
+        overseas_broker: BrokerClient | None = None,
+    ) -> None:
         self._session = session
         self._broker = broker
-        self._order_svc = OrderSyncService(session, broker)
+        self._order_svc = OrderSyncService(session, broker, overseas_broker=overseas_broker)
         self._reconcile_svc = PositionReconciliationService(session, broker)
         self._account_repo = AccountRepository(session)
 
