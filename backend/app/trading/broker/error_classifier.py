@@ -12,6 +12,19 @@ KIS_ERROR_CONNECTION_TIMEOUT = "connection_timeout"
 KIS_ERROR_SERVER_DISCONNECT = "server_disconnect"
 KIS_ERROR_NETWORK = "network_error"
 
+# 일시적/예상된 오류 — 스스로 회복되거나 장외 시간 등 정상 상황이라 스케줄러 run을
+# '실패'로 빨갛게 표시하지 않는다(요약에는 그대로 기록). 레이트리밋(EGW00201)과 장마감.
+# 네트워크/타임아웃은 실제 연결 문제일 수 있어 일부러 제외(계속 실패로 표시).
+TRANSIENT_ERROR_CATEGORIES = frozenset({
+    KIS_ERROR_RATE_LIMIT,
+    KIS_ERROR_MARKET_CLOSED,
+})
+
+
+def is_transient_error(category: str | None) -> bool:
+    """해당 오류 카테고리가 일시적/예상된(=실패로 보지 않을) 종류인지 여부."""
+    return category in TRANSIENT_ERROR_CATEGORIES
+
 _TOKEN_MSG_CDS = {"EGW00121", "EGW00123", "EGW00133"}
 _RATE_LIMIT_MSG_CDS = {"EGW00201"}
 

@@ -423,3 +423,48 @@ async def test_run_strategy_job_all_versions_fail_records_failed(job_session_fac
             await session.execute(delete(StrategyVersion).where(StrategyVersion.id == version_id))
             await session.execute(delete(Strategy).where(Strategy.id == strategy_id))
             await session.commit()
+
+
+async def test_run_strategy_job_rate_limit_only_not_failed(job_session_factory) -> None:
+    """레이트리밋(EGW00201)만으로 전부 실패하면 run은 FAILED가 아니라 SUCCESS다(노이즈 억제)."""
+    from app.trading.broker.exceptions import KISAPIError
+
+    async with job_session_factory() as session:
+        strategy = Strategy(name="Scheduler RateLimit", description="test")
+        session.add(strategy)
+        await session.flush()
+        version = StrategyVersion(
+            strategy_id=strategy.id, version_no=1,
+            parameters={**GOLDEN_CROSS_PARAMS, "symbol_code": "999998"},
+            status=StrategyVersionStatus.ACTIVE,
+        )
+        session.add(version)
+        await session.commit()
+        strategy_id, version_id = strategy.id, version.id
+
+    app = FastAPI()
+    app.state.broker_client = FakeBrokerClient(
+        candles_error_by_symbol={"999998": KISAPIError("EGW00201", "초당 거래건수를 초과하였습니다.")},
+    )
+
+    try:
+        await run_strategy_job(app)
+        async with job_session_factory() as session:
+            run = (
+                await session.execute(
+                    select(SchedulerRun)
+                    .where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID)
+                    .order_by(SchedulerRun.id.desc())
+                    .limit(1)
+                )
+            ).scalars().first()
+        assert run is not None
+        # 전부 실패했지만 레이트리밋(일시적)이라 FAILED가 아니다.
+        assert run.status == SchedulerRunStatus.SUCCESS
+        assert run.summary["versions_failed"] == 1  # 오류 자체는 요약에 기록
+    finally:
+        async with job_session_factory() as session:
+            await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == STRATEGY_RUNNER_JOB_ID))
+            await session.execute(delete(StrategyVersion).where(StrategyVersion.id == version_id))
+            await session.execute(delete(Strategy).where(Strategy.id == strategy_id))
+            await session.commit()
