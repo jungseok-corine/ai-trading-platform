@@ -66,29 +66,28 @@ class AnalysisBundleService:
         params = version.parameters or {}
         if market is None:
             market = resolve_analysis_market(params)
-        symbol_code = params.get("symbol_code", "")
+        # "" → None: universe 전략은 symbol_code가 없으므로 시장 수준 뉴스로 폴백.
+        symbol_code: str | None = params.get("symbol_code") or None
 
         strategy_input = await self._input_svc.get_analysis_input(
             version.strategy_id, strategy_version_id
         )
         trade_tape = await self._tape_svc.build_for_version(
-            strategy_version_id, trading_day
+            strategy_version_id, trading_day, market=market
         )
         # 룩어헤드 방지: trading_day 직전 미국 세션 기준 레짐(같은 날 미국장은 미래).
         macro = await self._macro_svc.regime_as_of(trading_day)
 
-        # 중요도 큐레이션(C-2.57): 주가 영향 없는 노이즈는 거르고 중요한 것만 상위로.
-        news: list[dict] = []
-        if symbol_code:
-            news = await self._news_curator.curate(
-                market=market, symbol_code=symbol_code, limit=news_limit
-            )
+        # 중요도 큐레이션(C-2.57): symbol_code 없는 universe 전략은 시장 수준 뉴스를 수집.
+        news: list[dict] = await self._news_curator.curate(
+            market=market, symbol_code=symbol_code, limit=news_limit
+        )
 
         return {
             "meta": {
                 "strategy_id": version.strategy_id,
                 "strategy_version_id": strategy_version_id,
-                "symbol_code": symbol_code,
+                "symbol_code": symbol_code or "",
                 "trading_day": trading_day.isoformat(),
                 "market": market.value,
             },

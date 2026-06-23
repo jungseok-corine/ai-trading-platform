@@ -5,6 +5,7 @@ from app.common.timezone import KST
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.models.enums import MarketCode
 from app.domain.repositories.market_data import MarketDataRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.domain.repositories.trade import TradeRepository
@@ -32,6 +33,8 @@ class TradeTapeService:
         self,
         strategy_version_id: int,
         trading_day: date,
+        *,
+        market: MarketCode | None = None,
         timeframe: str = "1m",
         window: int = 15,
         coarse: int = 15,
@@ -39,6 +42,7 @@ class TradeTapeService:
     ) -> dict | None:
         """strategy_version의 trading_day 매매 테이프를 만든다. 버전이 없으면 None.
 
+        market을 지정하면 해당 시장(KR/US) 거래만 포함한다 — universe 전략에서 시장을 분리할 때 사용.
         regular_session_only=True면 KR 정규장(09:00~15:30 KST)만 남겨 마감 후 노이즈를 뺀다.
         """
         version = await self._version_repo.get(strategy_version_id)
@@ -62,7 +66,11 @@ class TradeTapeService:
         ]
 
         all_trades = await self._trade_repo.list_by_strategy_version(strategy_version_id)
-        trades = [self._to_event(t) for t in all_trades if self._in_day(t, start, end)]
+        trades = [
+            self._to_event(t) for t in all_trades
+            if self._in_day(t, start, end)
+            and (market is None or t.market == market.value)
+        ]
 
         tape = build_trade_tape(candles, trades, window=window, coarse=coarse)
         tape["meta"] = {
@@ -70,6 +78,7 @@ class TradeTapeService:
             "symbol_code": symbol_code,
             "trading_day": trading_day.isoformat(),
             "timeframe": timeframe,
+            "market": market.value if market else None,
             "trade_count": len(trades),
         }
         return tape

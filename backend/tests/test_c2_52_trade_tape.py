@@ -121,6 +121,47 @@ async def test_service_unknown_version_is_none(db_session: AsyncSession) -> None
     assert await TradeTapeService(db_session).build_for_version(999999, DAY) is None
 
 
+async def test_tape_market_filter_excludes_other_market(db_session: AsyncSession) -> None:
+    """market=KR 필터 시 US 거래는 제외되고 KR 거래만 포함된다."""
+    from app.domain.models.enums import MarketCode
+
+    account = Account(account_type=AccountType.PAPER, broker_account_no="mkt-test")
+    db_session.add(account)
+    await db_session.commit()
+
+    svc = StrategyService(db_session)
+    strategy = await svc.create_strategy("mkt-filter-strat")
+    version = await svc.create_version(strategy.id, parameters={"symbol_code": "005930"})
+
+    # KR 거래
+    db_session.add(Trade(
+        account_id=account.id, strategy_version_id=version.id,
+        symbol_code="005930", side=TradeSide.BUY, quantity=5,
+        entry_time=T0 + timedelta(minutes=5), market="KR",
+        order_status=OrderStatus.FILLED,
+    ))
+    # US 거래 (같은 버전에 묶인 혼합 케이스)
+    db_session.add(Trade(
+        account_id=account.id, strategy_version_id=version.id,
+        symbol_code="AAPL", side=TradeSide.BUY, quantity=2,
+        entry_time=T0 + timedelta(minutes=10), market="US",
+        order_status=OrderStatus.FILLED,
+    ))
+    await db_session.commit()
+
+    # market=KR → KR 거래만
+    tape_kr = await TradeTapeService(db_session).build_for_version(version.id, DAY, market=MarketCode.KR)
+    assert tape_kr is not None
+    assert tape_kr["meta"]["trade_count"] == 1
+    assert tape_kr["meta"]["market"] == "KR"
+
+    # market 미지정 → 전체(KR+US)
+    tape_all = await TradeTapeService(db_session).build_for_version(version.id, DAY)
+    assert tape_all is not None
+    assert tape_all["meta"]["trade_count"] == 2
+    assert tape_all["meta"]["market"] is None
+
+
 async def test_tape_via_api(db_session: AsyncSession) -> None:
     vid = await _seed(db_session)
     app.dependency_overrides[get_db] = _override_get_db(db_session)

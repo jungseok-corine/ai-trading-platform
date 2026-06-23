@@ -57,6 +57,26 @@ async def test_curate_keeps_edgar_via_stored_score(db_session: AsyncSession) -> 
     assert curated[0]["source"] == "edgar"
 
 
+# --- 번들: universe 전략(symbol_code 없음)도 시장 수준 뉴스를 받는다 ------
+async def test_bundle_universe_strategy_gets_market_news(db_session: AsyncSession) -> None:
+    svc = StrategyService(db_session)
+    strategy = await svc.create_strategy("us-universe")
+    version = await svc.create_version(
+        strategy.id,
+        parameters={"universe": "watchlist", "universe_market": "US"},  # symbol_code 없음
+    )
+    await _add_edgar(db_session, "[8-K] Tesla Inc.", 0.85, "high")
+    await db_session.commit()
+
+    bundle = await AnalysisBundleService(db_session).build_full(version.id, date(2026, 6, 18))
+    assert bundle is not None
+    assert bundle["meta"]["market"] == MarketCode.US.value
+    assert bundle["meta"]["symbol_code"] == ""  # 하위호환: 빈 문자열 보존
+    # symbol_code 없어도 시장 수준 뉴스 수집됨
+    assert len(bundle["news"]) == 1
+    assert bundle["news"][0]["source"] == "edgar"
+
+
 # --- 번들: US 전략은 market 미지정이어도 US 공시를 받는다 -------------------
 async def test_bundle_us_strategy_injects_edgar(db_session: AsyncSession) -> None:
     svc = StrategyService(db_session)
