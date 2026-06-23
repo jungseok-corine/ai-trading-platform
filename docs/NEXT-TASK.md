@@ -7,57 +7,33 @@
 
 ## Current Task
 
-**C-2.21.1b — Market Intelligence Adapter Foundation Repair**
+**C-2.22 — Intelligence Ingestion Pipeline**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (어댑터 패턴 기반 인터페이스) |
+| **Type** | Feature (Intelligence 수집 파이프라인) |
 
 ---
 
 ## Goal
 
-C-2.21.1에서 누락된 어댑터 패턴 기반(IntelligenceSource / IntelligenceEvent / IntelligenceAdapter)을  
-추가해 Market Intelligence 수집 레이어의 공통 인터페이스를 완성한다.  
-기존 DART finance 구현은 보존하며 변경하지 않는다.
-
----
-
-## Background
-
-- C-2.21.1은 DART XBRL 재무제표 수집만 구현하고 원래 ROADMAP 범위를 누락했다.
-- C-2.21.1b는 그 드리프트를 보정한다 (D-10 결정 참조).
-- DART finance 구현(financial_statements 등)은 첫 번째 구체 소스로 유지된다.
-- C-2.22부터 추가하는 모든 수집기는 IntelligenceAdapter를 상속해야 한다.
-
----
-
-## Scope
-
-구현 항목:
-1. `IntelligenceSource` / `IntelligenceEvent` DB 모델 + Alembic 마이그레이션
-2. `IntelligenceAdapter` 추상 base 클래스 (`app/market_intelligence/adapters/base.py`)
-3. `IntelligenceRawItem` / `IntelligenceEventCandidate` DTO
-4. `build_dedup_hash()` 헬퍼
-5. `DartFinanceAdapter` 스켈레톤 (fetch 미구현, normalize 시그니처만)
-6. Repository: `IntelligenceSourceRepository`, `IntelligenceEventRepository`
-7. 테스트 19개 (MockTransport 불필요 — DB 통합 + 순수 단위 테스트)
-8. docs: DECISIONS.md D-10, ROADMAP.md C-2.21.1b 추가, NEXT-TASK.md 업데이트
+여러 데이터 소스가 IntelligenceEvent로 들어오는 ingestion pipeline 구현.
 
 ---
 
 ## Definition of Done
 
-- [x] `intelligence_sources` + `intelligence_events` 테이블 + 마이그레이션 (`e3f4a5b6c7d8`)
-- [x] `IntelligenceAdapter` 추상 클래스 + DTO + `build_dedup_hash()`
-- [x] `DartFinanceAdapter` 스켈레톤 (C-2.22+ 연결 대기)
-- [x] repository 2개 (get_by_key, list_enabled, list_by_source, existing_hashes)
+- [x] `GenericRssAdapter` — config JSONB의 feed_url에서 RSS 수집, xml.etree 파싱, keyword_filter 지원
+- [x] `DartDisclosureAdapter` — news_events(source="dart") 브리징, 기존 DartIngestService 불변
+- [x] `IntelligenceIngestionService` — 어댑터 순회, dedup, enabled 필터, 결과 summary
+- [x] `POST /intelligence/ingest` — 수동 트리거, source_keys 필터 지원
+- [x] 스케줄러 잡 `intelligence_ingest` — 기본 비활성(`intelligence_ingest_scheduler_enabled=False`)
 - [x] 19개 테스트 전체 통과
-- [x] 기존 DART finance 수집 동작 변경 없음
-- [x] DECISIONS.md D-10 추가
-- [x] ROADMAP.md C-2.21.1 → PARTIAL, C-2.21.1b 추가
+- [x] feedparser 의존성 없음 (xml.etree.ElementTree만 사용)
+- [x] 특정 언론사 URL 하드코딩 없음
+- [x] 주문·실거래 코드 변경 없음
 
 ---
 
@@ -65,17 +41,35 @@ C-2.21.1에서 누락된 어댑터 패턴 기반(IntelligenceSource / Intelligen
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- 기존 `DartProvider`, `DartIngestService`, `DartFinanceProvider`, `DartFinanceIngestService` 변경 없음
-- 실제 RSS/EDGAR/신규 수집기 구현 금지
+- AI 분석 연동 없음 (C-2.28에서)
+- 후보 종목 생성 없음
+- C-2.23 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.22 — Intelligence Ingestion Pipeline**
+**C-2.23 — Market/Theme Context Foundation**
 
-뉴스 RSS 피드 수집기, 테마/섹터 데이터 수집기 구현.  
-모든 수집기는 `IntelligenceAdapter`를 상속하고 `IntelligenceSource`에 등록한다.
+테마·섹터 맥락을 후보 발굴과 AI 분석에 통합.  
+범위: 테마/섹터 데이터 모델, 시장 맥락 스냅샷 확장, 후보 점수에 테마 반영.  
+선행 조건: C-2.22 완료.
+
+---
+
+## Completed: C-2.22
+
+구현 완료 파일:
+- `app/market_intelligence/adapters/generic_rss_adapter.py`
+- `app/market_intelligence/adapters/dart_disclosure_adapter.py`
+- `app/market_intelligence/adapters/__init__.py` (DartDisclosureAdapter, GenericRssAdapter export)
+- `app/services/intelligence_ingest_service.py`
+- `app/api/v1/intelligence.py`
+- `app/core/config.py` — intelligence_ingest_scheduler_enabled/hour/minute 추가
+- `app/scheduler/jobs.py` — INTELLIGENCE_INGEST_JOB_ID, run_intelligence_ingest_job 추가
+- `app/scheduler/registry.py` — ControllableJob 등록
+- `app/main.py` — intelligence_api router 등록
+- `tests/test_c2_22_intelligence_ingestion.py` (19 tests, all pass)
 
 ---
 

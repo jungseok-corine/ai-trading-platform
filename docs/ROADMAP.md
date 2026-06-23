@@ -65,7 +65,7 @@
 
 ---
 
-### C-2.22 — Intelligence Ingestion Pipeline `TODO`
+### C-2.22 — Intelligence Ingestion Pipeline `DONE`
 
 | 항목 | 내용 |
 |------|------|

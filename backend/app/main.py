@@ -14,6 +14,7 @@ from app.api.v1 import daily_analysis as daily_analysis_api
 from app.api.v1 import dart as dart_api
 from app.api.v1 import dart_finance as dart_finance_api
 from app.api.v1 import edgar as edgar_api
+from app.api.v1 import intelligence as intelligence_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import data_freshness as data_freshness_api
@@ -168,6 +169,7 @@ app.include_router(daily_analysis_api.router, prefix="/api/v1")
 app.include_router(dart_api.router, prefix="/api/v1")
 app.include_router(dart_finance_api.router, prefix="/api/v1")
 app.include_router(edgar_api.router, prefix="/api/v1")
+app.include_router(intelligence_api.router, prefix="/api/v1")
 app.include_router(ai_providers_api.router, prefix="/api/v1")
 app.include_router(trading_guard_api.router, prefix="/api/v1")
 app.include_router(investor_flows_api.router, prefix="/api/v1")

@@ -211,6 +211,11 @@ class Settings(BaseSettings):
     edgar_ingest_scheduler_enabled: bool = False
     edgar_ingest_interval_seconds: int = 1800  # 미국장 30분 폴링
 
+    # Intelligence Ingestion Pipeline (C-2.22). 기본 비활성 — 등록된 모든 소스 순회 수집.
+    intelligence_ingest_scheduler_enabled: bool = False
+    intelligence_ingest_scheduler_hour: int = 6   # 매일 06:00 (장 시작 전)
+    intelligence_ingest_scheduler_minute: int = 0
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"
