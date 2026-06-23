@@ -38,7 +38,8 @@ export default function StrategyVersionCreateForm({ strategyId }: StrategyVersio
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!parameters.symbol_code.trim()) return;
+    // 유니버스(스캐너/관심종목) 전략은 symbol_code가 없다 — 단일종목 모드에서만 필수.
+    if (!parameters.universe && !(parameters.symbol_code ?? "").trim()) return;
     createMutation.mutate();
   };
 
