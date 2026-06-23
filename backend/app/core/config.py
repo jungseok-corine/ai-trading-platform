@@ -196,6 +196,17 @@ class Settings(BaseSettings):
     intraday_event_monitor_interval_seconds: int = 600  # 장중 10분
     intraday_event_monitor_min_score: float = 0.6       # 보유종목은 더 엄격히
 
+    # SEC EDGAR 공시 수집 (C-5.20). 무료(키 없음)이나 연락처가 담긴 User-Agent 필수.
+    # 기본 비활성 — 보유/관심 US 종목의 중요 공시(8-K/10-K/10-Q 등)만 저장.
+    # SEC 정책상 연락처(이메일)가 담긴 User-Agent 필수. env로 덮어쓸 수 있다.
+    sec_edgar_user_agent: str | None = "ai-trading-platform nonehour@naver.com"
+    edgar_provider_timeout_seconds: float = 10.0
+    edgar_min_materiality: float = 0.5
+    edgar_since_days: int = 2            # 최근 N일 공시만 수집
+    edgar_max_symbols: int = 50         # SEC rate limit 고려 종목 수 상한
+    edgar_ingest_scheduler_enabled: bool = False
+    edgar_ingest_interval_seconds: int = 1800  # 미국장 30분 폴링
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

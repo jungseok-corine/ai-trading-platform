@@ -28,7 +28,7 @@ class DisclosureAlertService:
     ) -> list[dict]:
         since = datetime.now(KST) - timedelta(hours=hours)
         events = await self._repo.list_by_source_since(
-            "dart", since, symbols=symbols, limit=limit
+            ["dart", "edgar"], since, symbols=symbols, limit=limit
         )
         alerts: list[dict] = []
         for e in events:
@@ -41,7 +41,8 @@ class DisclosureAlertService:
                 "headline": e.headline,
                 "category": raw.get("category"),
                 "materiality": score,
-                "corp_name": raw.get("corp_name"),
+                "corp_name": raw.get("corp_name") or raw.get("company_name"),
+                "source": e.source,
                 "published_at": e.published_at.isoformat() if e.published_at else None,
                 "url": e.url,
             })

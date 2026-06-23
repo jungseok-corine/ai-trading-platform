@@ -22,11 +22,16 @@ class NewsEventRepository(BaseRepository[NewsEvent]):
         return {row[0] for row in result.all() if row[0]}
 
     async def list_by_source_since(
-        self, source: str, since: datetime, symbols: list[str] | None = None, limit: int = 100
+        self,
+        source: str | list[str],
+        since: datetime,
+        symbols: list[str] | None = None,
+        limit: int = 100,
     ) -> list[NewsEvent]:
-        """source의 since 이후 이벤트를 최신순으로 반환한다(공시 알림용)."""
+        """source(들)의 since 이후 이벤트를 최신순으로 반환한다(공시 알림용)."""
+        sources = [source] if isinstance(source, str) else list(source)
         stmt = select(NewsEvent).where(
-            NewsEvent.source == source, NewsEvent.published_at >= since
+            NewsEvent.source.in_(sources), NewsEvent.published_at >= since
         )
         if symbols:
             stmt = stmt.where(NewsEvent.symbol_code.in_(symbols))
