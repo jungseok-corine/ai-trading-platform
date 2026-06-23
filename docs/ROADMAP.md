@@ -53,7 +53,7 @@
 
 ---
 
-### C-2.21.1b — Market Intelligence Adapter Foundation Repair `READY`
+### C-2.21.1b — Market Intelligence Adapter Foundation Repair `DONE`
 
 | 항목 | 내용 |
 |------|------|
@@ -73,7 +73,7 @@
 | **범위** | 뉴스 RSS 피드 수집기, 소스별 어댑터, 중복 방지, 정기 수집 잡(기본 비활성) |
 | **하지 말 것** | AI 분석 연동 금지 (C-2.28에서). 주문 관련 코드 금지. |
 | **완료 기준** | 최소 2개 이상 실 데이터 소스에서 자동 수집, 테스트(MockTransport), 잡 기본 비활성 |
-| **선행 조건** | C-2.21.1 완료 |
+| **선행 조건** | C-2.21.1b 완료 |
 
 ---
 
