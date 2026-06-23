@@ -127,3 +127,50 @@ class ScannerConditionType(str, enum.Enum):
     PRICE_CHANGE_PCT = "price_change_pct"  # 상승률 (change_pct >= min_pct)
     INVESTOR_FLOW = "investor_flow"  # 수급 (외국인/기관/개인 순매수·순매도)
     TIME_BUCKET = "time_bucket"  # 시간대 (장초반/오전/오후 등)
+
+
+# ── Market Intelligence 어댑터 패턴 (C-2.21.1b) ────────────────────────────
+
+class IntelligenceSourceType(str, enum.Enum):
+    """인텔리전스 소스 유형. 데이터가 어떤 종류의 시장 정보인지를 나타낸다."""
+
+    NEWS = "news"
+    DISCLOSURE = "disclosure"      # 공시 (DART, EDGAR)
+    FINANCIALS = "financials"      # 재무제표
+    MARKET_DATA = "market_data"    # 주가/거래량 등 시장 데이터
+    MACRO = "macro"                # 거시경제 (FRED, 금리 등)
+    POLICY = "policy"              # 정책/규제
+    TECH_TREND = "tech_trend"      # 기술/산업 트렌드
+    THEME = "theme"                # 테마/섹터
+    MANUAL = "manual"              # 수동 입력
+
+
+class IntelligenceProvider(str, enum.Enum):
+    """데이터를 제공하는 외부/내부 provider 식별자."""
+
+    DART = "dart"
+    EDGAR = "edgar"
+    DARTLAB = "dartlab"
+    KIS = "kis"
+    RSS = "rss"
+    MANUAL = "manual"
+    INTERNAL = "internal"
+    OTHER = "other"
+
+
+class IntelligenceMarketScope(str, enum.Enum):
+    """소스가 커버하는 시장 범위."""
+
+    KR = "KR"
+    US = "US"
+    GLOBAL = "GLOBAL"
+    MIXED = "MIXED"
+
+
+class IntelligenceEventStatus(str, enum.Enum):
+    """인텔리전스 이벤트 처리 상태."""
+
+    RAW = "raw"              # 수집된 원본
+    NORMALIZED = "normalized"  # 정규화 완료
+    ASSESSED = "assessed"    # AI 평가 완료
+    IGNORED = "ignored"      # 노이즈로 판단, 무시

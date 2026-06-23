@@ -35,15 +35,33 @@
 
 ---
 
-### C-2.21.1 — Market Intelligence Core Foundation `READY`
+### C-2.21.1 — Market Intelligence Core Foundation `PARTIAL`
 
 | 항목 | 내용 |
 |------|------|
 | **목표** | Market Intelligence 데이터 레이어의 기반 DB 스키마, 수집기 인터페이스, 어댑터 패턴 정의 |
 | **범위** | `IntelligenceSource`, `IntelligenceEvent` 모델, 어댑터 base 클래스, 기본 테스트 |
-| **하지 말 것** | 실제 수집기 구현 금지 (C-2.22에서). 실주문 관련 코드 건드리지 않는다. |
 | **완료 기준** | 어댑터 패턴으로 새 데이터 소스를 추가할 수 있는 인터페이스 완성, 테스트 통과 |
-| **선행 조건** | C-2.21.0 완료 |
+
+**완료된 하위 작업 (커밋 30cb3d8)**:
+- `financial_statements` 테이블 + `DartFinanceProvider` + `DartFinanceIngestService`
+- `POST /dart/finance/ingest`, `GET /dart/finance/{stock_code}`
+- `AnalysisBundleService.financials` 키, 스케줄러 잡 기본 비활성
+
+**미완료 → C-2.21.1b에서 처리**:
+- `IntelligenceSource` / `IntelligenceEvent` 모델 및 어댑터 base 클래스
+
+---
+
+### C-2.21.1b — Market Intelligence Adapter Foundation Repair `READY`
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | C-2.21.1 범위 드리프트 보정 — 어댑터 패턴 기반 인터페이스 추가 |
+| **범위** | `IntelligenceSource` / `IntelligenceEvent` 모델, `IntelligenceAdapter` base 클래스, `DartFinanceAdapter` 스켈레톤, 테스트 |
+| **하지 말 것** | 실제 RSS/EDGAR/신규 수집기 구현 금지 (C-2.22에서). 기존 DART finance 수집 변경 금지. |
+| **완료 기준** | `IntelligenceAdapter`를 상속해 새 소스를 추가할 수 있는 인터페이스 완성, 19개 테스트 통과 |
+| **선행 조건** | C-2.21.1 PARTIAL 완료 |
 
 ---
 

@@ -190,3 +190,38 @@ AI(LLM 또는 알고리즘)가 생성한 어떤 출력도 사람의 명시적 �
 **예외**:  
 `strategy_scheduler`(매분 신호 생성)와 `order_sync_scheduler`(체결 동기화)는  
 핵심 운영 기능으로 기본 활성. 새 잡은 모두 기본 비활성.
+
+---
+
+## D-10. C-2.21.1 범위 드리프트 인식 — 어댑터 기반 우선, DART finance는 첫 번째 구체 소스
+
+**날짜**: 2026-06-24  
+**상태**: 확정
+
+**경위**:  
+C-2.21.1 구현 세션에서 ROADMAP 원래 범위(`IntelligenceSource` / `IntelligenceEvent` 모델,  
+어댑터 base 클래스)를 건너뛰고 DART XBRL 재무제표 수집기를 바로 구현했다.  
+DART finance 구현(financial_statements, DartFinanceProvider, DartFinanceIngestService)은  
+유용하고 유지된다. 그러나 그것만으로는 C-2.21.1 원래 범위를 충족하지 않는다.
+
+**결정 내용**:
+
+1. **DART finance 구현은 보존한다.** `financial_statements` 테이블, `DartFinanceProvider`,  
+   `DartFinanceIngestService`, `AnalysisBundleService.financials` 키는 모두 유지된다.
+
+2. **어댑터 기반을 추가 구현한다 (C-2.21.1b).** `IntelligenceSource` / `IntelligenceEvent`  
+   모델과 `IntelligenceAdapter` 추상 클래스를 C-2.21.1b에서 구현한다.
+
+3. **DART finance는 첫 번째 구체 소스다.** `DartFinanceAdapter` 스켈레톤을 추가해  
+   기존 수집기가 나중에 어댑터 패턴으로 연결될 방향을 명시한다.  
+   실제 연결(fetch 구현)은 C-2.22+에서 점진적으로 진행한다.
+
+4. **새 소스는 반드시 어댑터 패턴을 따른다.** C-2.22부터 추가하는 모든 수집기는  
+   `IntelligenceAdapter`를 상속하고 `IntelligenceSource`에 등록해야 한다.  
+   소스별 독립 로직을 직접 스케줄러 잡에 넣는 방식은 금지한다.
+
+**영향**:  
+- C-2.22(Intelligence Ingestion Pipeline)는 C-2.21.1b 완료 후 시작한다.
+- C-2.22에서 구현하는 모든 수집기(뉴스 RSS 등)는 `IntelligenceAdapter` 상속.
+- 기존 `DartProvider` / `DartIngestService` / `EdgarProvider`는 건드리지 않는다  
+  (이들은 공시 수집 전용이며, 재무제표/인텔리전스 계층과 분리 유지).

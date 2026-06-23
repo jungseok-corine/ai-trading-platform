@@ -7,42 +7,57 @@
 
 ## Current Task
 
-**C-2.21.1 — Market Intelligence Core Foundation**
+**C-2.21.1b — Market Intelligence Adapter Foundation Repair**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (DB 모델 + Provider + 서비스 + 번들 통합) |
+| **Type** | Feature (어댑터 패턴 기반 인터페이스) |
 
 ---
 
 ## Goal
 
-DART 재무제표(손익계산서·재무상태표)를 수집·저장하고, AI 분석 bundle에 재무 요약을 주입한다.  
-C-2.21.0 Spike 결론에 따라 DartLab 없이 DART API 직접 호출 방식으로 구현한다.
+C-2.21.1에서 누락된 어댑터 패턴 기반(IntelligenceSource / IntelligenceEvent / IntelligenceAdapter)을  
+추가해 Market Intelligence 수집 레이어의 공통 인터페이스를 완성한다.  
+기존 DART finance 구현은 보존하며 변경하지 않는다.
 
 ---
 
 ## Background
 
-- C-2.21.0 Spike 결론: DartLab 비권장, DART API 직접 구현 권장
-- 우리에게 없는 유일한 핵심 데이터: DART XBRL 재무제표
-- AI 분석 bundle에 현재 재무 컨텍스트가 없어 LLM 분석의 깊이가 제한됨
-- 기존 패턴: `DartProvider` + `DartIngestService` 동형으로 구현
+- C-2.21.1은 DART XBRL 재무제표 수집만 구현하고 원래 ROADMAP 범위를 누락했다.
+- C-2.21.1b는 그 드리프트를 보정한다 (D-10 결정 참조).
+- DART finance 구현(financial_statements 등)은 첫 번째 구체 소스로 유지된다.
+- C-2.22부터 추가하는 모든 수집기는 IntelligenceAdapter를 상속해야 한다.
 
 ---
 
 ## Scope
 
 구현 항목:
-1. `FinancialStatement` DB 모델 + Alembic 마이그레이션
-2. `DartFinanceProvider` — DART company.json + fnlttSinglAcnt.json async 클라이언트
-3. `DartFinanceIngestService` — watchlist 종목별 재무제표 수집·저장
-4. API 엔드포인트 — `POST /dart/finance/ingest`, `GET /dart/finance/{stock_code}`
-5. `AnalysisBundleService` 확장 — `financials` 키 추가
-6. 스케줄러 잡 `dart_finance_scheduler` (기본 비활성)
-7. 테스트 (MockTransport)
+1. `IntelligenceSource` / `IntelligenceEvent` DB 모델 + Alembic 마이그레이션
+2. `IntelligenceAdapter` 추상 base 클래스 (`app/market_intelligence/adapters/base.py`)
+3. `IntelligenceRawItem` / `IntelligenceEventCandidate` DTO
+4. `build_dedup_hash()` 헬퍼
+5. `DartFinanceAdapter` 스켈레톤 (fetch 미구현, normalize 시그니처만)
+6. Repository: `IntelligenceSourceRepository`, `IntelligenceEventRepository`
+7. 테스트 19개 (MockTransport 불필요 — DB 통합 + 순수 단위 테스트)
+8. docs: DECISIONS.md D-10, ROADMAP.md C-2.21.1b 추가, NEXT-TASK.md 업데이트
+
+---
+
+## Definition of Done
+
+- [x] `intelligence_sources` + `intelligence_events` 테이블 + 마이그레이션 (`e3f4a5b6c7d8`)
+- [x] `IntelligenceAdapter` 추상 클래스 + DTO + `build_dedup_hash()`
+- [x] `DartFinanceAdapter` 스켈레톤 (C-2.22+ 연결 대기)
+- [x] repository 2개 (get_by_key, list_enabled, list_by_source, existing_hashes)
+- [x] 19개 테스트 전체 통과
+- [x] 기존 DART finance 수집 동작 변경 없음
+- [x] DECISIONS.md D-10 추가
+- [x] ROADMAP.md C-2.21.1 → PARTIAL, C-2.21.1b 추가
 
 ---
 
@@ -50,22 +65,8 @@ C-2.21.0 Spike 결론에 따라 DartLab 없이 DART API 직접 호출 방식으�
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- 기존 `DartProvider`, `DartIngestService` 코드 변경 없음
-- 새 스케줄러 잡 기본 비활성 (`dart_finance_scheduler_enabled=False`)
-- `.env`, API 키, 시크릿 값 출력 없음
-
----
-
-## Definition of Done
-
-- [x] `financial_statements` 테이블 생성 + alembic 마이그레이션 (`d2e3f4a5b6c7`)
-- [x] `DartFinanceProvider`: company.json + fnlttSinglAcnt.json 호출, MockTransport 테스트
-- [x] `DartFinanceIngestService`: watchlist 종목별 수집, 중복 upsert
-- [x] API 엔드포인트 등록 (`POST /dart/finance/ingest`, `GET /dart/finance/{stock_code}`)
-- [x] `AnalysisBundleService.build_full()` 에 `financials` 키 추가
-- [x] 스케줄러 잡 기본 비활성으로 추가 (`DART_FINANCE_JOB_ID`, 매일 02:00)
-- [x] 전체 테스트 통과 (기존 9개 사전 실패 제외 — 7개 알려진 + 2개 test_c3_8 사전 실패 확인)
-- [x] 프론트 빌드 통과 (API만 추가, 프론트 변경 없음)
+- 기존 `DartProvider`, `DartIngestService`, `DartFinanceProvider`, `DartFinanceIngestService` 변경 없음
+- 실제 RSS/EDGAR/신규 수집기 구현 금지
 
 ---
 
@@ -73,13 +74,30 @@ C-2.21.0 Spike 결론에 따라 DartLab 없이 DART API 직접 호출 방식으�
 
 **C-2.22 — Intelligence Ingestion Pipeline**
 
-뉴스 RSS 피드 수집기, 테마/섹터 데이터 수집기 구현.
+뉴스 RSS 피드 수집기, 테마/섹터 데이터 수집기 구현.  
+모든 수집기는 `IntelligenceAdapter`를 상속하고 `IntelligenceSource`에 등록한다.
 
 ---
 
-## Completed: C-2.21.1
+## Completed: C-2.21.1b
 
 구현 완료 파일:
+- `alembic/versions/e3f4a5b6c7d8_add_intelligence_tables.py`
+- `app/domain/models/intelligence.py` (IntelligenceSource, IntelligenceEvent)
+- `app/domain/models/enums.py` — IntelligenceSourceType / IntelligenceProvider / IntelligenceMarketScope / IntelligenceEventStatus 추가
+- `app/domain/repositories/intelligence.py`
+- `app/market_intelligence/__init__.py`
+- `app/market_intelligence/adapters/__init__.py`
+- `app/market_intelligence/adapters/base.py` (IntelligenceAdapter, DTO, build_dedup_hash)
+- `app/market_intelligence/adapters/dart_finance_adapter.py` (스켈레톤)
+- `tests/test_c2_21_1b_intelligence_foundation.py` (19 tests, all pass)
+- 수정: `app/domain/models/__init__.py`, `docs/DECISIONS.md`, `docs/ROADMAP.md`
+
+---
+
+## Completed: C-2.21.1 (PARTIAL → 어댑터 기반은 C-2.21.1b에서 완성)
+
+구현 완료 파일 (커밋 30cb3d8):
 - `alembic/versions/d2e3f4a5b6c7_add_financial_statements.py`
 - `app/domain/models/financial_statement.py`
 - `app/domain/repositories/financial_statement.py`
