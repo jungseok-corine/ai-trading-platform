@@ -197,6 +197,13 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.19** ✅: **유니버스 자동매매(안전장치)** — 유니버스(스캐너/관심종목) 전략도 자동매매
+  가능하게 열되, 사람의 **명시 옵트인** `universe_auto_trade=true`(단일종목용 `auto_trade_enabled`와
+  분리) + **모의계좌(PAPER) 전용** 강제(`_is_paper_account`, 실계좌면 코드가 차단) + **회당 주문
+  상한** `max_orders_per_run`(기본 5, `trade_attempted` 카운트)의 3중 안전장치. 기존 리스크 룰·
+  현금 사이징 그대로 적용. 실거래는 여전히 off. 스키마 검증(account_id 필수, universe 모드 한정)
+  + 프론트 폼 토글/상한 입력 + 번역. `tests/test_c5_universe_auto_trade.py`.
+
 - **C-5.18** ✅: **유동적 주문 수량(포지션 사이징)** — 전략 파라미터 `quantity_mode`
   (fixed/cash_amount/cash_pct). cash_amount=1회 투입 금액→floor(금액/가격), cash_pct=가용현금
   %→floor((현금×%)/가격). 자동매매 시 러너가 동적 계산(예산 부족이면 주문 스킵).

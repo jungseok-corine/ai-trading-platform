@@ -140,26 +140,54 @@ class StrategyRunnerService:
                 return []
             symbols = active
 
-        # 안전: universe 모드는 신호 생성 전용 — 자동매매를 절대 켜지 않는다.
+        # 자동매매 결정.
+        #  - 단일종목: auto_trade_enabled.
+        #  - 유니버스: universe_auto_trade(명시 옵트인) + 모의계좌 전용 + 회당 주문 상한.
+        #    (스캐너/관심종목이 찾은 종목을 모의로 자동매매. 실거래는 별도 게이트로 계속 차단.)
         universe_mode = bool(params.get("universe"))
-        auto_trade_enabled = (
-            False if universe_mode else bool(params.get("auto_trade_enabled", False))
-        )
+        account_id = params.get("account_id")
+        max_orders_per_run = 10**9
+        if universe_mode:
+            auto_trade_enabled = bool(params.get("universe_auto_trade", False)) and account_id is not None
+            if auto_trade_enabled and not await self._is_paper_account(account_id):
+                logger.warning(
+                    "strategy_version_id=%s 유니버스 자동매매는 모의계좌 전용 — account=%s 비활성화",
+                    version.id, account_id,
+                )
+                auto_trade_enabled = False
+            if auto_trade_enabled:
+                max_orders_per_run = int(params.get("max_orders_per_run", 5))
+        else:
+            auto_trade_enabled = bool(params.get("auto_trade_enabled", False))
 
         ref = now or datetime.now(KST)
         exit_on_close = bool(params.get("exit_on_close", False))
 
         results: list[StrategyRunResult] = []
+        orders_this_run = 0
         for resolved in symbols:
             # Phase B: 종가 동시호가 단계 + exit_on_close 전략이면 '종가 청산' 매도로 강제.
             force_exit = exit_on_close and is_closing_auction(resolved.market, ref)
-            results.append(
-                await self._run_one(
-                    version, strategy, resolved, params, auto_trade_enabled,
-                    candle_cache, force_exit,
-                )
+            # 회당 주문 상한: 상한에 도달하면 이후 종목은 신호만(주문 시도 안 함).
+            effective_auto = auto_trade_enabled and orders_this_run < max_orders_per_run
+            result = await self._run_one(
+                version, strategy, resolved, params, effective_auto,
+                candle_cache, force_exit,
             )
+            results.append(result)
+            if result.trade_attempted:
+                orders_this_run += 1
         return results
+
+    async def _is_paper_account(self, account_id: int | None) -> bool:
+        """유니버스 자동매매 가드: 계좌가 모의(PAPER)인지 확인한다."""
+        if account_id is None:
+            return False
+        from app.domain.models.account import Account  # noqa: PLC0415
+        from app.domain.models.enums import AccountType  # noqa: PLC0415
+
+        account = await self._session.get(Account, account_id)
+        return account is not None and account.account_type == AccountType.PAPER
 
     async def _run_one(
         self,

@@ -177,6 +177,45 @@ export default function StrategyVersionParametersFields({
         </div>
       )}
       {universeMode && <p className="section-description">{sp.hintUniverse}</p>}
+      {universeMode && (
+        <>
+          <div className="form-row">
+            <label htmlFor={`${idPrefix}-universe-auto-trade`}>{sp.labelUniverseAutoTrade}</label>
+            <input
+              id={`${idPrefix}-universe-auto-trade`}
+              type="checkbox"
+              checked={parameters.universe_auto_trade ?? false}
+              onChange={(e) => update("universe_auto_trade", e.target.checked)}
+            />
+          </div>
+          {parameters.universe_auto_trade && (
+            <>
+              <div className="form-row">
+                <label htmlFor={`${idPrefix}-universe-account`}>{sp.labelAccountId}</label>
+                <input
+                  id={`${idPrefix}-universe-account`}
+                  type="number"
+                  value={parameters.account_id ?? ""}
+                  onChange={(e) =>
+                    update("account_id", e.target.value === "" ? null : Number(e.target.value))
+                  }
+                />
+              </div>
+              <div className="form-row">
+                <label htmlFor={`${idPrefix}-max-orders`}>{sp.labelMaxOrdersPerRun}</label>
+                <input
+                  id={`${idPrefix}-max-orders`}
+                  type="number"
+                  min={1}
+                  value={parameters.max_orders_per_run ?? 5}
+                  onChange={(e) => update("max_orders_per_run", Number(e.target.value) || 0)}
+                />
+              </div>
+              <p className="section-description">{sp.hintUniverseAutoTrade}</p>
+            </>
+          )}
+        </>
+      )}
       {isMaType && (
         <>
           <div className="form-row">

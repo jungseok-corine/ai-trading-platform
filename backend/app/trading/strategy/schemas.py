@@ -268,6 +268,9 @@ class StrategyVersionParameters(BaseModel):
     universe: str | None = None
     # 유니버스를 특정 시장(KR/US)으로 제한한다. None이면 전체 시장 종목을 본다.
     universe_market: str | None = None
+    # 유니버스 자동매매(명시 옵트인). 모의계좌 전용 + 회당 주문 상한으로 가드된다.
+    universe_auto_trade: bool = False
+    max_orders_per_run: int = Field(default=5, gt=0)
     universe_lookback_days: int = Field(default=5, gt=0)
     # 멀티마켓: market=US이면 KIS 해외 분봉(exchange=EXCD)으로 시세를 조회한다. 기본 KR(국내).
     market: str = "KR"
@@ -333,16 +336,25 @@ class StrategyVersionParameters(BaseModel):
                 raise ValueError(
                     f"universe={self.universe!r}은 유효하지 않습니다. 허용값: {sorted(_VALID_UNIVERSES)}"
                 )
-            # 안전: 유니버스 전체에 자동매매를 거는 것은 금지(read-only 신호 생성 전용).
+            # 단일종목용 auto_trade_enabled는 유니버스에서 쓰지 않는다(universe_auto_trade 사용).
             if self.auto_trade_enabled:
-                raise ValueError("universe 모드에서는 auto_trade_enabled를 켤 수 없습니다(신호 생성 전용).")
+                raise ValueError(
+                    "universe 모드에서는 auto_trade_enabled(단일종목용) 대신 "
+                    "universe_auto_trade를 사용하세요."
+                )
+            # 유니버스 자동매매는 명시 옵트인 + account_id 필요(모의계좌 가드는 런타임에서).
+            if self.universe_auto_trade and self.account_id is None:
+                raise ValueError("universe_auto_trade=true 이려면 account_id가 필요합니다.")
             if self.universe_market is not None and self.universe_market not in _VALID_MARKETS:
                 raise ValueError(
                     f"universe_market={self.universe_market!r}은 유효하지 않습니다. "
                     f"허용값: {sorted(_VALID_MARKETS)}"
                 )
-        elif not self.symbol_code:
-            raise ValueError("universe가 없으면 symbol_code가 필요합니다.")
+        else:
+            if not self.symbol_code:
+                raise ValueError("universe가 없으면 symbol_code가 필요합니다.")
+            if self.universe_auto_trade:
+                raise ValueError("universe_auto_trade는 universe 모드에서만 사용합니다.")
         if self.auto_trade_enabled and self.account_id is None:
             raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
         if self.quantity_mode not in _VALID_QUANTITY_MODES:

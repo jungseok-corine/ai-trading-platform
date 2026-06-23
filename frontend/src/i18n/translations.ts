@@ -424,6 +424,9 @@ export interface Translations {
     universeWatchlist: string;
     labelUniverseMarket: string;
     universeMarketAll: string;
+    labelUniverseAutoTrade: string;
+    hintUniverseAutoTrade: string;
+    labelMaxOrdersPerRun: string;
     hintUniverse: string;
     labelRsiPeriod: string;
     labelOversold: string;
@@ -949,6 +952,10 @@ export const translations: Record<Language, Translations> = {
       labelUniverse: "유니버스 (종목 자동 선택)",
       labelUniverseMarket: "유니버스 시장 필터",
       universeMarketAll: "전체 (KR+US)",
+      labelUniverseAutoTrade: "유니버스 자동매매 (모의 전용)",
+      hintUniverseAutoTrade:
+        "스캐너/관심종목이 찾은 종목을 모의계좌로 자동매매합니다. 모의계좌에서만 동작하고(실거래는 계속 차단), 회당 주문 상한·리스크 한도·현금 사이징으로 가드됩니다.",
+      labelMaxOrdersPerRun: "회당 주문 상한",
       universeNone: "없음 (단일 종목)",
       universeScannerCandidates: "스캐너 후보",
       universeWatchlist: "관심종목",
@@ -1475,6 +1482,10 @@ export const translations: Record<Language, Translations> = {
       labelUniverse: "Universe (auto symbol selection)",
       labelUniverseMarket: "Universe market filter",
       universeMarketAll: "All (KR+US)",
+      labelUniverseAutoTrade: "Universe auto-trade (paper only)",
+      hintUniverseAutoTrade:
+        "Auto-trade symbols discovered by scanner/watchlist on a paper account. Paper-only (real trading stays off), guarded by per-run order cap, risk limits, and cash sizing.",
+      labelMaxOrdersPerRun: "Max orders per run",
       universeNone: "None (single symbol)",
       universeScannerCandidates: "Scanner Candidates",
       universeWatchlist: "Watchlist",

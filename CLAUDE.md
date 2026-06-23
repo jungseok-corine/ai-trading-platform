@@ -26,6 +26,10 @@
 - `TradingGuardState` = paused / `RiskConfig.emergency_stop=True` / `auto_trade_enabled=false`
 - AI 제안은 **자동 적용 금지** — 승인 게이트는 사람 판단 전용, 실거래를 켜지 않는다
 - 실주문 API 호출 없음 (TTTC0012U/0011U, VTTC0012U/0011U, `broker.place_order` 등 금지)
+  — 단, **모의계좌(PAPER) 전용** 자동매매는 사람이 명시 옵트인했을 때만 허용(아래).
+- 유니버스 자동매매(C-5.19)는 **사람의 명시 옵트인**(`universe_auto_trade=true`)일 때만,
+  그리고 **모의계좌 전용 + 회당 주문 상한**의 안전장치와 함께만 동작한다. AI/제안은 이 토글을
+  자동으로 켤 수 없고, 실계좌에서는 코드가 강제로 차단한다(`KIS_REAL_TRADING_ENABLED` 무관).
 - 새 스케줄러 잡은 **기본 비활성**(`*_scheduler_enabled=False`)으로 추가한다
 - 연구 루프의 모든 신규 작업은 **read-only 집계/메타 작업** — 주문과 무관해야 한다
 
