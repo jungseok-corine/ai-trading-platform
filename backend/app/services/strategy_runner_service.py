@@ -208,6 +208,28 @@ class StrategyRunnerService:
         await self._attempt_auto_trade(version, params, log, result)
         return result
 
+    async def _resolve_quantity(self, params: dict, log: SignalLog) -> int:
+        """포지션 사이징(fixed/cash_amount/cash_pct)으로 주문 수량을 정한다."""
+        from app.trading.pricing.sizing import compute_order_quantity  # noqa: PLC0415
+
+        mode = params.get("quantity_mode", "fixed")
+        available_cash = None
+        if mode == "cash_pct" and self._trade_service is not None:
+            try:
+                available_cash = await self._trade_service.get_available_cash(
+                    params.get("market", "KR")
+                )
+            except Exception:  # noqa: BLE001 - 잔고 조회 실패 시 고정 수량으로 폴백
+                available_cash = None
+        return compute_order_quantity(
+            mode=mode,
+            fixed_quantity=log.quantity or params.get("quantity", 1),
+            price=log.price,
+            cash_amount=params.get("cash_amount"),
+            cash_pct=params.get("cash_pct"),
+            available_cash=available_cash,
+        )
+
     async def _attempt_auto_trade(
         self, version: StrategyVersion, params: dict, log: SignalLog, result: StrategyRunResult
     ) -> None:
@@ -244,10 +266,20 @@ class StrategyRunnerService:
             logger.warning("strategy_version_id=%s: %s", version.id, result.error)
             return
 
+        # 포지션 사이징: fixed/cash_amount/cash_pct에 따라 수량을 동적으로 계산한다.
+        quantity = await self._resolve_quantity(params, log)
+        if quantity <= 0:
+            result.error = (
+                f"주문 수량 0 (포지션 사이징 예산 부족, mode={params.get('quantity_mode', 'fixed')}) "
+                "— 자동매매 건너뜀"
+            )
+            logger.info("strategy_version_id=%s: %s", version.id, result.error)
+            return
+
         signal = Signal(
             symbol_code=log.symbol_code,
             side=log.signal_type,
-            quantity=log.quantity or params.get("quantity", 1),
+            quantity=quantity,
             price=log.price,
             reason=log.reason or "",
             strategy_version_id=log.strategy_version_id,

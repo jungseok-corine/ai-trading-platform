@@ -435,15 +435,54 @@ export default function StrategyVersionParametersFields({
         </>
       )}
       <div className="form-row">
-        <label htmlFor={`${idPrefix}-quantity`}>{sp.labelQuantity}</label>
-        <input
-          id={`${idPrefix}-quantity`}
-          type="number"
-          min={1}
-          value={parameters.quantity}
-          onChange={(e) => update("quantity", Number(e.target.value) || 0)}
-        />
+        <label htmlFor={`${idPrefix}-quantity-mode`}>{sp.labelQuantityMode}</label>
+        <select
+          id={`${idPrefix}-quantity-mode`}
+          value={parameters.quantity_mode ?? "fixed"}
+          onChange={(e) => update("quantity_mode", e.target.value)}
+        >
+          <option value="fixed">{sp.quantityModeFixed}</option>
+          <option value="cash_amount">{sp.quantityModeCashAmount}</option>
+          <option value="cash_pct">{sp.quantityModeCashPct}</option>
+        </select>
       </div>
+      {(parameters.quantity_mode ?? "fixed") === "fixed" && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-quantity`}>{sp.labelQuantity}</label>
+          <input
+            id={`${idPrefix}-quantity`}
+            type="number"
+            min={1}
+            value={parameters.quantity}
+            onChange={(e) => update("quantity", Number(e.target.value) || 0)}
+          />
+        </div>
+      )}
+      {parameters.quantity_mode === "cash_amount" && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-cash-amount`}>{sp.labelCashAmount}</label>
+          <input
+            id={`${idPrefix}-cash-amount`}
+            type="number"
+            min={0}
+            value={parameters.cash_amount ?? 0}
+            onChange={(e) => update("cash_amount", Number(e.target.value) || 0)}
+          />
+        </div>
+      )}
+      {parameters.quantity_mode === "cash_pct" && (
+        <div className="form-row">
+          <label htmlFor={`${idPrefix}-cash-pct`}>{sp.labelCashPct}</label>
+          <input
+            id={`${idPrefix}-cash-pct`}
+            type="number"
+            min={0}
+            max={100}
+            value={parameters.cash_pct ?? 0}
+            onChange={(e) => update("cash_pct", Number(e.target.value) || 0)}
+          />
+        </div>
+      )}
       <div className="form-row">
         <label htmlFor={`${idPrefix}-timeframe`}>{sp.labelTimeframe}</label>
         <input

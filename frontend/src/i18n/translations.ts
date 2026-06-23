@@ -384,6 +384,12 @@ export interface Translations {
     labelShortWindow: string;
     labelLongWindow: string;
     labelQuantity: string;
+    labelQuantityMode: string;
+    quantityModeFixed: string;
+    quantityModeCashAmount: string;
+    quantityModeCashPct: string;
+    labelCashAmount: string;
+    labelCashPct: string;
     labelTimeframe: string;
     labelAccountId: string;
     labelEnabled: string;
@@ -903,6 +909,12 @@ export const translations: Record<Language, Translations> = {
       labelShortWindow: "단기 이동평균 기간",
       labelLongWindow: "장기 이동평균 기간",
       labelQuantity: "주문 수량",
+      labelQuantityMode: "수량 방식",
+      quantityModeFixed: "고정 수량",
+      quantityModeCashAmount: "1회 투입 금액",
+      quantityModeCashPct: "가용현금 %",
+      labelCashAmount: "1회 투입 금액 (원/USD)",
+      labelCashPct: "가용현금 비율 (%)",
       labelTimeframe: "타임프레임",
       labelAccountId: "계정 ID",
       labelEnabled: "활성화",
@@ -1423,6 +1435,12 @@ export const translations: Record<Language, Translations> = {
       labelShortWindow: "Short Window",
       labelLongWindow: "Long Window",
       labelQuantity: "Quantity",
+      labelQuantityMode: "Sizing mode",
+      quantityModeFixed: "Fixed shares",
+      quantityModeCashAmount: "Cash per trade",
+      quantityModeCashPct: "% of cash",
+      labelCashAmount: "Cash per trade (KRW/USD)",
+      labelCashPct: "% of available cash",
       labelTimeframe: "Timeframe",
       labelAccountId: "Account ID",
       labelEnabled: "Enabled",

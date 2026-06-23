@@ -197,6 +197,11 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.18** ✅: **유동적 주문 수량(포지션 사이징)** — 전략 파라미터 `quantity_mode`
+  (fixed/cash_amount/cash_pct). cash_amount=1회 투입 금액→floor(금액/가격), cash_pct=가용현금
+  %→floor((현금×%)/가격). 자동매매 시 러너가 동적 계산(예산 부족이면 주문 스킵).
+  `compute_order_quantity`(순수) + `TradeService.get_available_cash` + 프론트 폼 노출.
+
 - **C-5.17** ✅: **인트라데이 이벤트 감시(§7.1) 1차** — 보유 포지션 + 활성 단일종목 전략 종목에
   한해 장중 DART 공시를 좁게 폴링(`IntradayEventMonitorService`). 잡 `intraday_event_monitor`
   (기본 off, 장중 게이트, 자율 잡 제어판 노출), 보유종목 한정 알림 `GET /dart/intraday-events`

@@ -208,6 +208,9 @@ export interface StrategyVersionParameters {
   short_window: number;
   long_window: number;
   quantity: number;
+  quantity_mode?: string;
+  cash_amount?: number;
+  cash_pct?: number;
   timeframe: string;
   account_id: number | null;
   enabled: boolean;
@@ -538,6 +541,9 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   short_window: 5,
   long_window: 20,
   quantity: 1,
+  quantity_mode: "fixed",
+  cash_amount: 0,
+  cash_pct: 0,
   timeframe: "1m",
   account_id: null,
   enabled: true,
