@@ -65,7 +65,9 @@ class SafetyStatusService:
         }
 
     async def _auto_trade_versions(self) -> int:
-        """활성/테스트 버전 중 parameters.auto_trade_enabled=true 개수."""
+        """활성/테스트 버전 중 자동매매(단일종목 auto_trade_enabled + 유니버스 universe_auto_trade) 개수."""
+        from app.trading.strategy.schemas import params_auto_trades
+
         rows = (
             await self._session.execute(
                 select(StrategyVersion.parameters).where(
@@ -75,7 +77,7 @@ class SafetyStatusService:
                 )
             )
         ).scalars().all()
-        return sum(1 for p in rows if isinstance(p, dict) and p.get("auto_trade_enabled") is True)
+        return sum(1 for p in rows if isinstance(p, dict) and params_auto_trades(p))
 
     async def _guard_counts(self) -> tuple[int, int]:
         total = (
