@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from app.scheduler.jobs import (
     DAILY_ANALYSIS_JOB_ID,
     DAILY_REPORT_JOB_ID,
+    DART_FINANCE_JOB_ID,
     DART_INGEST_JOB_ID,
     DATA_REFRESH_JOB_ID,
     EDGAR_INGEST_JOB_ID,
@@ -28,6 +29,7 @@ from app.scheduler.jobs import (
     US_MARKET_REFRESH_JOB_ID,
     run_daily_analysis_job,
     run_daily_report_job,
+    run_dart_finance_job,
     run_dart_ingest_job,
     run_data_refresh_job,
     run_edgar_ingest_job,
@@ -154,6 +156,16 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             seconds=s.intraday_event_monitor_interval_seconds
         ),
         env_enabled=lambda s: s.intraday_event_monitor_scheduler_enabled,
+    ),
+    ControllableJob(
+        job_id=DART_FINANCE_JOB_ID,
+        label_ko="DART 재무제표 수집 (XBRL)",
+        schedule_desc="매일 02:00",
+        func=run_dart_finance_job,
+        build_trigger=lambda s: CronTrigger(
+            hour=s.dart_finance_scheduler_hour, minute=s.dart_finance_scheduler_minute
+        ),
+        env_enabled=lambda s: s.dart_finance_scheduler_enabled,
     ),
 ]
 

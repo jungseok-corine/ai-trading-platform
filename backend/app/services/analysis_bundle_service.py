@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import MarketCode
+from app.domain.repositories.financial_statement import FinancialStatementRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.macro_regime_service import MacroRegimeService
 from app.services.news_curator_service import NewsCuratorService
@@ -44,6 +45,7 @@ class AnalysisBundleService:
         self._macro_svc = MacroRegimeService(session)
         self._news_curator = NewsCuratorService(session)
         self._retro_svc = ProposalRetrospectiveService(session)
+        self._finstat_repo = FinancialStatementRepository(session)
 
     async def build_full(
         self,
@@ -83,6 +85,8 @@ class AnalysisBundleService:
             market=market, symbol_code=symbol_code, limit=news_limit
         )
 
+        financials = await self._build_financials(symbol_code)
+
         return {
             "meta": {
                 "strategy_id": version.strategy_id,
@@ -96,6 +100,21 @@ class AnalysisBundleService:
             "trade_tape": trade_tape,
             "macro": macro,
             "news": news,
+            "financials": financials,
             "retrospective": await self._retro_svc.summary(),
             "analyst_note": analyst_note,
+        }
+
+    async def _build_financials(self, symbol_code: str | None) -> dict | None:
+        """symbol_code의 최신 연간 재무제표 요약을 반환한다. 없으면 None."""
+        if not symbol_code:
+            return None
+        row = await self._finstat_repo.get_latest_annual(symbol_code)
+        if row is None:
+            return None
+        return {
+            "bsns_year": row.bsns_year,
+            "reprt_code": row.reprt_code,
+            "fs_div": row.fs_div,
+            "key_items": row.key_items,
         }

@@ -24,7 +24,7 @@
 
 ---
 
-### C-2.21.0 — DartLab Feasibility Spike `READY`
+### C-2.21.0 — DartLab Feasibility Spike `DONE`
 
 | 항목 | 내용 |
 |------|------|
@@ -35,7 +35,7 @@
 
 ---
 
-### C-2.21.1 — Market Intelligence Core Foundation `TODO`
+### C-2.21.1 — Market Intelligence Core Foundation `READY`
 
 | 항목 | 내용 |
 |------|------|

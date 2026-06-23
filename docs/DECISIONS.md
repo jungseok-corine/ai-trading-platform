@@ -115,17 +115,42 @@ Paper(모의투자) 영역의 연구 루프(수집→스캔→배정→실험→
 ## D-6. DartLab을 Market Intelligence 데이터 어댑터 후보로 검증한다
 
 **날짜**: 2026-06-23  
-**상태**: 검증 중 (C-2.21.0 진행 예정)
+**상태**: ✅ 검증 완료 (C-2.21.0)
+
+**검증 결론**: **부분 사용** — 메인 백엔드 의존성으로는 비권장.
+
+**이유**:
+- DartLab은 분석가/연구자용 노트북 도구. 서버 앱 설계가 아님.
+- 핵심 의존성 충돌: DuckDB + HuggingFace 패턴이 PostgreSQL + httpx 패턴과 근본적으로 다름.
+- 패키지 무게: wheel 22.5 MB, 의존성 포함 시 200~500 MB.
+- 비동기 미지원: FastAPI 앱에서 `asyncio.to_thread` 래핑 필요.
+
+**유일한 가치**: DART XBRL 재무제표 (손익계산서, 재무상태표, 현금흐름표) — 우리에게 없음.
+
+**결정**: DartLab 없이 DART 재무제표 API(`/api/fnlttSinglAcnt.json`)를 직접 호출하는  
+경량 `DartFinanceProvider`를 기존 패턴으로 구현한다 (C-2.21.1에서).
+
+상세 분석 → `docs/design/C-2.21.0-dartlab-spike.md`
+
+---
+
+## D-9. DART 재무제표는 DartLab 없이 직접 구현한다
+
+**날짜**: 2026-06-23  
+**상태**: 확정
 
 **결정 내용**:  
-DartLab(또는 유사 라이브러리)을 우리 Market Intelligence Core의  
-데이터 어댑터로 사용할 수 있는지 Feasibility Spike로 먼저 검증한다.
+DART XBRL 재무제표(손익계산서·재무상태표·현금흐름표)를  
+DartLab 없이 DART OpenAPI를 직접 호출하는 경량 구현으로 수집한다.
 
-**배경**:  
-현재 `DartProvider`는 직접 구현했지만, 더 풍부한 공시 메타데이터·뉴스·재무 데이터가 필요하다.  
-DartLab이 이를 커버한다면 직접 구현보다 유지보수 부담이 줄어든다.
+**구현 패턴**: 기존 `DartProvider` / `EdgarProvider`와 동일한 패턴:
+- `httpx.AsyncClient` 기반 비동기 API 호출
+- `MockTransport` 테스트 격리
+- 결과를 PostgreSQL에 저장
+- 새 스케줄러 잡 기본 비활성
 
-**검증 결론은 C-2.21.0 완료 후 여기에 추가된다.**
+**사용 DART API**: `/api/fnlttSinglAcnt.json` (단일 재무제표 항목별 조회)  
+**필요 설정**: `DART_API_KEY` (기존 공시 수집에서 이미 사용 중)
 
 ---
 

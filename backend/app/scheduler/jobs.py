@@ -37,6 +37,7 @@ DAILY_ANALYSIS_JOB_ID = "daily_analysis"
 DART_INGEST_JOB_ID = "dart_ingest"
 EDGAR_INGEST_JOB_ID = "edgar_ingest"
 OPERATIONS_DIGEST_JOB_ID = "operations_digest"
+DART_FINANCE_JOB_ID = "dart_finance"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -587,3 +588,24 @@ async def sync_trading_state_job(app: FastAPI) -> None:
         finished_at = datetime.now(KST)
         app.state.trading_state_sync_last_run_at = finished_at
         await _record_run(TRADING_STATE_SYNC_JOB_ID, started_at, finished_at, status, error_message, summary)
+
+
+async def run_dart_finance_job(app: FastAPI) -> None:
+    """watchlist 종목의 DART XBRL 재무제표를 수집·저장한다 (C-2.21.1).
+
+    기본 비활성. 매일 새벽 배치 실행. read-only 수집이며 주문과 무관하다.
+    """
+    from app.services.dart_finance_ingest_service import DartFinanceIngestService
+
+    try:
+        async with async_session_factory() as session:
+            summary = await DartFinanceIngestService(session).ingest()
+        logger.info(
+            "dart finance ingest: attempted=%s ok=%s failed=%s upserted=%s",
+            summary.symbols_attempted, summary.symbols_ok,
+            summary.symbols_failed, summary.records_upserted,
+        )
+        app.state.dart_finance_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
+        logger.error("dart finance job failed: %s", exc_message(exc))
+        app.state.dart_finance_last_error = exc_message(exc)

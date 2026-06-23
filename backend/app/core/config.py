@@ -191,6 +191,10 @@ class Settings(BaseSettings):
     dart_min_materiality: float = 0.5
     dart_ingest_scheduler_enabled: bool = False
     dart_ingest_interval_seconds: int = 600  # 장중 10분 폴링
+    # DART 재무제표 수집 (C-2.21.1). 기본 비활성 — watchlist 종목 연간/반기 재무제표 저장.
+    dart_finance_scheduler_enabled: bool = False
+    dart_finance_scheduler_hour: int = 2     # 매일 새벽 2시 (시장 마감 후 배치)
+    dart_finance_scheduler_minute: int = 0
     # §7.1 인트라데이 이벤트 감시 — 보유/활성 종목 한정 장중 공시 폴링(기본 off).
     intraday_event_monitor_scheduler_enabled: bool = False
     intraday_event_monitor_interval_seconds: int = 600  # 장중 10분
