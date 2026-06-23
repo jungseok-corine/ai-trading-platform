@@ -249,6 +249,7 @@ _VALID_UNIVERSES = frozenset({"scanner_candidates", "watchlist"})
 
 # 멀티마켓: 시장 구분 + 미국 거래소 코드(EXCD).
 _VALID_MARKETS = frozenset({"KR", "US"})
+_VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct"})
 _VALID_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
 
 
@@ -274,6 +275,10 @@ class StrategyVersionParameters(BaseModel):
     short_window: int = Field(default=5, gt=0)
     long_window: int = Field(default=20, gt=0)
     quantity: int = Field(default=1, gt=0)
+    # 포지션 사이징: fixed(고정 수량) / cash_amount(1회 투입 금액) / cash_pct(가용현금 %).
+    quantity_mode: str = "fixed"
+    cash_amount: float = Field(default=0.0, ge=0)
+    cash_pct: float = Field(default=0.0, ge=0, le=100)
     timeframe: str = "1m"
     account_id: int | None = None
     enabled: bool = True
@@ -340,6 +345,15 @@ class StrategyVersionParameters(BaseModel):
             raise ValueError("universe가 없으면 symbol_code가 필요합니다.")
         if self.auto_trade_enabled and self.account_id is None:
             raise ValueError("auto_trade_enabled=true 이려면 account_id가 필요합니다.")
+        if self.quantity_mode not in _VALID_QUANTITY_MODES:
+            raise ValueError(
+                f"quantity_mode={self.quantity_mode!r}은 유효하지 않습니다. "
+                f"허용값: {sorted(_VALID_QUANTITY_MODES)}"
+            )
+        if self.quantity_mode == "cash_amount" and self.cash_amount <= 0:
+            raise ValueError("quantity_mode=cash_amount 이려면 cash_amount > 0 이어야 합니다.")
+        if self.quantity_mode == "cash_pct" and not (0 < self.cash_pct <= 100):
+            raise ValueError("quantity_mode=cash_pct 이려면 cash_pct가 0 초과 100 이하여야 합니다.")
         if self.flow_mode not in _VALID_FLOW_MODES:
             raise ValueError(
                 f"flow_mode={self.flow_mode!r}은 유효하지 않습니다. "

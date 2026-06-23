@@ -43,6 +43,12 @@ class TradeService:
         self._risk_service = risk_service
         self._trade_repo = TradeRepository(session)
 
+    async def get_available_cash(self, market: str = "KR"):
+        """해당 시장 계좌의 가용 현금(총예수금)을 반환한다(포지션 사이징용)."""
+        broker = self._select_broker(market)
+        balance = await broker.get_account_balance()
+        return balance.summary.total_deposit
+
     def _select_broker(self, market: str) -> BrokerClient:
         """주문 시장(KR/US)에 맞는 브로커를 고른다.
 
