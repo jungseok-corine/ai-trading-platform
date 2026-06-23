@@ -95,6 +95,13 @@ export interface StrategyRunResult {
   error_category: string | null;
 }
 
+export interface Account {
+  id: number;
+  account_type: string; // paper / live
+  broker_account_no: string;
+  alias: string | null;
+}
+
 export interface Position {
   id: number;
   account_id: number;

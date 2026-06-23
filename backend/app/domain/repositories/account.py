@@ -12,3 +12,7 @@ class AccountRepository(BaseRepository[Account]):
             select(Account).where(Account.broker_account_no == broker_account_no)
         )
         return result.scalars().first()
+
+    async def list_all(self) -> list[Account]:
+        result = await self.session.execute(select(Account).order_by(Account.id))
+        return list(result.scalars().all())

@@ -1,5 +1,6 @@
 import { useSettings } from "../i18n/SettingsContext";
 import type { StrategyVersionParameters } from "../types";
+import AccountSelect from "./AccountSelect";
 import AutoTradeToggle from "./AutoTradeToggle";
 
 interface StrategyVersionParametersFieldsProps {
@@ -192,13 +193,11 @@ export default function StrategyVersionParametersFields({
             <>
               <div className="form-row">
                 <label htmlFor={`${idPrefix}-universe-account`}>{sp.labelAccountId}</label>
-                <input
+                <AccountSelect
                   id={`${idPrefix}-universe-account`}
-                  type="number"
-                  value={parameters.account_id ?? ""}
-                  onChange={(e) =>
-                    update("account_id", e.target.value === "" ? null : Number(e.target.value))
-                  }
+                  value={parameters.account_id ?? null}
+                  onChange={(next) => update("account_id", next)}
+                  paperOnly
                 />
               </div>
               <div className="form-row">
@@ -534,11 +533,10 @@ export default function StrategyVersionParametersFields({
       {!universeMode && (
         <div className="form-row">
           <label htmlFor={`${idPrefix}-account-id`}>{sp.labelAccountId}</label>
-          <input
+          <AccountSelect
             id={`${idPrefix}-account-id`}
-            type="number"
-            value={parameters.account_id ?? ""}
-            onChange={(e) => update("account_id", e.target.value === "" ? null : Number(e.target.value))}
+            value={parameters.account_id ?? null}
+            onChange={(next) => update("account_id", next)}
           />
         </div>
       )}
