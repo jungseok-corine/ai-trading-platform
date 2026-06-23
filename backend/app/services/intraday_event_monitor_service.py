@@ -15,18 +15,26 @@ from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.dart_provider import DartProvider
 from app.services.dart_ingest_service import DartIngestService
 from app.services.disclosure_alert_service import DisclosureAlertService
+from app.services.edgar_ingest_service import EdgarIngestService
+from app.services.edgar_provider import EdgarProvider
 
 
 class IntradayEventMonitorService:
-    """보유 포지션 + 활성 단일종목 전략 종목에 한해 장중 DART 공시를 감시한다.
+    """보유 포지션 + 활성 단일종목 전략 종목에 한해 장중 공시를 감시한다.
 
-    DART는 한국 공시 전용이므로 한국(KR) 종목만 대상으로 한다. 미국 종목은 추후 SEC EDGAR
-    연동 시 별도로 합류한다.
+    한국(KR) 종목은 DART, 미국(US) 종목은 SEC EDGAR로 좁게 감시한다. 범위를 좁혀(보유 +
+    활성 단일종목 전략) 비용·노이즈를 최소화한다. read-only — 감지·표시만.
     """
 
-    def __init__(self, session: AsyncSession, provider: DartProvider | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        provider: DartProvider | None = None,
+        edgar_provider: EdgarProvider | None = None,
+    ) -> None:
         self._session = session
         self._ingest = DartIngestService(session, provider)
+        self._edgar_ingest = EdgarIngestService(session, edgar_provider)
         self._alert = DisclosureAlertService(session)
 
     async def resolve_monitored_symbols(self) -> set[str]:
@@ -54,20 +62,50 @@ class IntradayEventMonitorService:
                 symbols.add(code)
         return symbols
 
+    async def resolve_monitored_us_symbols(self) -> set[str]:
+        """미국 감시 대상 = 활성/테스팅 전략의 단일 US 종목(유니버스 모드 제외).
+
+        포지션 모델에 시장 구분이 없어 US는 전략 파라미터(market=US)로만 좁힌다.
+        """
+        symbols: set[str] = set()
+        versions = await StrategyVersionRepository(self._session).list_active()
+        for v in versions:
+            params = v.parameters or {}
+            if params.get("universe"):
+                continue
+            if params.get("market") != "US":
+                continue
+            code = params.get("symbol_code")
+            if code:
+                symbols.add(code)
+        return symbols
+
     async def run_once(self, min_score: float = 0.6) -> dict:
-        """감시 대상 종목의 장중 공시를 수집한다. 대상이 없으면 건너뛴다."""
-        symbols = await self.resolve_monitored_symbols()
-        if not symbols:
+        """감시 대상(KR=DART, US=EDGAR) 종목의 장중 공시를 수집한다. 대상이 없으면 건너뛴다."""
+        kr = await self.resolve_monitored_symbols()
+        us = await self.resolve_monitored_us_symbols()
+        if not kr and not us:
             return {"monitored": 0, "skipped_reason": "no_monitored_symbols",
                     "fetched": 0, "matched": 0, "material": 0, "created": 0}
-        summary = await self._ingest.ingest(symbols=list(symbols), min_score=min_score)
-        return {"monitored": len(symbols), **summary.to_dict()}
+
+        totals = {"fetched": 0, "matched": 0, "material": 0, "created": 0}
+        if kr:
+            s = await self._ingest.ingest(symbols=list(kr), min_score=min_score)
+            for k in totals:
+                totals[k] += getattr(s, k)
+        if us:
+            s = await self._edgar_ingest.ingest(symbols=list(us), min_score=min_score)
+            for k in totals:
+                totals[k] += getattr(s, k)
+
+        return {"monitored": len(kr) + len(us), "monitored_kr": len(kr),
+                "monitored_us": len(us), **totals}
 
     async def recent_alerts(
         self, hours: int = 8, min_score: float = 0.6, limit: int = 50
     ) -> list[dict]:
-        """감시 대상 종목의 최근 중요 공시 알림(보유종목 한정)."""
-        symbols = await self.resolve_monitored_symbols()
+        """감시 대상 종목의 최근 중요 공시 알림(보유종목/활성 전략 한정, KR+US)."""
+        symbols = await self.resolve_monitored_symbols() | await self.resolve_monitored_us_symbols()
         if not symbols:
             return []
         return await self._alert.recent(

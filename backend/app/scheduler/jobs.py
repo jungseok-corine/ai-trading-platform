@@ -35,6 +35,7 @@ STRATEGY_REVIEW_JOB_ID = "strategy_review"
 US_MARKET_REFRESH_JOB_ID = "us_market_refresh"
 DAILY_ANALYSIS_JOB_ID = "daily_analysis"
 DART_INGEST_JOB_ID = "dart_ingest"
+EDGAR_INGEST_JOB_ID = "edgar_ingest"
 OPERATIONS_DIGEST_JOB_ID = "operations_digest"
 
 
@@ -89,6 +90,38 @@ async def run_intraday_event_monitor_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 감시 실패가 스케줄러를 중단시키지 않도록
         logger.error("intraday event monitor job failed: %s", exc_message(exc))
         app.state.intraday_event_monitor_last_error = exc_message(exc)
+
+
+async def run_edgar_ingest_job(app: FastAPI) -> None:
+    """보유/관심 US 종목의 중요 SEC 공시(8-K/10-K/10-Q 등)를 가져와 저장한다 (C-5.20).
+
+    미국장이 닫혀 있으면(주말/심야) 건너뛴다. 8-K 등 수시공시는 장후에도 자주 올라오므로
+    프리·정규·애프터 시간대(extended)를 폴링한다. 중요도 미달은 거른다. read-only.
+    """
+    from app.common.market_session import MarketPhase, us_market_phase
+    from app.core.config import get_settings
+    from app.services.edgar_ingest_service import EdgarIngestService
+
+    if us_market_phase(datetime.now(KST)) == MarketPhase.CLOSED:
+        app.state.edgar_ingest_last_run_at = datetime.now(KST)
+        return
+
+    try:
+        settings = get_settings()
+        async with async_session_factory() as session:
+            summary = await EdgarIngestService(session).ingest(
+                since_days=settings.edgar_since_days,
+                min_score=settings.edgar_min_materiality,
+                max_symbols=settings.edgar_max_symbols,
+            )
+        logger.info(
+            "edgar ingest: resolved=%s fetched=%s material=%s created=%s",
+            summary.resolved, summary.fetched, summary.material, summary.created,
+        )
+        app.state.edgar_ingest_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
+        logger.error("edgar ingest job failed: %s", exc_message(exc))
+        app.state.edgar_ingest_last_error = exc_message(exc)
 
 
 async def run_operations_digest_job(app: FastAPI) -> None:

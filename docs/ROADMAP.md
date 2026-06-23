@@ -197,6 +197,14 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.20** ✅: **SEC EDGAR 공시 수집(미국) 1차** — 미국 공시(8-K/10-K/10-Q 등)를 DART와
+  동형으로 수집. `EdgarProvider`(submissions API + company_tickers.json 티커→CIK 캐시, 연락처
+  User-Agent 필수) + `edgar_materiality`(form type 중요도: 8-K/10-K/10-Q=high, 13D/G·424B·S-1=
+  medium, Form 4=low) + `EdgarIngestService` → news_events(source="edgar", market=US, url 인덱스
+  페이지 dedup). 잡 `edgar_ingest`(기본 off, 미국장 게이트, 자율 잡 제어판 노출) + `POST
+  /edgar/ingest`. 인트라데이 감시(§7.1)를 US로 확장(활성 단일종목 US 전략 → EDGAR), 공시 알림이
+  KR(dart)+US(edgar) 통합 노출. read-only — 감지·표시만. `tests/test_c5_edgar_ingest.py`(MockTransport).
+
 - **C-5.19** ✅: **유니버스 자동매매(안전장치)** — 유니버스(스캐너/관심종목) 전략도 자동매매
   가능하게 열되, 사람의 **명시 옵트인** `universe_auto_trade=true`(단일종목용 `auto_trade_enabled`와
   분리) + **모의계좌(PAPER) 전용** 강제(`_is_paper_account`, 실계좌면 코드가 차단) + **회당 주문
