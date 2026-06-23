@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.domain.repositories.investor_flow import InvestorFlowRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.scheduler.lifecycle import reschedule_jobs
+from app.trading.strategy.schemas import params_auto_trades
 from app.services.market_data_service import MarketDataService
 from app.services.order_sync_service import OrderSyncService
 from app.services.risk_service import RiskService
@@ -63,8 +64,9 @@ async def get_engine_status(
     scheduler = getattr(request.app.state, "scheduler", None)
     registered_jobs = [job.id for job in scheduler.get_jobs()] if scheduler is not None else []
     active_versions = await StrategyVersionRepository(session).list_active()
+    # 단일종목(auto_trade_enabled) + 유니버스(universe_auto_trade) 모두 집계 — 러너 분기와 동일.
     auto_trade_enabled_count = sum(
-        1 for v in active_versions if (v.parameters or {}).get("auto_trade_enabled", False)
+        1 for v in active_versions if params_auto_trades(v.parameters)
     )
     recent_run_has_failure = await SchedulerRunService(session).has_recent_failure(limit=20)
 

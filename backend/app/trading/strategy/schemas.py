@@ -253,6 +253,18 @@ _VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct"})
 _VALID_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
 
 
+def params_auto_trades(params: dict | None) -> bool:
+    """이 파라미터가 자동매매를 시도하는 설정인지(러너 분기와 동일).
+
+    유니버스 모드는 universe_auto_trade(명시 옵트인), 단일종목은 auto_trade_enabled.
+    대시보드 카운트·안전 점검이 러너와 같은 기준을 쓰게 하는 공용 헬퍼.
+    """
+    p = params or {}
+    if p.get("universe"):
+        return bool(p.get("universe_auto_trade", False))
+    return bool(p.get("auto_trade_enabled", False))
+
+
 class StrategyVersionParameters(BaseModel):
     """strategy_versions.parameters JSONB에 저장되는 구조.
 
