@@ -395,6 +395,9 @@ export interface Translations {
     labelEnabled: string;
     labelExitOnClose: string;
     hintExitOnClose: string;
+    labelStopLossPct: string;
+    labelTakeProfitPct: string;
+    hintSlTp: string;
     labelVolumeWindow: string;
     labelVolumeMultiplier: string;
     strategyTypeMovingAverage: string;
@@ -924,6 +927,10 @@ export const translations: Record<Language, Translations> = {
       labelExitOnClose: "종가 청산 (장 마감 동시호가)",
       hintExitOnClose:
         "켜면 정규장 마감 동시호가(15:20~15:30)에 당일 포지션을 종가로 청산하는 매도 신호를 냅니다. 인트라데이 전략의 오버나잇 보유 방지용.",
+      labelStopLossPct: "손절 기준 (%)",
+      labelTakeProfitPct: "익절 기준 (%)",
+      hintSlTp:
+        "손절: 평가손익률이 해당 값 이하로 떨어지면 강제 매도 (예: 2 → -2% 이하 손절). 익절: 해당 값 이상이면 강제 매도 (예: 5 → +5% 이상 익절). 비워두면 비활성.",
       labelVolumeWindow: "거래량 SMA 기간",
       labelVolumeMultiplier: "거래량 배수",
       strategyTypeMovingAverage: "이동평균 교차",
@@ -1454,6 +1461,10 @@ export const translations: Record<Language, Translations> = {
       labelExitOnClose: "Exit on close (closing auction)",
       hintExitOnClose:
         "When on, emits a sell signal to liquidate the day's position at the closing auction (15:20–15:30 KST). Prevents intraday strategies from holding overnight.",
+      labelStopLossPct: "Stop Loss (%)",
+      labelTakeProfitPct: "Take Profit (%)",
+      hintSlTp:
+        "Stop Loss: force-sell when unrealized P&L ≤ -X% (e.g. 2 → sell if ≤ -2%). Take Profit: force-sell when ≥ +X% (e.g. 5 → sell if ≥ +5%). Leave blank to disable.",
       labelVolumeWindow: "Volume SMA Period",
       labelVolumeMultiplier: "Volume Multiplier",
       strategyTypeMovingAverage: "Moving Average Cross",

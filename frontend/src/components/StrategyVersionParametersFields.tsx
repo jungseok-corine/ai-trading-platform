@@ -559,6 +559,35 @@ export default function StrategyVersionParametersFields({
         />
       </div>
       <p className="section-description">{sp.hintExitOnClose}</p>
+      <div className="form-row">
+        <label htmlFor={`${idPrefix}-stop-loss-pct`}>{sp.labelStopLossPct}</label>
+        <input
+          id={`${idPrefix}-stop-loss-pct`}
+          type="number"
+          min="0"
+          step="0.1"
+          placeholder="-"
+          value={parameters.stop_loss_pct ?? ""}
+          onChange={(e) =>
+            update("stop_loss_pct", e.target.value === "" ? null : parseFloat(e.target.value))
+          }
+        />
+      </div>
+      <div className="form-row">
+        <label htmlFor={`${idPrefix}-take-profit-pct`}>{sp.labelTakeProfitPct}</label>
+        <input
+          id={`${idPrefix}-take-profit-pct`}
+          type="number"
+          min="0"
+          step="0.1"
+          placeholder="-"
+          value={parameters.take_profit_pct ?? ""}
+          onChange={(e) =>
+            update("take_profit_pct", e.target.value === "" ? null : parseFloat(e.target.value))
+          }
+        />
+      </div>
+      <p className="section-description">{sp.hintSlTp}</p>
       {!universeMode && (
         <div className="form-row">
           <AutoTradeToggle

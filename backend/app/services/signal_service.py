@@ -40,6 +40,36 @@ def _latest_candle_age_minutes(candles: list[MinuteCandle], now: datetime) -> fl
     return (now - latest_ts).total_seconds() / 60.0
 
 
+def _build_forced_sell_signal(
+    symbol_code: str,
+    candles: list[MinuteCandle],
+    strategy_version_id: int | None,
+    quantity: int,
+    reason: str,
+    extra_meta: dict | None = None,
+) -> Signal | None:
+    """강제 매도 신호를 만든다(최신 종가 기준). 장 마감 청산·손절·익절에 공용."""
+    if not candles:
+        return None
+    last = candles[-1]
+    try:
+        ts = candle_timestamp(last)
+    except (ValueError, TypeError):
+        ts = None
+    meta: dict = {"candle_ts": ts}
+    if extra_meta:
+        meta.update(extra_meta)
+    return Signal(
+        symbol_code=symbol_code,
+        side=TradeSide.SELL,
+        quantity=quantity,
+        price=last.close_price,
+        reason=reason,
+        strategy_version_id=strategy_version_id,
+        metadata=meta,
+    )
+
+
 def _build_closing_exit_signal(
     symbol_code: str,
     candles: list[MinuteCandle],
@@ -51,21 +81,10 @@ def _build_closing_exit_signal(
     인트라데이 전략이 당일 포지션을 종가에 정리하도록 하는 '종가 매도 결정' 신호.
     실제 청산 여부는 이후 자동매매/리스크/보유수량 검증에서 가려진다(보유 없으면 미체결).
     """
-    if not candles:
-        return None
-    last = candles[-1]
-    try:
-        ts = candle_timestamp(last)
-    except (ValueError, TypeError):
-        ts = None
-    return Signal(
-        symbol_code=symbol_code,
-        side=TradeSide.SELL,
-        quantity=quantity,
-        price=last.close_price,
+    return _build_forced_sell_signal(
+        symbol_code, candles, strategy_version_id, quantity,
         reason="종가 청산 (장 마감 동시호가)",
-        strategy_version_id=strategy_version_id,
-        metadata={"candle_ts": ts, "exit_on_close": True},
+        extra_meta={"exit_on_close": True},
     )
 
 
@@ -197,6 +216,8 @@ class SignalService:
         market: str | None = None,
         exchange: str | None = None,
         force_exit: bool = False,
+        force_sell_reason: str | None = None,
+        force_sell_quantity: int | None = None,
     ) -> SignalLog | None:
         # 같은 run에서 여러 전략이 동일 종목을 볼 때 캔들을 1회만 조회하도록 캐시한다.
         # (KIS 호출 수를 전략 수만큼 줄여 rate limit/지연을 완화)
@@ -228,12 +249,19 @@ class SignalService:
             await self._session.commit()
             return None
 
-        # Phase B 종가 매도 결정: 장 마감 동시호가 단계에서 exit_on_close 전략은
-        # 일반 신호 대신 '종가 청산' 매도 신호를 낸다(인트라데이 전략의 당일 청산).
+        # 강제 청산 우선 순위: exit_on_close(장 마감) > stop_loss/take_profit(손절/익절).
+        # 보유 없는 종목에 SELL 신호가 가도 브로커/리스크 레이어에서 자연스럽게 걸러진다.
         if force_exit:
             signal = _build_closing_exit_signal(
                 symbol_code, candles, strategy_version_id,
                 quantity=(strategy_params or {}).get("quantity", 1),
+            )
+        elif force_sell_reason is not None:
+            qty = force_sell_quantity or (strategy_params or {}).get("quantity", 1)
+            signal = _build_forced_sell_signal(
+                symbol_code, candles, strategy_version_id, qty,
+                reason=force_sell_reason,
+                extra_meta={"forced": True},
             )
         else:
             context: StrategyContext | None = None

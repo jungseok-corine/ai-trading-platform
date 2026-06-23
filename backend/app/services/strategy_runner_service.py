@@ -163,21 +163,61 @@ class StrategyRunnerService:
         ref = now or datetime.now(KST)
         exit_on_close = bool(params.get("exit_on_close", False))
 
+        # 손절/익절 설정 시 브로커에서 현재 보유 포지션을 가져온다(run당 1회 조회).
+        holdings: dict = {}
+        stop_loss_pct = params.get("stop_loss_pct")
+        take_profit_pct = params.get("take_profit_pct")
+        if (stop_loss_pct is not None or take_profit_pct is not None) and self._trade_service is not None:
+            market_key = params.get("market", "KR")
+            try:
+                holdings = await self._trade_service.get_holdings(market_key)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("손절/익절 체크를 위한 잔고 조회 실패: %s", exc)
+
         results: list[StrategyRunResult] = []
         orders_this_run = 0
         for resolved in symbols:
             # Phase B: 종가 동시호가 단계 + exit_on_close 전략이면 '종가 청산' 매도로 강제.
             force_exit = exit_on_close and is_closing_auction(resolved.market, ref)
+            # 손절/익절: exit_on_close보다 낮은 우선순위(장 마감 청산이 우선).
+            force_sell_reason: str | None = None
+            force_sell_quantity: int | None = None
+            if not force_exit and holdings:
+                force_sell_reason, force_sell_quantity = self._check_sl_tp(
+                    resolved.symbol_code, holdings, stop_loss_pct, take_profit_pct
+                )
             # 회당 주문 상한: 상한에 도달하면 이후 종목은 신호만(주문 시도 안 함).
             effective_auto = auto_trade_enabled and orders_this_run < max_orders_per_run
             result = await self._run_one(
                 version, strategy, resolved, params, effective_auto,
                 candle_cache, force_exit,
+                force_sell_reason=force_sell_reason,
+                force_sell_quantity=force_sell_quantity,
             )
             results.append(result)
             if result.trade_attempted:
                 orders_this_run += 1
         return results
+
+    @staticmethod
+    def _check_sl_tp(
+        symbol_code: str,
+        holdings: dict,
+        stop_loss_pct: float | None,
+        take_profit_pct: float | None,
+    ) -> tuple[str | None, int | None]:
+        """보유 포지션의 평가손익률이 손절/익절 임계치를 벗어나면 (강제매도사유, 수량)을 반환한다."""
+        holding = holdings.get(symbol_code)
+        if holding is None:
+            return None, None
+        pnl_rate = float(holding.profit_loss_rate)
+        if stop_loss_pct is not None and pnl_rate <= -float(stop_loss_pct):
+            reason = f"손절 (평가손익률 {pnl_rate:.2f}% ≤ -{stop_loss_pct}%)"
+            return reason, int(holding.quantity)
+        if take_profit_pct is not None and pnl_rate >= float(take_profit_pct):
+            reason = f"익절 (평가손익률 {pnl_rate:.2f}% ≥ +{take_profit_pct}%)"
+            return reason, int(holding.quantity)
+        return None, None
 
     async def _is_paper_account(self, account_id: int | None) -> bool:
         """유니버스 자동매매 가드: 계좌가 모의(PAPER)인지 확인한다."""
@@ -198,6 +238,8 @@ class StrategyRunnerService:
         auto_trade_enabled: bool,
         candle_cache: dict | None = None,
         force_exit: bool = False,
+        force_sell_reason: str | None = None,
+        force_sell_quantity: int | None = None,
     ) -> StrategyRunResult:
         symbol_code = resolved.symbol_code
         result = StrategyRunResult(
@@ -214,6 +256,8 @@ class StrategyRunnerService:
                 strategy, symbol_code, version.id, strategy_params=params,
                 candle_cache=candle_cache, market=resolved.market, exchange=resolved.exchange,
                 force_exit=force_exit,
+                force_sell_reason=force_sell_reason,
+                force_sell_quantity=force_sell_quantity,
             )
         except Exception as exc:  # noqa: BLE001 - 한 종목 실패가 전체 runner를 중단시키지 않도록
             result.error = f"market data error: {exc_message(exc)}"

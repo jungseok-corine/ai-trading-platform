@@ -49,6 +49,18 @@ class TradeService:
         balance = await broker.get_account_balance()
         return balance.summary.total_deposit
 
+    async def get_holdings(self, market: str = "KR") -> dict:
+        """해당 시장 브로커의 현재 보유 종목을 {symbol_code: AccountHolding} 맵으로 반환한다.
+
+        손절/익절 임계치 체크에 사용한다. 브로커 미구성이면 빈 dict.
+        """
+        try:
+            broker = self._select_broker(market)
+        except RuntimeError:
+            return {}
+        balance = await broker.get_account_balance()
+        return {h.symbol_code: h for h in balance.holdings}
+
     def _select_broker(self, market: str) -> BrokerClient:
         """주문 시장(KR/US)에 맞는 브로커를 고른다.
 

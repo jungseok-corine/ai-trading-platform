@@ -300,6 +300,10 @@ class StrategyVersionParameters(BaseModel):
     auto_trade_enabled: bool = False
     # Phase B: 장 마감 동시호가 단계에서 당일 포지션을 '종가 청산' 매도로 정리한다(인트라데이).
     exit_on_close: bool = False
+    # 손절/익절 기준 (%). 설정 시 평가손익률이 임계치를 벗어나면 전략 신호와 무관하게 강제 매도.
+    # stop_loss_pct=2 → 평가손익률 ≤ -2% 이면 손절, take_profit_pct=5 → ≥ +5% 이면 익절.
+    stop_loss_pct: float | None = None
+    take_profit_pct: float | None = None
     # volume_confirmed_ma_cross 전용 파라미터
     volume_window: int = Field(default=20, gt=0)
     volume_multiplier: float = Field(default=1.5, gt=0)

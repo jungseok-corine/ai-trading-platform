@@ -223,6 +223,8 @@ export interface StrategyVersionParameters {
   enabled: boolean;
   auto_trade_enabled: boolean;
   exit_on_close: boolean;
+  stop_loss_pct?: number | null;
+  take_profit_pct?: number | null;
   // volume_confirmed_ma_cross 전용
   volume_window: number;
   volume_multiplier: number;
@@ -558,6 +560,8 @@ export const DEFAULT_STRATEGY_VERSION_PARAMETERS: StrategyVersionParameters = {
   enabled: true,
   auto_trade_enabled: false,
   exit_on_close: false,
+  stop_loss_pct: null,
+  take_profit_pct: null,
   volume_window: 20,
   volume_multiplier: 1.5,
   flow_lookback_days: 5,
