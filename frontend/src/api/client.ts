@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  Account,
   AIProviderStatusRead,
   AnalysisRun,
   AnalysisRunCreateRequest,
@@ -40,6 +41,11 @@ export const apiClient = axios.create({ baseURL: BASE_URL });
 // AI analysis create 전용 — 실제 LLM 호출이 최대 ~2분 걸릴 수 있으므로
 // 전역 timeout보다 훨씬 길게 설정한다.
 const AI_ANALYSIS_TIMEOUT_MS = 210_000; // 3.5분
+
+export async function getAccounts(): Promise<Account[]> {
+  const { data } = await apiClient.get<Account[]>("/account/list");
+  return data;
+}
 
 export async function getEngineStatus(): Promise<EngineStatus> {
   const { data } = await apiClient.get<EngineStatus>("/engine/status");
