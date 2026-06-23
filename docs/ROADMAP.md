@@ -197,6 +197,14 @@ long_window +8로 강화, 근거에 레짐 명시. (스캐너+전략 양쪽 제�
   포착용. registry/메타/스키마/프론트 폼 노출. `scripts/create_us_strategies.py`로 US 유니버스
   전략(momentum_surge/breakout/rsi, universe_market=US) 시드.
 
+- **C-5.21** ✅: **미장 분석에 US 공시 주입 + 분석 시장 추론** — 수집한 EDGAR 공시를 미국 전략
+  분석 번들에 실제로 흘려보낸다. (1) `AnalysisBundleService.build_full(market=None)`이 전략
+  파라미터(`market`/`universe_market`)에서 분석 시장을 추론(`resolve_analysis_market`) → US
+  전략은 daily_analysis에서도 US 뉴스/공시를 받음(이전엔 KR 고정이라 EDGAR가 안 들어옴).
+  (2) 큐레이터가 수집 시 저장한 중요도(`raw_payload.materiality`)를 우선 → 영어 EDGAR 헤드라인이
+  한국어 키워드 채점기에 다시 걸려 떨어지는 문제 해결. (3) 프롬프트에 공시 source 표기(SEC 공시
+  구분). `tests/test_c5_us_analysis_news.py`.
+
 - **C-5.20** ✅: **SEC EDGAR 공시 수집(미국) 1차** — 미국 공시(8-K/10-K/10-Q 등)를 DART와
   동형으로 수집. `EdgarProvider`(submissions API + company_tickers.json 티커→CIK 캐시, 연락처
   User-Agent 필수) + `edgar_materiality`(form type 중요도: 8-K/10-K/10-Q=high, 13D/G·424B·S-1=

@@ -83,7 +83,7 @@ def format_bundle_for_prompt(bundle: dict, assessment: dict | None = None) -> st
     news = bundle.get("news") or []
     if news:
         items = "; ".join(
-            f"[{n.get('category', '?')}/{n.get('sentiment', '?')}] {n.get('headline', '')}"
+            f"[{n.get('source', '?')}/{n.get('category', '?')}] {n.get('headline', '')}"
             for n in news[:_MAX_NEWS]
         )
         lines.append(f"■ 종목 뉴스·공시({len(news)}, 중요도순): {items}")
