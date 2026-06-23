@@ -13,6 +13,16 @@ from app.services.strategy_analysis_input_service import StrategyAnalysisInputSe
 from app.services.trade_tape_service import TradeTapeService
 
 
+def resolve_analysis_market(params: dict) -> MarketCode:
+    """전략 파라미터에서 분석 시장(KR/US)을 추론한다.
+
+    단일종목은 `market`, 유니버스는 `universe_market`을 본다. 혼합(universe_market=None)이거나
+    미지정이면 KR로 둔다(하위호환 — 구조적 시장 분리는 운영상 KR/US 전략 분리로 갈음).
+    """
+    value = params.get("market") or params.get("universe_market")
+    return MarketCode.US if value == "US" else MarketCode.KR
+
+
 class AnalysisBundleService:
     """LLM 분석에 바로 넣을 '전체 번들'을 하나로 합친다 (C-2.53).
 
@@ -40,16 +50,23 @@ class AnalysisBundleService:
         strategy_version_id: int,
         trading_day: date,
         *,
-        market: MarketCode = MarketCode.KR,
+        market: MarketCode | None = None,
         analyst_note: str | None = None,
         news_limit: int = 10,
     ) -> dict | None:
-        """strategy_version의 trading_day 전체 분석 번들을 만든다. 버전 없으면 None."""
+        """strategy_version의 trading_day 전체 분석 번들을 만든다. 버전 없으면 None.
+
+        market=None이면 전략 파라미터(market/universe_market)에서 분석 시장을 추론한다 —
+        US 전략은 US 공시(EDGAR)·뉴스를 받도록. 명시되면 그 값을 쓴다(API 오버라이드용).
+        """
         version = await self._version_repo.get(strategy_version_id)
         if version is None:
             return None
 
-        symbol_code = (version.parameters or {}).get("symbol_code", "")
+        params = version.parameters or {}
+        if market is None:
+            market = resolve_analysis_market(params)
+        symbol_code = params.get("symbol_code", "")
 
         strategy_input = await self._input_svc.get_analysis_input(
             version.strategy_id, strategy_version_id

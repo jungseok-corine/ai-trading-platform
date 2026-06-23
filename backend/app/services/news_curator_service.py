@@ -37,8 +37,10 @@ class NewsCuratorService:
             market=market, symbol_code=symbol_code, limit=candidate_pool
         )
 
-        # 룰 점수 (C-2.57)
-        rule_scores = [score_materiality(n.headline, n.themes) for n in raw]
+        # 룰 점수 (C-2.57). 수집 시 이미 매긴 중요도(raw_payload.materiality)가 있으면 그걸
+        # 우선한다 — DART(KR 키워드)·EDGAR(미국 form type)는 소스별 채점기가 다르므로,
+        # 영어 헤드라인을 한국어 키워드 채점기에 다시 넣어 떨어뜨리는 일을 막는다.
+        rule_scores = [self._ingest_or_rule_score(n) for n in raw]
         # LLM 정밀화 (C-2.65, 옵션) — 룰이 놓친 중요 뉴스를 보강. 실패해도 룰로 진행.
         llm_scores = await self._maybe_llm_scores([n.headline for n in raw])
 
@@ -62,6 +64,16 @@ class NewsCuratorService:
             })
         scored.sort(key=lambda x: (x["materiality"], x["published_at"] or ""), reverse=True)
         return scored[:limit]
+
+    @staticmethod
+    def _ingest_or_rule_score(news) -> tuple[float, str]:
+        """수집 시 저장한 중요도가 있으면 (score, category)로 쓰고, 없으면 룰 채점."""
+        raw = news.raw_payload or {}
+        score = raw.get("materiality")
+        if isinstance(score, (int, float)):
+            category = raw.get("category") or "low"
+            return float(score), category
+        return score_materiality(news.headline, news.themes)
 
     async def _maybe_llm_scores(self, headlines: list[str]) -> list[float | None] | None:
         """설정/주입된 LLM provider가 있으면 헤드라인별 점수를 반환, 없으면 None."""
