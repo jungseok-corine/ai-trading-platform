@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -68,6 +69,47 @@ class PromotionEvaluation(Base):
     evaluated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class LivePromotionRecord(Base):
+    """실전 승격 심사 승인 감사 로그 (C-2.29).
+
+    이 레코드는 '실전 자동매매 시작'이 아니라 '실전 승격 심사 승인'의 감사 로그다.
+    StrategyVersion.status를 변경하지 않으며, 자동매매 플래그를 변경하지 않는다.
+    실전 거래 활성화 환경변수 변경 없음. 실주문 API 호출 없음.
+    """
+
+    __tablename__ = "live_promotion_records"
+    __table_args__ = (
+        Index("ix_live_promotion_records_version", "strategy_version_id"),
+    )
+
+    # status 상수. DB enum 대신 String으로 저장해 마이그레이션 비용을 줄인다.
+    STATUS_APPROVED = "approved"
+    STATUS_REVOKED = "revoked"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    strategy_version_id: Mapped[int] = mapped_column(
+        ForeignKey("strategy_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    promotion_evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("promotion_evaluations.id", ondelete="SET NULL"), nullable=True
+    )
+    # "approved" | "revoked"
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="approved")
+    criteria_passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # 승인 시점의 준비도 평가 스냅샷 (criteria check 결과 포함)
+    readiness_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+    # 리스크 관련 추가 정보 (optional)
+    risk_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+    approved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    approved_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

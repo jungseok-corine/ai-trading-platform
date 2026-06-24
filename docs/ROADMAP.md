@@ -149,7 +149,7 @@
 
 ---
 
-### C-2.29 — Live Promotion Gate `TODO`
+### C-2.29 — Live Promotion Gate `DONE`
 
 | 항목 | 내용 |
 |------|------|

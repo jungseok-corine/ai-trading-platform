@@ -26,6 +26,7 @@ from app.api.v1 import investor_flows as investor_flows_api
 from app.api.v1 import market_context as market_context_api
 from app.api.v1 import market_data as market_data_api
 from app.api.v1 import news_context as news_context_api
+from app.api.v1 import live_promotion as live_promotion_api
 from app.api.v1 import promotions as promotions_api
 from app.api.v1 import ai_cost as ai_cost_api
 from app.api.v1 import analysis_audit as analysis_audit_api
@@ -186,6 +187,7 @@ app.include_router(strategy_review_api.router, prefix="/api/v1")
 app.include_router(news_context_api.router, prefix="/api/v1")
 app.include_router(daily_reports_api.router, prefix="/api/v1")
 app.include_router(promotions_api.router, prefix="/api/v1")
+app.include_router(live_promotion_api.router, prefix="/api/v1")
 app.include_router(proposal_retrospective_api.router, prefix="/api/v1")
 app.include_router(data_refresh_api.router, prefix="/api/v1")
 app.include_router(data_freshness_api.router, prefix="/api/v1")

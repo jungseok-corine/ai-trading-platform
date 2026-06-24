@@ -7,43 +7,37 @@
 
 ## Current Task
 
-**C-2.28 — AI Evolution Loop**
+**C-2.29 — Live Promotion Gate**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (실험 결과 → AI 분석 → 개선 제안 자동 생성 루프) |
+| **Type** | Feature (실전 승격 심사 게이트 — 사람 승인 감사 로그) |
 
 ---
 
 ## Goal
 
-COMPLETED intelligence experiment를 AI가 자동 분석하고, 개선 제안(StrategyProposal)을 생성하며, 회고 결과가 다음 제안에 반영되는 루프를 완성한다.
+paper 전략이 실전 검토 기준을 통과했는지 평가하고, 사람이 명시적으로 승인했다는 감사 로그(LivePromotionRecord)를 남기는 게이트를 완성한다.
 
 ---
 
 ## Definition of Done
 
-- [x] `IntelligenceStrategyProposal` evolution 추적 필드 4개 추가
-- [x] Alembic 마이그레이션 (`i1j2k3l4m5n6`)
-- [x] `IntelligenceEvolutionService.analyze_experiment()` — LLM 분석 + pending StrategyProposal 생성
-- [x] `IntelligenceEvolutionService.evolution_loop()` — 미분석 제안 일괄 처리
-- [x] `IntelligenceEvolutionService.build_evolution_context()` — 순수 함수 컨텍스트 빌더
-- [x] `IntelligenceStrategyProposalRepository.find_by_experiment_id()` 메서드 추가
-- [x] `IntelligenceStrategyProposalRepository.list_pending_evolution()` 메서드 추가
-- [x] `POST /intelligence/experiments/{id}/analyze` API
-- [x] `intelligence_evolution_scheduler_enabled=False` 기본 비활성 스케줄러 잡
-- [x] ControllableJob 레지스트리 등록
-- [x] 29개 테스트 전체 통과
-- [x] 생성된 StrategyProposal.auto_trade_enabled=False 강제
-- [x] 생성된 StrategyProposal.status=PENDING (자동 승인 없음)
-- [x] 생성된 StrategyProposal.source="intelligence_evolution"
-- [x] trades_count < min_trades → 제안 생성 없음 (analyzed_no_proposal)
-- [x] conclude() 내부 자동 호출 없음
-- [x] IntelligenceStrategyProposalRead에 evolution 4개 필드 노출
-- [x] 실전 주문 코드 변경 없음
-- [x] DailyAnalysisService 미변경
+- [x] `LivePromotionRecord` 모델 신규 (promotion.py)
+- [x] Alembic 마이그레이션 (`j1k2l3m4n5o6`)
+- [x] `LivePromotionRecordRepository` — find_approved, list_by_version
+- [x] `LivePromotionGateService.check_readiness()` — PromotionService.evaluate + intel context
+- [x] `LivePromotionGateService.approve_live_promotion()` — 확인 필수, 중복 방지, 감사 로그 생성
+- [x] `GET /strategy-versions/{id}/live-readiness` API
+- [x] `POST /strategy-versions/{id}/live-promote` API
+- [x] 26개 테스트 전체 통과
+- [x] StrategyVersion.status 변경 없음
+- [x] 자동매매 플래그 변경 없음
+- [x] 실전 거래 활성화 환경변수 변경 없음
+- [x] 실주문 API 호출 없음
+- [x] 기존 PromotionService 미변경
 
 ---
 
@@ -51,19 +45,33 @@ COMPLETED intelligence experiment를 AI가 자동 분석하고, 개선 제안(St
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- AI 제안 자동 승인 없음
-- auto_trade_enabled True 없음
-- C-2.29 이후 작업 시작 금지
+- StrategyVersion.status 자동 변경 없음
+- auto_trade_enabled 자동 설정 없음
+- C-2.30 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.29 — Live Promotion Gate**
+**C-2.30 — Mobile Approval Report UX**
 
-검증된 전략의 실전 배치를 위한 승격 게이트 UI/UX 완성.
-범위: 승격 준비도 자동 평가, 실전 배치 승인 UI, 승격 후 모니터링 알림.
-선행 조건: C-2.28 완료.
+모바일에서 AI 제안 검토·승인, 실전 배치 승인, 알림 수신이 가능한 UX.
+범위: 모바일 반응형 UI 개선, Telegram/모바일 알림 통합, 주요 승인 화면 모바일 최적화.
+선행 조건: C-2.29 완료.
+
+---
+
+## Completed: C-2.29
+
+구현 완료 파일:
+- `app/domain/models/promotion.py` — LivePromotionRecord 모델 추가
+- `alembic/versions/j1k2l3m4n5o6_add_live_promotion_records.py` (신규)
+- `app/domain/repositories/promotion.py` — LivePromotionRecordRepository 추가
+- `app/services/live_promotion_gate_service.py` (신규)
+- `app/api/v1/live_promotion.py` (신규)
+- `app/main.py` — live_promotion_api 라우터 등록
+- `app/domain/models/__init__.py` — LivePromotionRecord 등록
+- `tests/test_c2_29_live_promotion_gate.py` (26 tests, all pass)
 
 ---
 
