@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getOperationsOverview, getOperationsDigest } from "../../api/research";
+import { useSettings } from "../../i18n/SettingsContext";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -15,14 +16,22 @@ function rate(r: number | null): string {
 }
 
 export default function OperationsSection() {
+  const { formatDateTime } = useSettings();
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["operations-overview"],
     queryFn: () => getOperationsOverview(30),
   });
-  const { data: digest } = useQuery({
+  const { data: digest, isFetching: digestFetching } = useQuery({
     queryKey: ["operations-digest"],
     queryFn: () => getOperationsDigest(30),
   });
+
+  // 다이제스트는 매 호출 라이브 계산된다. 수동 새로고침으로 최신 상태를 다시 받는다.
+  const refreshDigest = () => {
+    qc.invalidateQueries({ queryKey: ["operations-digest"] });
+    qc.invalidateQueries({ queryKey: ["operations-overview"] });
+  };
 
   return (
     <div className="card">
@@ -34,6 +43,14 @@ export default function OperationsSection() {
 
       {digest && (
         <div className="table-wrapper">
+          <div className="digest-header">
+            <span className="muted" style={{ fontSize: "0.85em" }}>
+              기준 시각: {formatDateTime(digest.generated_at)}
+            </span>
+            <button onClick={refreshDigest} disabled={digestFetching}>
+              {digestFetching ? "새로고침 중…" : "운영 요약 새로고침"}
+            </button>
+          </div>
           <p className="action-result value">{digest.summary_line}</p>
           {digest.has_alerts && (
             <ul>

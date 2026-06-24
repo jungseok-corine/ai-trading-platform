@@ -42,6 +42,8 @@ export default function DataFreshnessSection() {
       setMsg("갱신 요청 완료. 상태를 다시 불러오는 중입니다. 오류가 있으면 아래 '최근 오류'를 확인하세요.");
       qc.invalidateQueries({ queryKey: ["data-freshness"] });
       qc.invalidateQueries({ queryKey: ["autonomous-jobs"] });
+      // 운영 다이제스트도 라이브 계산이므로 함께 갱신(자율 잡 이상 알림 등 반영).
+      qc.invalidateQueries({ queryKey: ["operations-digest"] });
     },
     onError: () => setMsg("갱신 요청 실패."),
   });

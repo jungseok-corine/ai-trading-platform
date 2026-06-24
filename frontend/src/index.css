@@ -974,6 +974,16 @@ tr.selected {
   .job-enable-confirm .approval-actions button { width: 100%; min-height: 44px; font-size: 1rem; }
 }
 
+/* 운영 다이제스트 헤더: 기준 시각 + 새로고침 */
+.digest-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 /* C-OPS-3.3: 미국장 스냅샷 수동 갱신 카드. */
 .freshness-job-card { border-left: 4px solid #1971c2; margin-top: 10px; }
 .freshness-job-card p { margin: 4px 0; }
