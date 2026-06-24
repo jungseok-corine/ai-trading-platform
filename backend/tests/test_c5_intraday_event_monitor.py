@@ -1,4 +1,7 @@
 """§7.1 인트라데이 이벤트 감시 — 보유/활성 종목 한정 장중 공시 감시."""
+from datetime import datetime
+
+from app.common.timezone import KST
 from app.domain.models.account import Account
 from app.domain.models.enums import AccountType, StrategyVersionStatus
 from app.domain.models.position import Position
@@ -16,9 +19,13 @@ class _FakeDartProvider:
 
 
 def _disc(rcept_no: str, code: str, report_nm: str) -> Disclosure:
+    # rcept_dt는 now-relative(오늘, KST)로 둔다. recent_alerts(hours=48)가
+    # datetime.now(KST) 기준으로 필터하므로, 고정 날짜를 쓰면 wall-clock이 흐른 뒤
+    # 48h 창을 벗어나 테스트가 깨진다(time-bomb). 오늘 날짜면 항상 창 안에 든다.
+    today = datetime.now(KST).strftime("%Y%m%d")
     return Disclosure(
         rcept_no=rcept_no, stock_code=code, corp_name="테스트",
-        report_nm=report_nm, rcept_dt="20260622",
+        report_nm=report_nm, rcept_dt=today,
     )
 
 
