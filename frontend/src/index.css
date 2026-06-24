@@ -53,6 +53,22 @@ body {
   font-weight: 600;
 }
 
+/* C-OPS: 엔진 등록 작업을 칩으로 표시 (긴 문자열 대신). 줄바꿈 + 풀폭. */
+.status-item-jobs { grid-column: 1 / -1; }
+.engine-job-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.engine-job-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  background: #f1f3f5;
+  color: #343a40;
+}
+
 .value.ok {
   color: #1a7f37;
 }

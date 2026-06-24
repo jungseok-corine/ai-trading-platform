@@ -103,13 +103,21 @@ export default function EngineStatusCard() {
             {data.scheduler_running ? t.engineStatus.running : t.engineStatus.stopped}
           </span>
         </div>
-        <div className="status-item">
-          <span className="label">{t.engineStatus.registeredJobs}</span>
-          <span className="value">
-            {data.registered_jobs.length > 0
-              ? data.registered_jobs.map((id) => t.scheduler.jobLabels[id] ?? id).join(", ")
-              : "-"}
+        <div className="status-item status-item-jobs">
+          <span className="label">
+            {t.engineStatus.registeredJobs} ({data.registered_jobs.length})
           </span>
+          {data.registered_jobs.length > 0 ? (
+            <div className="engine-job-chips">
+              {data.registered_jobs.map((id) => (
+                <span key={id} className="engine-job-chip" title={id}>
+                  {t.scheduler.jobLabels[id] ?? id}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="value">-</span>
+          )}
         </div>
         <div className="status-item">
           <span className="label">{t.engineStatus.activeStrategies}</span>

@@ -14,9 +14,13 @@
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | C-OPS-3.3 — Run History / Manual Run Result Visibility (`DONE`) |
+| **마지막 완료 작업** | (소규모 UI) Engine Status 등록 작업 가독성 개선 — 한글 라벨 칩 + 개수. 직전 마일스톤: C-OPS-3.3 |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | 다음 방향을 사람이 선택 |
+| **다음에 필요한 것** | 다음 방향을 사람이 선택 (us_market 콘솔 에러는 사용자가 정확한 2개 에러 텍스트 제공 시 진단) |
+
+> (소규모 UI, frontend-only) Engine Status 카드의 "등록된 작업"을 긴 영어/한글 혼합 문자열 →
+> 한글 라벨 칩 + 개수 표시로 개선했다. `scheduler.jobLabels`에 자율 잡 라벨 추가(미지정 id는 raw id
+> fallback). backend/scheduler/safety/auto_trade 변경 없음.
 
 > C-OPS-3.3는 frontend-only. Data Freshness 페이지의 us_market row에 `us_market_refresh` 관련
 > 잡 정보(마지막 실행·최근 오류)와 **수동 갱신 버튼**을 추가했다. 버튼 클릭 시에만 run-now를
