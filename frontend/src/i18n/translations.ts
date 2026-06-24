@@ -43,6 +43,7 @@ export interface Translations {
     manyActiveStrategiesWarning: (n: number) => string;
     autoTradeWarning: (n: number) => string;
     autoTradeStrongWarning: (n: number) => string;
+    autoTradePaperNotice: (n: number) => string;
   };
   scheduler: {
     title: string;
@@ -510,7 +511,9 @@ export const translations: Record<Language, Translations> = {
       autoTradeWarning: (n: number) =>
         `자동매매(auto_trade_enabled)가 활성화된 전략이 ${n}개 있습니다.`,
       autoTradeStrongWarning: (n: number) =>
-        `자동매매(auto_trade_enabled)가 활성화된 전략이 ${n}개입니다. 동시에 여러 종목이 자동주문될 수 있으니 반드시 확인하세요.`,
+        `자동매매(auto_trade_enabled)가 활성화된 전략이 ${n}개입니다. 실전 주문 위험이 있으니 반드시 확인하세요.`,
+      autoTradePaperNotice: (n: number) =>
+        `테스트 자동매매 전략 ${n}개 실행 중 — paper/test 거래 기록 수집용입니다. 실전 거래가 비활성화되어 있는지 확인하세요.`,
     },
     scheduler: {
       title: "자동 실행 로그",
@@ -1061,7 +1064,9 @@ export const translations: Record<Language, Translations> = {
         `There are ${n} active/testing strategy versions. As the number of symbols grows, scheduler load and KIS API call volume increase - please review.`,
       autoTradeWarning: (n: number) => `${n} strategies have auto_trade_enabled.`,
       autoTradeStrongWarning: (n: number) =>
-        `${n} strategies have auto_trade_enabled. Multiple symbols may be auto-traded at the same time - please review carefully.`,
+        `${n} strategies have auto_trade_enabled. Real-order risk - please review carefully.`,
+      autoTradePaperNotice: (n: number) =>
+        `${n} test auto-trade strategies running - for paper/test record collection. Verify real trading is disabled.`,
     },
     scheduler: {
       title: "Scheduler Logs",

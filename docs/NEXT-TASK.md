@@ -14,9 +14,15 @@
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | (소규모 UI) Engine Status 등록 작업 가독성 개선 — 한글 라벨 칩 + 개수. 직전 마일스톤: C-OPS-3.3 |
+| **마지막 완료 작업** | (소규모 UI) paper 자동매매 경고 문구 명확화 — 실거래 OFF면 강한 빨간 경고 대신 운영 안내. 직전: Engine Status 칩 / C-OPS-3.3 |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
 | **다음에 필요한 것** | 다음 방향을 사람이 선택 (us_market 콘솔 에러는 사용자가 정확한 2개 에러 텍스트 제공 시 진단) |
+
+> (소규모 UI, frontend-only) `real_trading_enabled=false`일 때 auto_trade_enabled 경고를 강한 빨간
+> "운영 경고" 대신 paper/test 기록 수집 안내로 표시. EngineStatusCard는 safety-status에서
+> real_trading_enabled를 읽어 분기(미확인 시 보수적으로 강한 경고 유지). backend invariants_ok·
+> OperationsDigest severity·auto_trade 값은 미변경. OperationsSection 다이제스트의 "안전 불변식: …"
+> 문구는 backend 생성이라 그대로 유지(softening은 후속 backend 작업 필요).
 
 > (소규모 UI, frontend-only) Engine Status 카드의 "등록된 작업"을 긴 영어/한글 혼합 문자열 →
 > 한글 라벨 칩 + 개수 표시로 개선했다. `scheduler.jobLabels`에 자율 잡 라벨 추가(미지정 id는 raw id

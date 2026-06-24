@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getEngineStatus } from "../api/client";
+import { getSafetyStatus } from "../api/research";
 import { useSettings } from "../i18n/SettingsContext";
 import type { Translations } from "../i18n/translations";
 
@@ -30,6 +31,13 @@ export default function EngineStatusCard() {
     queryKey: ["engine-status"],
     queryFn: getEngineStatus,
   });
+  // 실거래 활성 여부는 engine status API에 없으므로 safety-status에서 읽는다(read-only).
+  // 알 수 없으면(로딩/실패) 보수적으로 '실거래 ON'으로 간주해 강한 경고를 유지한다(과소경고 방지).
+  const { data: safety } = useQuery({
+    queryKey: ["safety-status"],
+    queryFn: getSafetyStatus,
+  });
+  const realTradingOn = safety?.real_trading_enabled ?? true;
 
   if (isLoading) {
     return (
@@ -67,10 +75,14 @@ export default function EngineStatusCard() {
   if (data.active_strategy_count >= 5) {
     warnings.push(t.engineStatus.manyActiveStrategiesWarning(data.active_strategy_count));
   }
-  if (data.auto_trade_enabled_count >= 2) {
-    strongWarnings.push(t.engineStatus.autoTradeStrongWarning(data.auto_trade_enabled_count));
-  } else if (data.auto_trade_enabled_count > 0) {
-    warnings.push(t.engineStatus.autoTradeWarning(data.auto_trade_enabled_count));
+  if (data.auto_trade_enabled_count > 0) {
+    if (realTradingOn) {
+      // 실거래 ON(또는 상태 미확인) → 강한 빨간 경고 유지.
+      strongWarnings.push(t.engineStatus.autoTradeStrongWarning(data.auto_trade_enabled_count));
+    } else {
+      // 실거래 OFF → paper/test 기록 수집용. 강한 경고 대신 운영 안내로 표시.
+      warnings.push(t.engineStatus.autoTradePaperNotice(data.auto_trade_enabled_count));
+    }
   }
 
   return (
@@ -127,7 +139,15 @@ export default function EngineStatusCard() {
         </div>
         <div className="status-item">
           <span className="label">{t.engineStatus.autoTradeEnabled}</span>
-          <span className={`value ${data.auto_trade_enabled_count > 0 ? "error" : "ok"}`}>
+          <span
+            className={`value ${
+              data.auto_trade_enabled_count === 0
+                ? "ok"
+                : realTradingOn
+                  ? "error"
+                  : ""
+            }`}
+          >
             {data.auto_trade_enabled_count}
           </span>
         </div>

@@ -36,8 +36,16 @@ export default function SafetySection() {
           <ul>
             <Flag ok={!data.real_trading_enabled}
               label={`실거래(KIS_REAL_TRADING_ENABLED): ${data.real_trading_enabled ? "ON ⚠️" : "OFF"}`} />
-            <Flag ok={data.auto_trade_versions === 0}
-              label={`자동매매 전략 버전(활성/테스트): ${data.auto_trade_versions}개`} />
+            {data.auto_trade_versions > 0 && !data.real_trading_enabled ? (
+              // 실거래 OFF → paper/test 기록 수집용. 위반이 아니라 운영 안내로 표시.
+              <li>
+                ℹ️ 테스트 자동매매 전략 {data.auto_trade_versions}개 실행 중 — 거래 기록 수집용.
+                실전 거래 설정은 별도로 확인하세요.
+              </li>
+            ) : (
+              <Flag ok={data.auto_trade_versions === 0}
+                label={`자동매매 전략 버전(활성/테스트): ${data.auto_trade_versions}개`} />
+            )}
             <li>
               가드 pause: {data.guards.paused}/{data.guards.total} · 비상정지:{" "}
               {data.risk.emergency_stops}/{data.risk.configs}
