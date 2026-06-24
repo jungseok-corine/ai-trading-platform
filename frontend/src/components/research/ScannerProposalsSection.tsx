@@ -10,6 +10,7 @@ import {
 } from "../../api/research";
 import type { ProposalStatus } from "../../types/research";
 import ScannerProposalReportCard from "./ScannerProposalReportCard";
+import BulkApproveConfirm from "./BulkApproveConfirm";
 
 const STATUS_FILTERS: (ProposalStatus | "all")[] = ["all", "pending", "approved", "rejected"];
 
@@ -17,6 +18,7 @@ export default function ScannerProposalsSection() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ProposalStatus | "all">("all");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [genVersionId, setGenVersionId] = useState("");
   const [genMsg, setGenMsg] = useState<string | null>(null);
 
@@ -58,10 +60,20 @@ export default function ScannerProposalsSection() {
     mutationFn: (action: "approve" | "reject") => bulkReviewScannerProposals(pendingIds, action),
     onSuccess: (r) => {
       setGenMsg(`일괄 ${r.action}: 성공 ${r.succeeded.length}건, 실패 ${r.failed.length}건.`);
+      setBulkConfirmOpen(false);
       invalidate();
     },
-    onError: (e) => setGenMsg((e as Error)?.message ?? "일괄 처리 실패"),
+    onError: (e) => {
+      setGenMsg((e as Error)?.message ?? "일괄 처리 실패");
+      setBulkConfirmOpen(false);
+    },
   });
+
+  const handleBulkReject = () => {
+    if (window.confirm(`보이는 pending ${pendingIds.length}건을 일괄 거절하시겠습니까?`)) {
+      bulkMut.mutate("reject");
+    }
+  };
 
   return (
     <div className="card">
@@ -96,16 +108,26 @@ export default function ScannerProposalsSection() {
         {pendingIds.length > 0 && (
           <>
             <button className="primary" disabled={bulkMut.isPending}
-              onClick={() => bulkMut.mutate("approve")}>
+              onClick={() => setBulkConfirmOpen(true)}>
               보이는 pending {pendingIds.length}건 일괄 승인
             </button>
             <button className="danger" disabled={bulkMut.isPending}
-              onClick={() => bulkMut.mutate("reject")}>
+              onClick={handleBulkReject}>
               일괄 거절
             </button>
           </>
         )}
       </div>
+
+      {bulkConfirmOpen && pendingIds.length > 0 && (
+        <BulkApproveConfirm
+          count={pendingIds.length}
+          kind="scanner"
+          isPending={bulkMut.isPending}
+          onConfirm={() => bulkMut.mutate("approve")}
+          onCancel={() => setBulkConfirmOpen(false)}
+        />
+      )}
 
       {isLoading && <p className="muted">불러오는 중...</p>}
       {data && data.length === 0 && <p className="muted">제안이 없습니다.</p>}

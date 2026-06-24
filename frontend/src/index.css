@@ -919,6 +919,11 @@ tr.selected {
 .approval-report-card {
   border-left: 4px solid #1971c2;
 }
+/* C-2.30.1: 일괄 승인 확인 게이트는 주의 환기를 위해 노란 강조 */
+.approval-report-card.bulk-confirm {
+  border-left-color: #f0a000;
+  background: #fffdf5;
+}
 .approval-summary p { margin: 4px 0; }
 .approval-block {
   margin: 10px 0;
