@@ -40,6 +40,7 @@ OPERATIONS_DIGEST_JOB_ID = "operations_digest"
 DART_FINANCE_JOB_ID = "dart_finance"
 INTELLIGENCE_INGEST_JOB_ID = "intelligence_ingest"
 INTELLIGENCE_DISCOVERY_JOB_ID = "intelligence_discovery"
+INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID = "intelligence_scanner_proposal"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -661,3 +662,32 @@ async def run_intelligence_discovery_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 발굴 실패가 스케줄러를 중단시키지 않도록
         logger.error("intelligence discovery job failed: %s", exc_message(exc))
         app.state.intelligence_discovery_last_error = exc_message(exc)
+
+
+async def run_intelligence_scanner_proposal_job(app: FastAPI) -> None:
+    """Intelligence 후보 패턴 기반으로 기존 스캐너 룰 개선 제안을 생성한다 (C-2.25).
+
+    기본 비활성. LLM 호출 포함. 제안은 항상 pending — 자동 approve 없음.
+    intelligence_discovery(07:00) 이후 실행을 권장한다 (기본 08:00).
+    """
+    from app.services.intelligence_scanner_proposal_generator import (
+        IntelligenceScannerProposalGenerator,
+    )
+
+    try:
+        async with async_session_factory() as session:
+            summary = await IntelligenceScannerProposalGenerator(session).generate()
+        logger.info(
+            "intelligence scanner proposal: candidates=%s rules=%s created=%s "
+            "skipped_pending=%s skipped_invalid=%s errors=%s",
+            summary.candidates_analyzed,
+            summary.scanner_rules_considered,
+            summary.proposals_created,
+            summary.skipped_existing_pending,
+            summary.skipped_invalid,
+            len(summary.errors),
+        )
+        app.state.intelligence_scanner_proposal_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("intelligence scanner proposal job failed: %s", exc_message(exc))
+        app.state.intelligence_scanner_proposal_last_error = exc_message(exc)

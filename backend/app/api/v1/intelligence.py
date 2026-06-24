@@ -1,9 +1,10 @@
-"""Market Intelligence 수집 및 후보 발굴 API (C-2.22 / C-2.24).
+"""Market Intelligence 수집, 후보 발굴, 스캐너 룰 개선 제안 API.
 
-POST /intelligence/ingest    — 수동 트리거로 전체(또는 선택) 소스 수집 실행.
-POST /intelligence/discover  — 최근 이벤트에서 관심 후보 종목 발굴.
-GET  /intelligence/candidates         — 발굴된 후보 목록 조회.
-GET  /intelligence/candidates/{id}    — 후보 단건 조회.
+POST /intelligence/ingest                      — 수동 트리거로 전체(또는 선택) 소스 수집 실행. (C-2.22)
+POST /intelligence/discover                    — 최근 이벤트에서 관심 후보 종목 발굴. (C-2.24)
+GET  /intelligence/candidates                  — 발굴된 후보 목록 조회.
+GET  /intelligence/candidates/{id}             — 후보 단건 조회.
+POST /intelligence/scanner-proposals/generate  — Intelligence 기반 스캐너 룰 개선 제안 생성. (C-2.25)
 
 모두 read-only 수집·발굴이며 주문·전략 배정과 무관하다.
 """
@@ -22,6 +23,10 @@ from app.services.intelligence_candidate_discovery_service import (
     IntelligenceCandidateDiscoveryService,
 )
 from app.services.intelligence_ingest_service import IngestSummary, IntelligenceIngestionService
+from app.services.intelligence_scanner_proposal_generator import (
+    IntelligenceScannerProposalGenerator,
+    ProposalGenerationSummary,
+)
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
@@ -138,3 +143,41 @@ async def get_candidate(
     if candidate is None:
         raise HTTPException(status_code=404, detail="intelligence candidate not found")
     return IntelligenceCandidateRead.model_validate(candidate)
+
+
+# ── Scanner Proposal Generation (C-2.25) ─────────────────────────────────────
+
+class ScannerProposalGenerateRequest(BaseModel):
+    candidate_limit: int = 20
+
+
+class ProposalGenerationSummaryRead(BaseModel):
+    candidates_analyzed: int
+    scanner_rules_considered: int
+    proposals_created: int
+    skipped_existing_pending: int
+    skipped_invalid: int
+    errors: list[str]
+
+
+@router.post(
+    "/scanner-proposals/generate",
+    response_model=ProposalGenerationSummaryRead,
+    status_code=201,
+)
+async def generate_scanner_proposals(
+    payload: ScannerProposalGenerateRequest,
+    session: AsyncSession = Depends(get_db),
+) -> ProposalGenerationSummaryRead:
+    """Intelligence 후보 패턴을 LLM으로 분석해 기존 스캐너 룰 개선 제안을 생성한다.
+
+    - 새 ScannerRule 생성 없음
+    - 생성된 제안은 항상 pending (자동 승인 없음)
+    - 승인 시 기존 /scanner-proposals/{id}/approve 흐름으로 DRAFT 버전 생성
+    - 외부 네트워크 호출 없음 (DB에 있는 데이터만 사용)
+    """
+    generator = IntelligenceScannerProposalGenerator(session)
+    summary: ProposalGenerationSummary = await generator.generate(
+        candidate_limit=payload.candidate_limit,
+    )
+    return ProposalGenerationSummaryRead(**summary.to_dict())

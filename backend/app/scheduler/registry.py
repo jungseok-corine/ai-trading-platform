@@ -23,6 +23,7 @@ from app.scheduler.jobs import (
     EDGAR_INGEST_JOB_ID,
     INTELLIGENCE_DISCOVERY_JOB_ID,
     INTELLIGENCE_INGEST_JOB_ID,
+    INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID,
     INTRADAY_EVENT_MONITOR_JOB_ID,
     OPERATIONS_DIGEST_JOB_ID,
     RESEARCH_PIPELINE_JOB_ID,
@@ -37,6 +38,7 @@ from app.scheduler.jobs import (
     run_edgar_ingest_job,
     run_intelligence_discovery_job,
     run_intelligence_ingest_job,
+    run_intelligence_scanner_proposal_job,
     run_intraday_event_monitor_job,
     run_operations_digest_job,
     run_research_pipeline_job,
@@ -192,6 +194,17 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_discovery_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_discovery_scheduler_enabled,
+    ),
+    ControllableJob(
+        job_id=INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID,
+        label_ko="Intelligence 기반 스캐너 룰 개선 제안 (LLM)",
+        schedule_desc="매일 08:00",
+        func=run_intelligence_scanner_proposal_job,
+        build_trigger=lambda s: CronTrigger(
+            hour=s.intelligence_scanner_proposal_scheduler_hour,
+            minute=s.intelligence_scanner_proposal_scheduler_minute,
+        ),
+        env_enabled=lambda s: s.intelligence_scanner_proposal_scheduler_enabled,
     ),
 ]
 

@@ -220,6 +220,12 @@ class Settings(BaseSettings):
     intelligence_discovery_scheduler_hour: int = 7   # 수집(06:00) 이후 07:00
     intelligence_discovery_scheduler_minute: int = 0
 
+    # Intelligence 후보 기반 스캐너 룰 개선 제안 (C-2.25). 기본 비활성.
+    # discovery(07:00) 이후 08:00에 실행을 권장한다.
+    intelligence_scanner_proposal_scheduler_enabled: bool = False
+    intelligence_scanner_proposal_scheduler_hour: int = 8
+    intelligence_scanner_proposal_scheduler_minute: int = 0
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"
