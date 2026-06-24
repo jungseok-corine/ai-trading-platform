@@ -14,14 +14,31 @@
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | (소규모 운영 정확도) us_market_refresh가 scheduler_runs를 기록 — 스케줄러 건강 점검·운영 다이제스트가 실제 실행을 반영. 직전: SEC EDGAR throttle / paper auto-trade 문구 |
-| **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | 다음 방향을 사람이 선택 (us_market 콘솔 에러는 사용자가 정확한 2개 에러 텍스트 제공 시 진단) |
+| **마지막 완료 작업** | 오버나잇 배치(미푸시): Operations Digest 정확도/UI + scheduler_runs 일관성 + 읽기전용 Action Inbox v1 |
+| **현재 상태** | 진행 중인 구현 작업 없음 (오버나잇 커밋 4건 리뷰 대기, 미푸시) |
+| **다음에 필요한 것** | 사람이 오버나잇 커밋 리뷰 후 push 결정 + 다음 방향 선택 |
 
-> (운영 정확도) `run_us_market_refresh_job`이 성공/실패 시 `scheduler_runs`를 기록하도록 수정.
-> 이전에는 기록이 없어 `SchedulerHealthService`가 활성 잡을 '실행 기록 없음'으로 오탐 → 운영
-> 다이제스트에 "자율 잡 이상: us_market_refresh"가 상시 표시됐다. app.state 동작 보존,
-> 잡 enable/기본값·스케줄 미변경. (남은 항목: 운영 다이제스트 auto_trade 문구 softening, generated_at UI는 별도.)
+### 오버나잇 배치 결과 (미푸시, 리뷰 대기)
+
+| # | 작업 | 커밋 | 상태 |
+|---|------|------|------|
+| 1 | Operations Digest auto_trade 문구 softening (실거래 OFF 시 paper/test 안내, 심각도 유지) | `a82b6dc` | ✅ |
+| 2 | Operations Digest generated_at UI + 새로고침/무효화 | `63953f7` | ✅ |
+| 3 | scheduler_runs 기록 일관성(dart_ingest/data_refresh/daily_report/operations_digest) | `09e8385` | ✅ |
+| 4 | 읽기전용 Action Inbox v1 (`/action-inbox` + UI 카드, 조치 버튼 없음) | `d2c4fa6` | ✅ |
+| 5 | Scanner Rule / Candidate Event foundation | — | ⏭️ **건너뜀** |
+
+**Task 5 건너뛴 이유**: 스캐너/후보 기반은 **이미 성숙하게 구현되어 있음**.
+존재하는 것 — 테이블 `scanner_rules` / `scanner_rule_versions` / `candidate_events` /
+`scanner_rule_proposals`(+마이그레이션), 서비스 `candidate_service` / `scanner_proposal_*` /
+`intelligence_candidate_discovery_service` 등, API `/candidates` / `/scanner-rules` /
+`/scanner-proposals`. 새 "foundation"을 만들면 기존 스키마와 **중복/충돌** 위험 → 안전 규칙
+("깨진 스키마 부분구현 금지")에 따라 미구현. 향후 작업은 기존 시스템의 *구체적 개선점*을
+사람이 지정하는 방식 권장(예: 결정론적 수동 스캔 실행 UX, 후보 outcome 보드 등).
+
+**남은 후속 후보**: 비모니터링 수집 잡(edgar_ingest/intraday_event_monitor/dart_finance/
+intelligence_*)의 scheduler_runs 기록(일관성), Action Inbox 항목 클릭 네비게이션(v2),
+us_market 브라우저 콘솔 에러(사용자 텍스트 필요).
 
 > (소규모 UI, frontend-only) `real_trading_enabled=false`일 때 auto_trade_enabled 경고를 강한 빨간
 > "운영 경고" 대신 paper/test 기록 수집 안내로 표시. EngineStatusCard는 safety-status에서
