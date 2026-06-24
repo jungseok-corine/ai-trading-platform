@@ -246,7 +246,23 @@ intelligence_evolution · DO_NOT_ENABLE = 현재 없음.
 구현 완료 (frontend-only): `JobEnableConfirm.tsx` + `jobRiskLabels.tsx`(공용 라벨/배지 추출) + 섹션 통합.
 잡 기본 enabled 상태·scheduler 동작·backend 미변경.
 
-**후속 후보**: C-OPS-3.3 — 자율 잡 실행 이력/수동 실행 결과 가시성(run history / manual run result visibility). 이번 작업엔 미포함.
+---
+
+### C-OPS-3.3 — Run History / Manual Run Result Visibility `DONE` (us_market 한정)
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | Data Freshness 페이지에서 us_market이 "오래됨"일 때, 해결 잡(`us_market_refresh`)·마지막 실행·최근 오류를 그 자리에서 보고 명시적 클릭으로 수동 갱신 |
+| **범위** | `DataFreshnessSection`에 us_market → us_market_refresh 정적 매핑, 기존 `getAutonomousJobs`/`runAutonomousJob` 재사용, 수동 갱신 버튼, 성공 후 `data-freshness`·`autonomous-jobs` refetch. frontend-only. |
+| **하지 말 것** | backend/migration/scheduler 변경 금지. 잡 기본 enabled 변경 금지. page load 자동 호출 금지. us_market 외 source 일반화 금지. run history 테이블 금지. |
+| **완료 기준** | us_market stale 시 안내+관련 잡 정보 표시, 버튼 클릭 시에만 run-now 호출, 성공 후 refetch, last_run_at/last_error 표시. `npm run build` 통과. |
+| **선행 조건** | C-OPS-3.2 완료 + US Market 수동 refresh 검증 완료 |
+
+구현 완료 (frontend-only): `DataFreshnessSection.tsx`(us_market 수동 갱신 카드) + `index.css`(최소 스타일).
+backend/scheduler/기본값 미변경. HTTP 200만으로 성공 단정하지 않고 refetch 후 `last_error` 표시.
+
+**후속 후보**: (a) generic freshness source → job 매핑(market_data/news/dart 등), (b) 진짜 run history 테이블,
+(c) 수동 실행 상세 결과(provider/updated/reason) 노출, (d) startup catch-up 정책은 별도 검토.
 
 ---
 

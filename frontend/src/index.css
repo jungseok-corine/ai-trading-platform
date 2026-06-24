@@ -958,6 +958,13 @@ tr.selected {
   .job-enable-confirm .approval-actions button { width: 100%; min-height: 44px; font-size: 1rem; }
 }
 
+/* C-OPS-3.3: 미국장 스냅샷 수동 갱신 카드. */
+.freshness-job-card { border-left: 4px solid #1971c2; margin-top: 10px; }
+.freshness-job-card p { margin: 4px 0; }
+@media (max-width: 640px) {
+  .freshness-job-card button { width: 100%; min-height: 44px; font-size: 1rem; }
+}
+
 /* C-2.30: 승인 리포트 카드 ---------------------------------------------------- */
 .approval-report-card {
   border-left: 4px solid #1971c2;

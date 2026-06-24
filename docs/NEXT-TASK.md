@@ -7,28 +7,30 @@
 
 ## Current State
 
-**C-OPS-3.2 — Enable Confirmation Gate (`DONE`)**
+**C-OPS-3.3 — Run History / Manual Run Result Visibility (`DONE`, us_market 한정)**
 
 > **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID와 혼동을
 > 피하려고 `C-OPS-3.x`로 별도 번호를 쓴다.
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | C-OPS-3.2 — Enable Confirmation Gate (`DONE`) |
+| **마지막 완료 작업** | C-OPS-3.3 — Run History / Manual Run Result Visibility (`DONE`) |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | C-OPS-3.3 진행 여부 또는 다른 방향을 사람이 선택 |
+| **다음에 필요한 것** | 다음 방향을 사람이 선택 |
 
-> C-OPS-3.2는 frontend-only. `recommended_state !== "ON_OK"`인 잡을 **켤 때만** 확인 게이트를
-> 추가했다. 잡 기본 enabled 상태·scheduler 동작·backend는 변경하지 않았다. disable·SAFE_ON
-> enable·run-now는 그대로 즉시 동작. **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
+> C-OPS-3.3는 frontend-only. Data Freshness 페이지의 us_market row에 `us_market_refresh` 관련
+> 잡 정보(마지막 실행·최근 오류)와 **수동 갱신 버튼**을 추가했다. 버튼 클릭 시에만 run-now를
+> 호출하며 page load에서는 외부 API를 호출하지 않는다. backend/scheduler/기본값 미변경.
+> **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
 
 ---
 
 ## Candidate Next Directions (사용자 선택 필요)
 
-**C-OPS-3.3. Run History / Manual Run Result Visibility (권장 후속)**
-- 자율 잡의 실행 이력·수동 실행(run-now) 결과를 UI에서 확인 (현재는 last_run_at/last_error만)
-- frontend 또는 가벼운 backend read-only 집계. scheduler 실행 동작·기본값 변경 없음.
+**C-OPS-3.4. Generic Freshness → Job Mapping + Run History (권장 후속)**
+- C-OPS-3.3의 us_market 패턴을 다른 source(market_data/news/dart 등)로 일반화 — 단,
+  source↔job 매핑이 불명확한 것부터 정리 필요. + 진짜 run history 테이블/수동 실행 상세 결과.
+- startup catch-up 정책은 별도 검토(scheduler 동작 변경이라 신중).
 
 **A. Approval Notification Integration**
 - 백엔드 + 프론트엔드 (full-stack). Telegram/알림 provider opt-in.
@@ -39,6 +41,16 @@
 - 모바일 대시보드 사용성 개선. 매매 동작 변경 없음.
 
 **⛔ 위 방향 중 하나를 사용자가 선택하기 전에는 다음 기능을 착수하지 않는다.**
+
+---
+
+## Completed: C-OPS-3.3
+
+구현 완료 파일 (frontend-only):
+- `frontend/src/components/research/DataFreshnessSection.tsx` — us_market 수동 갱신 카드
+  (us_market → us_market_refresh 매핑, 마지막 실행·최근 오류 표시, 수동 갱신 버튼, 성공 후 refetch)
+- `frontend/src/index.css` — 수동 갱신 카드 스타일(모바일)
+- backend/migration/package 미변경. page load 자동 호출 없음. AutonomousJobsSection 미변경.
 
 ---
 
