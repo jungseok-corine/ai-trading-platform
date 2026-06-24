@@ -125,7 +125,7 @@
 
 ---
 
-### C-2.27 — Paper Experiment Autopilot `TODO`
+### C-2.27 — Paper Experiment Autopilot `DONE`
 
 | 항목 | 내용 |
 |------|------|
@@ -134,6 +134,8 @@
 | **하지 말 것** | 실전 자동매매 연결 금지. Paper 전용. |
 | **완료 기준** | 배정된 전략이 자동으로 실험 사이클을 돌고, 성과 비교표가 자동 생성됨 |
 | **선행 조건** | C-2.26 완료 |
+
+구현 완료: `tests/test_c2_27_intelligence_paper_experiment.py`, `tests/test_c2_27_ai_proposals.py` (전체 통과).
 
 ---
 
@@ -173,7 +175,7 @@
 
 ---
 
-### C-2.30 — Mobile Approval Report UX `TODO`
+### C-2.30 — Mobile Approval Report UX `DONE` (알림 통합은 보류)
 
 | 항목 | 내용 |
 |------|------|
@@ -182,6 +184,30 @@
 | **하지 말 것** | 모바일에서 자동매매 파라미터 변경 허용 금지. 조회·승인만 허용. |
 | **완료 기준** | 모바일에서 AI 제안을 읽고, 승인/거절하고, 알림을 받을 수 있음 |
 | **선행 조건** | C-2.29 완료 |
+
+**구현 완료 (frontend-only)**:
+- 승인 리포트 카드(`StrategyProposalReportCard` / `ScannerProposalReportCard` / `LivePromotionReviewCard`)
+  + transition-plan 미리보기 + 정적 안전 문구 + 확인 체크박스 승인 플로우
+- API 바인딩(transition-plan, live-readiness, live-promote) + 타입 + 모바일 반응형 CSS
+- stale "DRAFT" 문구 → "TESTING" 정정
+
+**의도적 보류 (DONE 아님)**:
+- **Telegram/모바일 푸시 알림 통합은 보류**. 백엔드 + 시크릿(토큰)이 필요해 frontend-only 범위를 벗어남.
+  알림 통합은 별도 작업으로, 사용자의 명시적 승인 후에만 착수한다. (→ NEXT-TASK.md 후보 A)
+
+---
+
+### C-2.30.1 — Bulk Approval Safety Guard `DONE`
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | 일괄 승인이 C-2.30 단일 승인의 안전 UX를 우회하지 못하게 최소 확인 게이트 추가 |
+| **범위** | `BulkApproveConfirm` 컴포넌트(선택 개수 + 정적 안전 문구 + 확인 체크박스), 일괄 거절 confirm |
+| **하지 말 것** | 백엔드 변경 금지. bulk approve 기능 삭제 금지. 모든 대상 transition-plan N개 fetch 금지. |
+| **완료 기준** | 확인 체크박스 없이는 일괄 승인 실행 불가. 단일 승인 플로우 유지. `npm run build` 통과. |
+| **선행 조건** | C-2.30 완료 |
+
+구현 완료 (frontend-only): `frontend/src/components/research/BulkApproveConfirm.tsx` + 두 제안 섹션 통합.
 
 ---
 

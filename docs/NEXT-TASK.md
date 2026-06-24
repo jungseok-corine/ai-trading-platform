@@ -5,61 +5,70 @@
 
 ---
 
-## Current Task
+## Current State
 
-**C-2.29.1 — AI Status Transition Planner**
+**활성 구현 작업 없음 (No active implementation task).**
 
 | 필드 | 값 |
 |------|----|
-| **Status** | `DONE` |
-| **Priority** | 높음 |
-| **Type** | Feature (제안 승인 시 안전한 버전 상태 전환 계획 생성) |
+| **마지막 완료 작업** | C-2.30.1 — Bulk Approval Safety Guard (`DONE`) |
+| **현재 상태** | 진행 중인 구현 작업 없음 |
+| **다음에 필요한 것** | 다음 로드맵 방향을 사람이 선택해야 함 (아래 후보 참조) |
+
+> ⚠️ 신규 Phase 로드맵(ROADMAP.md "다음 작업 로드맵")이 C-2.30까지 모두 완료되어,
+> 명확히 정의된 다음 작업이 없다. **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
 
 ---
 
-## Goal
+## Candidate Next Directions (사용자 선택 필요)
 
-제안 승인 시 발생할 버전 상태 전환을 사전에 계획하고 검증한다. LLM을 사용하지 않는 deterministic rule-based planner. 승인 버전은 DRAFT 대신 TESTING으로 생성된다.
+**A. Approval Notification Integration**
+- 백엔드 + 프론트엔드 (full-stack)
+- Telegram 또는 알림 provider opt-in
+- 알림 설정/시크릿(토큰)을 다루므로 **사용자의 명시적 승인 필요**
+- 실전 주문/매매 코드 변경 없음
+- 참고: 백엔드 `app/services/notifications/`(telegram 등)와 config 키는 이미 존재하나,
+  알림 API 라우터·승인 이벤트 연결·프론트 알림 UI는 없음. `notification_provider="none"` 기본값.
 
----
+**B. Research/Operations Stabilization**
+- 알려진 10개 pre-existing 실패 테스트 정리
+- scheduler/test 환경 오염 정리
+- 기능 추가 전 신뢰성 개선
 
-## Definition of Done
+**C. Intelligence Pipeline Productionization**
+- 어떤 자율 스케줄러 잡을 켤 수 있는지 결정
+- 더 안전한 잡 기본값, 실행 로그, 수동 실행 UX 추가
+- 여전히 실전 매매 없음
 
-- [x] `StatusTransitionPlannerService` — plan_for_strategy_proposal, plan_for_scanner_proposal, validate
-- [x] `ExperimentVariantRepository.list_running_for_strategy_version()` 추가
-- [x] `ProposalService.approve()` → TESTING (기존 DRAFT 변경)
-- [x] `ScannerProposalService.approve()` → TESTING (기존 DRAFT 변경)
-- [x] `GET /strategy-proposals/{id}/transition-plan` API
-- [x] `GET /scanner-proposals/{id}/transition-plan` API
-- [x] 22개 신규 테스트 전체 통과
-- [x] 기존 DRAFT 기대 테스트 3개 → TESTING으로 업데이트
-- [x] LLM 호출 없음
-- [x] ACTIVE 자동 생성 없음
-- [x] auto_trade_enabled=true 없음
-- [x] 이전 버전 자동 archive 없음
+**D. Product/UI Polish**
+- 모바일 대시보드 사용성 개선
+- 매매 동작 변경 없음
 
----
-
-## Safety Constraints
-
-- `KIS_REAL_TRADING_ENABLED=false` 유지
-- 실주문 API 호출 없음
-- LLM 호출 금지
-- ACTIVE 버전 자동 생성 금지
-- auto_trade_enabled 자동 활성화 금지
-- C-2.30 이후 작업 시작 금지
+**⛔ 위 방향 중 하나를 사용자가 선택하기 전에는 다음 기능을 착수하지 않는다.**
 
 ---
 
-## Next Task After Completion
+## Completed: C-2.30.1
 
-**C-2.30 — Mobile Approval Report UX**
+구현 완료 파일 (frontend-only):
+- `frontend/src/components/research/BulkApproveConfirm.tsx` (신규)
+- `frontend/src/components/research/ProposalsSection.tsx` — 일괄 승인 확인 게이트 통합
+- `frontend/src/components/research/ScannerProposalsSection.tsx` — 동일 + 일괄 거절 confirm
+- `frontend/src/index.css` — 확인 게이트 강조 스타일
 
-모바일에서 AI 제안 검토·승인, 실전 배치 승인, 알림 수신이 가능한 UX.
-범위: 모바일 반응형 UI 개선, Telegram/모바일 알림 통합, 주요 승인 화면 모바일 최적화.
-선행 조건: C-2.29.1 완료.
+## Completed: C-2.30
 
----
+구현 완료 파일 (frontend-only):
+- `frontend/src/components/research/StrategyProposalReportCard.tsx` (신규)
+- `frontend/src/components/research/ScannerProposalReportCard.tsx` (신규)
+- `frontend/src/components/research/LivePromotionReviewCard.tsx` (신규)
+- `frontend/src/components/research/TransitionPlanView.tsx` (신규)
+- `frontend/src/components/research/approvalBlocks.tsx` (신규)
+- `frontend/src/components/research/safetyCopy.ts` (신규, 정적 안전 문구)
+- `frontend/src/api/research.ts` — transition-plan / live-readiness / live-promote 바인딩
+- `frontend/src/types/research.ts` — TransitionPlan / LiveReadinessReport / LivePromotion* 타입
+- 제안 섹션 통합 + stale "DRAFT" → "TESTING" 정정 + 모바일 반응형 CSS
+- **보류**: Telegram/모바일 푸시 알림 통합 (별도 작업, 사용자 승인 필요)
 
 ## Completed: C-2.29.1
 
