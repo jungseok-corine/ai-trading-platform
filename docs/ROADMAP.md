@@ -230,7 +230,23 @@ intraday_event_monitor, research_pipeline, intelligence_experiment_autopilot(pap
 KEEP_OFF = daily_analysis, scanner_review, strategy_review, intelligence_scanner_proposal,
 intelligence_evolution · DO_NOT_ENABLE = 현재 없음.
 
-**후속 후보**: C-OPS-3.2 — Enable Confirmation Gate (KEEP_OFF 잡을 켤 때 비용/제안 경고 + 확인). 이번 작업엔 미포함.
+---
+
+### C-OPS-3.2 — Enable Confirmation Gate `DONE`
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | 위험도 있는 자율 잡을 실수로 한 번에 ON 하지 못하도록, ON 전 확인 게이트 추가 (C-OPS-3.1 메타데이터 활용) |
+| **범위** | `JobEnableConfirm` 컴포넌트(설명·위험도·특성 배지·안전 고지·확인 체크박스) + `AutonomousJobsSection` ON 경로 게이팅. frontend-only. |
+| **확인 규칙** | `recommended_state !== "ON_OK"`(= SAFE_ON 이외)인 잡을 **켤 때만** 확인 필요. disable·SAFE_ON enable·run-now는 게이트 없음. |
+| **하지 말 것** | backend/scheduler 동작 변경 금지. 잡 기본 enabled 상태 변경 금지. toggle API binding·run-now 변경 금지. |
+| **완료 기준** | KEEP_OFF/MANUAL_FIRST enable 시 확인 패널, SAFE_ON enable·disable은 즉시, cancel 시 API 미호출, 확인 체크 없이는 확정 비활성. `npm run build` 통과. |
+| **선행 조건** | C-OPS-3.1 완료 |
+
+구현 완료 (frontend-only): `JobEnableConfirm.tsx` + `jobRiskLabels.tsx`(공용 라벨/배지 추출) + 섹션 통합.
+잡 기본 enabled 상태·scheduler 동작·backend 미변경.
+
+**후속 후보**: C-OPS-3.3 — 자율 잡 실행 이력/수동 실행 결과 가시성(run history / manual run result visibility). 이번 작업엔 미포함.
 
 ---
 

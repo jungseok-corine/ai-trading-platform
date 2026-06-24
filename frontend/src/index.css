@@ -950,6 +950,14 @@ tr.selected {
 }
 .job-safety-notes li { margin: 1px 0; }
 
+/* C-OPS-3.2: 자율 잡 ON 확인 게이트. KEEP_OFF는 빨강, MANUAL_FIRST는 노랑 강조. */
+.job-enable-confirm.keep-off { border-left: 4px solid #c92a2a; background: #fff5f5; }
+.job-enable-confirm.manual-first { border-left: 4px solid #f0a000; background: #fffdf5; }
+@media (max-width: 640px) {
+  .job-enable-confirm .approval-actions .form-row { flex-direction: column; align-items: stretch; }
+  .job-enable-confirm .approval-actions button { width: 100%; min-height: 44px; font-size: 1rem; }
+}
+
 /* C-2.30: 승인 리포트 카드 ---------------------------------------------------- */
 .approval-report-card {
   border-left: 4px solid #1971c2;

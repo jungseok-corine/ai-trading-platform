@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AutonomousJob,
@@ -6,44 +7,15 @@ import {
   toggleAutonomousJob,
 } from "../../api/client";
 import { useSettings } from "../../i18n/SettingsContext";
-
-// C-3.1: 위험도/추천 상태/특성 라벨 (정적 상수, 표시 전용).
-const RISK_LABEL: Record<AutonomousJob["risk_level"], string> = {
-  SAFE_ON: "상시 ON 가능",
-  MANUAL_FIRST: "수동 실행 먼저 권장",
-  KEEP_OFF: "기본 OFF 유지 권장",
-  DO_NOT_ENABLE: "활성화 금지",
-};
-
-const RECOMMENDED_LABEL: Record<AutonomousJob["recommended_state"], string> = {
-  ON_OK: "추천: ON 가능",
-  MANUAL_FIRST: "추천: 수동 우선",
-  KEEP_OFF: "추천: OFF 유지",
-};
-
-function CapabilityBadges({ job }: { job: AutonomousJob }) {
-  return (
-    <div className="badge-row">
-      {job.writes_db && <span className="cap-badge">DB 기록 있음</span>}
-      {(job.uses_llm || job.cost_risk) && (
-        <span className="cap-badge cap-warn">LLM/비용 가능성</span>
-      )}
-      {job.external_network && <span className="cap-badge">외부 API 호출</span>}
-      {job.creates_proposals && (
-        <span className="cap-badge cap-warn">제안 생성 가능</span>
-      )}
-      {job.paper_action && <span className="cap-badge">Paper 상태 변경 가능</span>}
-      {job.data_volume_risk && <span className="cap-badge">레코드 다량 생성</span>}
-      {/* 안전 고지: 어떤 잡도 실전 거래에 영향 없음 */}
-      <span className="cap-badge cap-safe">실전 주문 영향 없음</span>
-    </div>
-  );
-}
+import JobEnableConfirm from "./JobEnableConfirm";
+import { CapabilityBadges, RECOMMENDED_LABEL, RISK_LABEL } from "./jobRiskLabels";
 
 export default function AutonomousJobsSection() {
   const { t, formatDateTime } = useSettings();
   const j = t.autonomousJobs;
   const qc = useQueryClient();
+  // C-OPS-3.2: ON 확인 게이트 대상 잡 (recommended_state !== "ON_OK"일 때만 채워짐).
+  const [pendingEnableJob, setPendingEnableJob] = useState<AutonomousJob | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["autonomous-jobs"],
@@ -56,12 +28,29 @@ export default function AutonomousJobsSection() {
   const toggle = useMutation({
     mutationFn: ({ jobId, enabled }: { jobId: string; enabled: boolean }) =>
       toggleAutonomousJob(jobId, enabled),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setPendingEnableJob(null);
+      invalidate();
+    },
+    onError: () => setPendingEnableJob(null),
   });
   const run = useMutation({
     mutationFn: (jobId: string) => runAutonomousJob(jobId),
     onSuccess: invalidate,
   });
+
+  // ON/OFF 클릭 처리: OFF는 즉시, ON은 SAFE_ON(ON_OK)만 즉시 — 그 외엔 확인 게이트.
+  const handleToggleClick = (job: AutonomousJob) => {
+    if (job.enabled) {
+      toggle.mutate({ jobId: job.job_id, enabled: false });
+      return;
+    }
+    if (job.recommended_state === "ON_OK") {
+      toggle.mutate({ jobId: job.job_id, enabled: true });
+    } else {
+      setPendingEnableJob(job);
+    }
+  };
 
   return (
     <div className="card">
@@ -125,7 +114,7 @@ export default function AutonomousJobsSection() {
                   </td>
                   <td>
                     <button
-                      onClick={() => toggle.mutate({ jobId: job.job_id, enabled: !job.enabled })}
+                      onClick={() => handleToggleClick(job)}
                       disabled={toggle.isPending}
                     >
                       {job.enabled ? j.turnOff : j.turnOn}
@@ -141,6 +130,16 @@ export default function AutonomousJobsSection() {
         </div>
       )}
       {run.isSuccess && <p className="muted">{j.runTriggered}</p>}
+
+      {pendingEnableJob && (
+        <JobEnableConfirm
+          key={pendingEnableJob.job_id}
+          job={pendingEnableJob}
+          isPending={toggle.isPending}
+          onConfirm={() => toggle.mutate({ jobId: pendingEnableJob.job_id, enabled: true })}
+          onCancel={() => setPendingEnableJob(null)}
+        />
+      )}
     </div>
   );
 }

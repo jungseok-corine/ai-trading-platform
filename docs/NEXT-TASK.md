@@ -7,29 +7,28 @@
 
 ## Current State
 
-**C-OPS-3.1 — Job Metadata & Risk Labels (`DONE`)**
+**C-OPS-3.2 — Enable Confirmation Gate (`DONE`)**
 
 > **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID와 혼동을
 > 피하려고 `C-OPS-3.x`로 별도 번호를 쓴다.
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | C-OPS-3.1 — Job Metadata & Risk Labels (`DONE`) |
+| **마지막 완료 작업** | C-OPS-3.2 — Enable Confirmation Gate (`DONE`) |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | C-OPS-3.2 진행 여부 또는 다른 방향을 사람이 선택 |
+| **다음에 필요한 것** | C-OPS-3.3 진행 여부 또는 다른 방향을 사람이 선택 |
 
-> C-OPS-3.1은 자율 잡을 실제로 켜지 않았다. 각 잡의 설명·위험도·비용/외부API/DB write/제안 생성
-> 여부·추천 상태를 read-only 메타데이터로 API/UI에 노출했을 뿐이다. 모든 잡 기본 OFF 유지.
-> **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
+> C-OPS-3.2는 frontend-only. `recommended_state !== "ON_OK"`인 잡을 **켤 때만** 확인 게이트를
+> 추가했다. 잡 기본 enabled 상태·scheduler 동작·backend는 변경하지 않았다. disable·SAFE_ON
+> enable·run-now는 그대로 즉시 동작. **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
 
 ---
 
 ## Candidate Next Directions (사용자 선택 필요)
 
-**C-OPS-3.2. Enable Confirmation Gate (권장 후속)**
-- KEEP_OFF 잡(daily_analysis / scanner_review / strategy_review / intelligence_scanner_proposal /
-  intelligence_evolution)을 켤 때 비용·제안 생성 경고 + 확인 체크 게이트 (C-2.30.1 패턴 재사용)
-- frontend-only 가능. scheduler 실행 동작·기본값 변경 없음.
+**C-OPS-3.3. Run History / Manual Run Result Visibility (권장 후속)**
+- 자율 잡의 실행 이력·수동 실행(run-now) 결과를 UI에서 확인 (현재는 last_run_at/last_error만)
+- frontend 또는 가벼운 backend read-only 집계. scheduler 실행 동작·기본값 변경 없음.
 
 **A. Approval Notification Integration**
 - 백엔드 + 프론트엔드 (full-stack). Telegram/알림 provider opt-in.
@@ -40,6 +39,17 @@
 - 모바일 대시보드 사용성 개선. 매매 동작 변경 없음.
 
 **⛔ 위 방향 중 하나를 사용자가 선택하기 전에는 다음 기능을 착수하지 않는다.**
+
+---
+
+## Completed: C-OPS-3.2
+
+구현 완료 파일 (frontend-only):
+- `frontend/src/components/research/JobEnableConfirm.tsx` (신규) — ON 확인 게이트 패널
+- `frontend/src/components/research/jobRiskLabels.tsx` (신규) — 공용 라벨/배지 추출
+- `frontend/src/components/research/AutonomousJobsSection.tsx` — ON 경로 게이팅(disable/SAFE_ON/run-now 미변경)
+- `frontend/src/index.css` — KEEP_OFF/MANUAL_FIRST 확인 패널 스타일
+- 규칙: `recommended_state !== "ON_OK"` enable 시 확인. backend/scheduler/기본값 미변경.
 
 ---
 
