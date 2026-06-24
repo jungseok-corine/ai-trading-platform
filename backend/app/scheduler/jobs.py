@@ -52,9 +52,17 @@ async def run_dart_ingest_job(app: FastAPI) -> None:
     """
     from app.services.dart_ingest_service import DartIngestService
 
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    run_summary: dict = {}
     try:
         async with async_session_factory() as session:
             summary = await DartIngestService(session).ingest()
+        run_summary = {
+            "fetched": summary.fetched, "matched": summary.matched,
+            "material": summary.material, "created": summary.created,
+        }
         logger.info(
             "dart ingest: fetched=%s matched=%s material=%s created=%s",
             summary.fetched, summary.matched, summary.material, summary.created,
@@ -62,7 +70,14 @@ async def run_dart_ingest_job(app: FastAPI) -> None:
         app.state.dart_ingest_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
         logger.error("dart ingest job failed: %s", exc_message(exc))
-        app.state.dart_ingest_last_error = exc_message(exc)
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        run_summary = {"error": error_message}
+        app.state.dart_ingest_last_error = error_message
+    finally:
+        await _record_run(
+            DART_INGEST_JOB_ID, started_at, datetime.now(KST), status, error_message, run_summary
+        )
 
 
 INTRADAY_EVENT_MONITOR_JOB_ID = "intraday_event_monitor"
@@ -141,6 +156,10 @@ async def run_operations_digest_job(app: FastAPI) -> None:
     from app.services.operations_digest_service import OperationsDigestService
     from app.services.operations_snapshot_service import OperationsSnapshotService
 
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    run_summary: dict = {}
     try:
         settings = get_settings()
         async with async_session_factory() as session:
@@ -158,6 +177,9 @@ async def run_operations_digest_job(app: FastAPI) -> None:
             channel = get_notification_channel(settings.notification_provider)
             result = await channel.send("운영 다이제스트", text)
             sent = result.sent
+        run_summary = {
+            "severity": digest["severity"], "alerts": len(digest["alerts"]), "sent": sent,
+        }
         logger.info(
             "operations digest: severity=%s alerts=%s sent=%s",
             digest["severity"], len(digest["alerts"]), sent,
@@ -165,7 +187,14 @@ async def run_operations_digest_job(app: FastAPI) -> None:
         app.state.operations_digest_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 다이제스트 실패가 스케줄러를 중단시키지 않도록
         logger.error("operations digest job failed: %s", exc_message(exc))
-        app.state.operations_digest_last_error = exc_message(exc)
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        run_summary = {"error": error_message}
+        app.state.operations_digest_last_error = error_message
+    finally:
+        await _record_run(
+            OPERATIONS_DIGEST_JOB_ID, started_at, datetime.now(KST), status, error_message, run_summary
+        )
 
 
 async def run_daily_analysis_job(app: FastAPI) -> None:
@@ -300,12 +329,20 @@ async def run_data_refresh_job(app: FastAPI) -> None:
     from app.services.data_refresh_service import DataRefreshService
     from app.services.investor_flow_service import InvestorFlowService
 
+    started_at = datetime.now(KST)
     client = getattr(app.state, "investor_flow_client", None)
     if client is None:
         logger.warning("data refresh job skipped — investor_flow_client not initialized")
+        await _record_run(
+            DATA_REFRESH_JOB_ID, started_at, datetime.now(KST),
+            SchedulerRunStatus.SKIPPED, None, {"skipped_reason": "client_not_initialized"},
+        )
         return
 
     settings = get_settings()
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    run_summary: dict = {}
     try:
         async with async_session_factory() as session:
             service = DataRefreshService(session, InvestorFlowService(session=session, client=client))
@@ -313,6 +350,10 @@ async def run_data_refresh_job(app: FastAPI) -> None:
             summary = await service.refresh_investor_flows(
                 symbols, lookback_days=settings.data_refresh_lookback_days
             )
+        run_summary = {
+            "requested": summary.requested, "succeeded": summary.succeeded,
+            "failed": summary.failed, "rows": summary.rows,
+        }
         logger.info(
             "data refresh done: requested=%s succeeded=%s failed=%s rows=%s",
             summary.requested, summary.succeeded, summary.failed, summary.rows,
@@ -320,7 +361,14 @@ async def run_data_refresh_job(app: FastAPI) -> None:
         app.state.data_refresh_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
         logger.error("data refresh job failed: %s", exc_message(exc))
-        app.state.data_refresh_last_error = exc_message(exc)
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        run_summary = {"error": error_message}
+        app.state.data_refresh_last_error = error_message
+    finally:
+        await _record_run(
+            DATA_REFRESH_JOB_ID, started_at, datetime.now(KST), status, error_message, run_summary
+        )
 
 
 async def run_daily_report_job(app: FastAPI) -> None:
@@ -331,17 +379,31 @@ async def run_daily_report_job(app: FastAPI) -> None:
     from app.domain.models.enums import MarketCode
     from app.services.daily_report_service import DailyReportService
 
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    run_summary: dict = {}
     try:
+        markets_done: list[str] = []
         async with async_session_factory() as session:
             svc = DailyReportService(session)
             # 시장별로 따로 집계해 KR/US 리포트를 각각 생성한다.
             for market in (MarketCode.KR, MarketCode.US):
                 report = await svc.generate(market=market)
+                markets_done.append(market.value)
                 logger.info("daily report generated (%s): %s", market.value, report.summary)
+        run_summary = {"markets": markets_done}
         app.state.daily_report_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 리포트 실패가 스케줄러를 중단시키지 않도록
         logger.error("daily report job failed: %s", exc_message(exc))
-        app.state.daily_report_last_error = exc_message(exc)
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        run_summary = {"error": error_message}
+        app.state.daily_report_last_error = error_message
+    finally:
+        await _record_run(
+            DAILY_REPORT_JOB_ID, started_at, datetime.now(KST), status, error_message, run_summary
+        )
 
 
 async def _record_run(

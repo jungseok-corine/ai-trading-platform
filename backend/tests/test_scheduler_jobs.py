@@ -17,10 +17,18 @@ from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
 from app.domain.models.trade import Trade
 from app.scheduler.jobs import (
+    DAILY_REPORT_JOB_ID,
+    DART_INGEST_JOB_ID,
+    DATA_REFRESH_JOB_ID,
+    OPERATIONS_DIGEST_JOB_ID,
     ORDER_SYNC_JOB_ID,
     STRATEGY_RUNNER_JOB_ID,
     US_MARKET_REFRESH_JOB_ID,
     order_sync_job,
+    run_daily_report_job,
+    run_dart_ingest_job,
+    run_data_refresh_job,
+    run_operations_digest_job,
     run_strategy_job,
     run_us_market_refresh_job,
 )
@@ -568,3 +576,92 @@ async def test_us_market_refresh_run_visible_to_scheduler_health_repo(job_sessio
         async with job_session_factory() as session:
             await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == US_MARKET_REFRESH_JOB_ID))
             await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Task 3: 다른 모니터링 대상 잡들의 scheduler_runs 기록 (false health alert 방지)
+# ---------------------------------------------------------------------------
+import types as _types  # noqa: E402
+
+
+async def _latest_run(job_session_factory, job_id):
+    async with job_session_factory() as session:
+        return (
+            await session.execute(
+                select(SchedulerRun).where(SchedulerRun.job_id == job_id).order_by(SchedulerRun.id.desc())
+            )
+        ).scalars().first()
+
+
+async def _cleanup_runs(job_session_factory, job_id):
+    async with job_session_factory() as session:
+        await session.execute(delete(SchedulerRun).where(SchedulerRun.job_id == job_id))
+        await session.commit()
+
+
+async def test_dart_ingest_job_records_run(job_session_factory, monkeypatch) -> None:
+    """dart_ingest는 성공/실패 시 scheduler_runs를 기록한다(외부 DART는 mock)."""
+    from app.services.dart_ingest_service import DartIngestService
+
+    async def _ok(self):
+        return _types.SimpleNamespace(fetched=2, matched=2, material=1, created=1)
+
+    monkeypatch.setattr(DartIngestService, "ingest", _ok)
+    try:
+        await run_dart_ingest_job(FastAPI())
+        run = await _latest_run(job_session_factory, DART_INGEST_JOB_ID)
+        assert run is not None and run.status == SchedulerRunStatus.SUCCESS
+        assert run.summary.get("created") == 1
+    finally:
+        await _cleanup_runs(job_session_factory, DART_INGEST_JOB_ID)
+
+    async def _boom(self):
+        raise RuntimeError("DART 403")
+
+    monkeypatch.setattr(DartIngestService, "ingest", _boom)
+    app = FastAPI()
+    try:
+        await run_dart_ingest_job(app)
+        assert app.state.dart_ingest_last_error is not None
+        run = await _latest_run(job_session_factory, DART_INGEST_JOB_ID)
+        assert run is not None and run.status == SchedulerRunStatus.FAILED
+        assert "DART" in (run.error_message or "")
+    finally:
+        await _cleanup_runs(job_session_factory, DART_INGEST_JOB_ID)
+
+
+async def test_data_refresh_job_records_skipped_when_no_client(job_session_factory) -> None:
+    """투자자 흐름 클라이언트 미초기화면 SKIPPED run을 기록한다(외부 호출 없음)."""
+    app = FastAPI()  # app.state.investor_flow_client 미설정 -> SKIPPED
+    try:
+        await run_data_refresh_job(app)
+        run = await _latest_run(job_session_factory, DATA_REFRESH_JOB_ID)
+        assert run is not None and run.status == SchedulerRunStatus.SKIPPED
+    finally:
+        await _cleanup_runs(job_session_factory, DATA_REFRESH_JOB_ID)
+
+
+async def test_daily_report_job_records_run(job_session_factory, monkeypatch) -> None:
+    """daily_report는 성공 시 scheduler_runs를 기록한다(generate는 mock — 외부 호출 없음)."""
+    from app.services.daily_report_service import DailyReportService
+
+    async def _gen(self, market):
+        return _types.SimpleNamespace(summary="test report")
+
+    monkeypatch.setattr(DailyReportService, "generate", _gen)
+    try:
+        await run_daily_report_job(FastAPI())
+        run = await _latest_run(job_session_factory, DAILY_REPORT_JOB_ID)
+        assert run is not None and run.status == SchedulerRunStatus.SUCCESS
+    finally:
+        await _cleanup_runs(job_session_factory, DAILY_REPORT_JOB_ID)
+
+
+async def test_operations_digest_job_records_run(job_session_factory) -> None:
+    """operations_digest는 성공 시 scheduler_runs를 기록한다(DB 집계 + none 채널, 외부 호출 없음)."""
+    try:
+        await run_operations_digest_job(FastAPI())
+        run = await _latest_run(job_session_factory, OPERATIONS_DIGEST_JOB_ID)
+        assert run is not None and run.status == SchedulerRunStatus.SUCCESS
+    finally:
+        await _cleanup_runs(job_session_factory, OPERATIONS_DIGEST_JOB_ID)
