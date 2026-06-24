@@ -113,7 +113,7 @@
 
 ---
 
-### C-2.26 — Strategy Assignment Automation `TODO`
+### C-2.26 — Strategy Assignment Automation `DONE`
 
 | 항목 | 내용 |
 |------|------|

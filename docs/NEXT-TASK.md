@@ -7,38 +7,44 @@
 
 ## Current Task
 
-**C-2.25 — Scanner Rule Auto-Generation**
+**C-2.26 — Strategy Assignment Automation**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (IntelligenceCandidate 기반 LLM 스캐너 룰 개선 제안) |
+| **Type** | Feature (IntelligenceCandidate 기반 heuristic 전략 배정 제안) |
 
 ---
 
 ## Goal
 
-최근 IntelligenceCandidate 패턴과 시장 맥락을 LLM이 분석해 기존 스캐너 룰의 개선 버전을 "제안"한다.
-기존 ScannerRule 개선만 허용. 새 ScannerRule 생성 금지. 제안은 항상 pending.
+PENDING IntelligenceCandidate에 적합한 strategy_type과 파라미터를 heuristic으로 제안.
+제안은 항상 pending. 사람 승인 시 candidate → PROMOTED. StrategyVersion 미생성.
 
 ---
 
 ## Definition of Done
 
-- [x] `IntelligenceScannerProposalGenerator` 클래스 신규 구현
-- [x] LLM 입력 bundle 구성 (후보 + 활성 룰 + 테마 + 매크로)
-- [x] LLM 출력 JSON 파싱 + `validate_conditions()` 검증
-- [x] `ScannerProposalService.create_proposal(source="intelligence_ai")` 재사용
-- [x] pending 중복 방지 (`pending_base_version_ids()` 패턴)
-- [x] `POST /intelligence/scanner-proposals/generate` API
-- [x] `intelligence_scanner_proposal_scheduler_enabled=False` 기본 비활성 스케줄러 잡
-- [x] ControllableJob 레지스트리 등록
-- [x] 18개 테스트 전체 통과
-- [x] 새 ScannerRule 생성 없음
-- [x] ScannerRuleVersion 자동 ACTIVE 없음
-- [x] 기존 heuristic ScannerProposalGenerator 미수정
-- [x] LLM 호출 없음 (테스트에서 FakeProvider 주입)
+- [x] `IntelligenceStrategyProposalStatus` enum 추가
+- [x] `IntelligenceStrategyProposal` 모델 신규 구현
+- [x] Alembic 마이그레이션 (`g1h2i3j4k5l6`)
+- [x] `IntelligenceStrategyProposalRepository` (create/get/list/approve/reject)
+- [x] `IntelligenceStrategyAssignmentGenerator` (heuristic, LLM 미사용)
+- [x] 8개 heuristic 매칭 규칙 + fallback
+- [x] 중복 방지 (`existing_for_candidate` + `dedup_hash`)
+- [x] `POST /intelligence/strategy-proposals/generate` API
+- [x] `GET /intelligence/strategy-proposals` API
+- [x] `GET /intelligence/strategy-proposals/{id}` API
+- [x] `POST /intelligence/strategy-proposals/{id}/approve` API
+- [x] `POST /intelligence/strategy-proposals/{id}/reject` API
+- [x] 30개 테스트 전체 통과
+- [x] StrategyVersion 자동 생성 없음
+- [x] StrategyAssignmentLog 자동 생성 없음
+- [x] auto_trade_enabled True 없음
+- [x] LLM/AnalysisProvider 호출 없음
+- [x] 기존 StrategyAssignmentLog FK 미수정
+- [x] 기존 AssignmentService.assign() 미변경
 - [x] 주문·실거래 코드 변경 없음
 
 ---
@@ -47,19 +53,33 @@
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- 새 스케줄러 잡 기본 비활성
+- StrategyVersion 자동 생성 없음
 - AI 제안 자동 적용 금지 (pending → approved 자동 전환 없음)
-- C-2.26 이후 작업 시작 금지
+- C-2.27 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.26 — Strategy Assignment Automation**
+**C-2.27 — Paper Experiment Autopilot**
 
-후보 종목에 적합한 전략을 AI가 자동 추천·배정.
-범위: 후보 특성 기반 전략 매칭 로직, 배정 제안 생성, 사람 승인 후 배정 확정.
-선행 조건: C-2.25 완료.
+배정된 전략을 paper에서 자동 실험하고 성과를 자동 측정.
+범위: 실험 자동 시작/종료 조건, 성과 지표 자동 계산, 실험 비교 자동화.
+선행 조건: C-2.26 완료.
+
+---
+
+## Completed: C-2.26
+
+구현 완료 파일:
+- `app/domain/models/enums.py` — IntelligenceStrategyProposalStatus 추가
+- `app/domain/models/intelligence_strategy_proposal.py` (신규)
+- `app/domain/models/__init__.py` — IntelligenceStrategyProposal 등록
+- `alembic/versions/g1h2i3j4k5l6_add_intelligence_strategy_proposals.py` (신규)
+- `app/domain/repositories/intelligence_strategy_proposal.py` (신규)
+- `app/services/intelligence_strategy_assignment_generator.py` (신규)
+- `app/api/v1/intelligence.py` — strategy-proposals 5개 엔드포인트 추가
+- `tests/test_c2_26_intelligence_strategy_assignment.py` (30 tests, all pass)
 
 ---
 
