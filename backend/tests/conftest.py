@@ -1,6 +1,15 @@
 import os
 from pathlib import Path
 
+# ── 테스트 환경 격리 (C-2.30.2 stabilization, Commit 1) ──────────────────────
+# 개발자 로컬 .env가 테스트에 새어들어 config 기반 테스트를 오염시키는 것을 막는다.
+# Vector 2 차단: 여러 scripts/*.py가 import 시점에 load_dotenv()로 .env를 os.environ에
+# 주입한다. conftest.py는 다른 테스트 모듈 수집(import)보다 먼저 임포트되므로, 여기서
+# load_dotenv를 no-op으로 만들면 어떤 스크립트가 import되어도 .env가 주입되지 않는다.
+import dotenv  # type: ignore[import-untyped]
+
+dotenv.load_dotenv = lambda *args, **kwargs: False  # type: ignore[assignment]
+
 # 다른 app.* 모듈이 import되기 전에 DATABASE_URL을 테스트 전용 DB로 덮어쓴다.
 # app.db.session, alembic/env.py 등은 모듈 임포트 시점에 get_settings().database_url로
 # 엔진을 생성하므로, 이 override는 반드시 다른 app.* import보다 먼저 실행되어야 한다.
@@ -25,7 +34,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
+
+# Vector 1 차단: Settings가 개발자 .env 파일을 직접 읽지 않도록 env_file을 None으로 만든다.
+# 그러면 get_settings()와 Settings(_env_file=None) 모두 코드 기본값 + 명시적 테스트 env
+# (위에서 설정한 os.environ의 DATABASE_URL 등)만 본다. c3_26 안전 가드가 로컬 .env가 아니라
+# '코드 기본값'을 그대로 검증하도록 유지된다. (첫 get_settings() 호출 전이라 충분히 이르다.)
+Settings.model_config["env_file"] = None
 
 get_settings.cache_clear()
 
