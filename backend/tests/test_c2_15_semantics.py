@@ -130,22 +130,28 @@ def test_scheduler_job_label_ko_has_trading_state_sync() -> None:
 
 
 def test_scheduler_job_label_ko_content() -> None:
-    """ko jobLabels에 strategy_runner, order_sync, trading_state_sync가 모두 있어야 한다."""
+    """ko jobLabels에 주요 스케줄러 잡의 한글 라벨이 있어야 한다.
+
+    라벨 문구는 Engine Status 가독성 개선에서 갱신·확장되었다.
+    """
     src = open(_FRONTEND_ROOT / "src/i18n/translations.ts").read()
     assert "strategy_runner" in src
     assert "order_sync" in src
     assert "trading_state_sync" in src
     assert "거래 상태 동기화" in src
-    assert "전략 실행기" in src
-    assert "주문/체결 동기화" in src
+    assert "전략 실행" in src
+    assert "주문 동기화" in src
+    # 확장된 자율 잡 라벨도 존재해야 한다.
+    assert "미국장 갱신" in src
 
 
 def test_scheduler_job_label_en_content() -> None:
-    """en jobLabels에 영문 번역이 있어야 한다."""
+    """en jobLabels에 영문 번역이 있어야 한다(갱신·확장 반영)."""
     src = open(_FRONTEND_ROOT / "src/i18n/translations.ts").read()
     assert "Strategy Runner" in src
-    assert "Order/Fill Sync" in src
+    assert "Order Sync" in src
     assert "Trading State Sync" in src
+    assert "US Market Refresh" in src
 
 
 # ---------------------------------------------------------------------------
