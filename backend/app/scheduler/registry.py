@@ -21,6 +21,7 @@ from app.scheduler.jobs import (
     DART_INGEST_JOB_ID,
     DATA_REFRESH_JOB_ID,
     EDGAR_INGEST_JOB_ID,
+    INTELLIGENCE_DISCOVERY_JOB_ID,
     INTELLIGENCE_INGEST_JOB_ID,
     INTRADAY_EVENT_MONITOR_JOB_ID,
     OPERATIONS_DIGEST_JOB_ID,
@@ -34,6 +35,7 @@ from app.scheduler.jobs import (
     run_dart_ingest_job,
     run_data_refresh_job,
     run_edgar_ingest_job,
+    run_intelligence_discovery_job,
     run_intelligence_ingest_job,
     run_intraday_event_monitor_job,
     run_operations_digest_job,
@@ -179,6 +181,17 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_ingest_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_ingest_scheduler_enabled,
+    ),
+    ControllableJob(
+        job_id=INTELLIGENCE_DISCOVERY_JOB_ID,
+        label_ko="Intelligence 후보 발굴",
+        schedule_desc="매일 07:00",
+        func=run_intelligence_discovery_job,
+        build_trigger=lambda s: CronTrigger(
+            hour=s.intelligence_discovery_scheduler_hour,
+            minute=s.intelligence_discovery_scheduler_minute,
+        ),
+        env_enabled=lambda s: s.intelligence_discovery_scheduler_enabled,
     ),
 ]
 

@@ -174,3 +174,12 @@ class IntelligenceEventStatus(str, enum.Enum):
     NORMALIZED = "normalized"  # 정규화 완료
     ASSESSED = "assessed"    # AI 평가 완료
     IGNORED = "ignored"      # 노이즈로 판단, 무시
+
+
+class IntelligenceCandidateStatus(str, enum.Enum):
+    """인텔리전스 기반 후보 처리 상태 (C-2.24)."""
+
+    PENDING = "pending"      # 자동 생성, 검토 대기
+    REVIEWED = "reviewed"    # 사람이 검토 완료
+    PROMOTED = "promoted"    # 전략 배정 등 다음 단계로 승격
+    IGNORED = "ignored"      # 무시 처리

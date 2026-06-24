@@ -39,6 +39,7 @@ EDGAR_INGEST_JOB_ID = "edgar_ingest"
 OPERATIONS_DIGEST_JOB_ID = "operations_digest"
 DART_FINANCE_JOB_ID = "dart_finance"
 INTELLIGENCE_INGEST_JOB_ID = "intelligence_ingest"
+INTELLIGENCE_DISCOVERY_JOB_ID = "intelligence_discovery"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -633,3 +634,30 @@ async def run_intelligence_ingest_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
         logger.error("intelligence ingest job failed: %s", exc_message(exc))
         app.state.intelligence_ingest_last_error = exc_message(exc)
+
+
+async def run_intelligence_discovery_job(app: FastAPI) -> None:
+    """최근 IntelligenceEvent에서 관심 후보 종목을 발굴하고 저장한다 (C-2.24).
+
+    기본 비활성. LLM 미호출, read-only 발굴이며 주문과 무관하다.
+    intelligence_ingest(06:00) 이후 실행을 권장한다 (기본 07:00).
+    """
+    from app.services.intelligence_candidate_discovery_service import (
+        IntelligenceCandidateDiscoveryService,
+    )
+
+    try:
+        async with async_session_factory() as session:
+            summary = await IntelligenceCandidateDiscoveryService(session).discover()
+        logger.info(
+            "intelligence discovery: events=%s created=%s skipped_dup=%s skipped_no_sym=%s errors=%s",
+            summary.events_checked,
+            summary.candidates_created,
+            summary.skipped_duplicate_count,
+            summary.skipped_no_symbol_count,
+            len(summary.errors),
+        )
+        app.state.intelligence_discovery_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 발굴 실패가 스케줄러를 중단시키지 않도록
+        logger.error("intelligence discovery job failed: %s", exc_message(exc))
+        app.state.intelligence_discovery_last_error = exc_message(exc)

@@ -89,7 +89,7 @@
 
 ---
 
-### C-2.24 — Candidate Discovery System `TODO`
+### C-2.24 — Candidate Discovery System `DONE`
 
 | 항목 | 내용 |
 |------|------|
