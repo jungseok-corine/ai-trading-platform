@@ -103,6 +103,53 @@ async def test_provider_ticker_to_cik_caches() -> None:
     assert await provider.ticker_to_cik("UNKNOWN") is None
 
 
+async def test_provider_sends_user_agent_header() -> None:
+    # SEC는 연락처 User-Agent를 요구한다 — 요청에 실제로 실려야 한다.
+    seen: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["ua"] = request.headers.get("User-Agent")
+        return httpx.Response(200, json=_TICKERS_BODY)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = EdgarProvider("MyApp contact@example.com", client=client)
+    await provider.ticker_to_cik("AAPL")
+    assert seen["ua"] == "MyApp contact@example.com"
+
+
+async def test_provider_403_raises_rate_limit_hint() -> None:
+    # SEC rate limit 초과 시 403 "Request Rate Threshold Exceeded".
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="SEC.gov | Request Rate Threshold Exceeded")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = EdgarProvider("MyApp contact@example.com", client=client)
+    with pytest.raises(EdgarProviderError) as exc:
+        await provider.ticker_to_cik("AAPL")
+    assert "403" in str(exc.value)
+    assert "User-Agent" in str(exc.value) or "SEC_EDGAR_USER_AGENT" in str(exc.value)
+
+
+async def test_provider_throttles_between_requests(monkeypatch) -> None:
+    # 연속 요청 사이 최소 간격을 둬 SEC rate limit(403)을 피한다.
+    import asyncio
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(d: float) -> None:
+        sleeps.append(d)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    provider = EdgarProvider(
+        "MyApp contact@example.com", min_request_interval_seconds=0.5, client=_client()
+    )
+    await provider.ticker_to_cik("AAPL")          # 1번째 요청
+    await provider.fetch_submissions(320193, "AAPL")  # 2번째 요청 — 간격 강제
+    assert sleeps, "연속 요청 사이에 throttle 대기가 없었음"
+    assert sleeps[0] > 0
+
+
 # --- ingest 서비스 ----------------------------------------------------------
 async def test_ingest_filters_by_form_materiality(db_session: AsyncSession) -> None:
     provider = EdgarProvider("ai-trading-platform test@example.com", client=_client())

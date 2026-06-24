@@ -205,6 +205,9 @@ class Settings(BaseSettings):
     # SEC 정책상 연락처(이메일)가 담긴 User-Agent 필수. env로 덮어쓸 수 있다.
     sec_edgar_user_agent: str | None = "ai-trading-platform nonehour@naver.com"
     edgar_provider_timeout_seconds: float = 10.0
+    # SEC fair-access: 10 req/s 초과 시 403 "Request Rate Threshold Exceeded".
+    # 연속 요청 사이 최소 간격(초)을 둬서 rate limit을 넘지 않게 한다.
+    edgar_min_request_interval_seconds: float = 0.2
     edgar_min_materiality: float = 0.5
     edgar_since_days: int = 2            # 최근 N일 공시만 수집
     edgar_max_symbols: int = 50         # SEC rate limit 고려 종목 수 상한

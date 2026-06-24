@@ -8,6 +8,8 @@ DART(한국)와 같은 read-only 수집 패턴 — 주문과 무관하다.
 """
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -102,10 +104,14 @@ class EdgarProvider:
         user_agent: str | None,
         *,
         timeout_seconds: float = 10.0,
+        min_request_interval_seconds: float = 0.2,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._user_agent = user_agent
         self._timeout = timeout_seconds
+        # SEC fair-access(10 req/s) 준수를 위한 연속 요청 최소 간격.
+        self._min_interval = max(min_request_interval_seconds, 0.0)
+        self._last_request_at = 0.0  # time.monotonic 기준
         self._client = client
         self._ticker_cache: dict[str, int] | None = None
 
@@ -113,15 +119,36 @@ class EdgarProvider:
         # SEC는 연락처가 담긴 User-Agent를 요구한다(미설정 시 403/429).
         return {"User-Agent": self._user_agent or "", "Accept-Encoding": "gzip, deflate"}
 
+    async def _throttle(self) -> None:
+        """직전 요청과 최소 간격을 둬 SEC rate limit(403)을 넘지 않게 한다."""
+        if self._min_interval <= 0:
+            return
+        wait = self._min_interval - (time.monotonic() - self._last_request_at)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        self._last_request_at = time.monotonic()
+
     async def _get_json(self, url: str) -> dict:
         if not self._user_agent:
             raise EdgarProviderError("SEC_EDGAR_USER_AGENT is not set")
+        await self._throttle()
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         owns = self._client is None
         try:
             resp = await client.get(url, headers=self._headers())
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in (403, 429):
+                # SEC "Request Rate Threshold Exceeded" — rate limit 또는 미선언 자동접근.
+                raise EdgarProviderError(
+                    f"EDGAR rate-limited/blocked (HTTP {status}). SEC는 초당 10요청 이하와 "
+                    "연락처가 담긴 User-Agent(SEC_EDGAR_USER_AGENT)를 요구합니다. "
+                    "요청 간격(edgar_min_request_interval_seconds)을 확인하세요. "
+                    f"원본: {e}"
+                ) from e
+            raise EdgarProviderError(f"EDGAR request failed: {e}") from e
         except httpx.HTTPError as e:
             raise EdgarProviderError(f"EDGAR request failed: {e}") from e
         finally:

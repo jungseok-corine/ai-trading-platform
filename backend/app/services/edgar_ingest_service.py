@@ -47,7 +47,9 @@ class EdgarIngestService:
 
             s = get_settings()
             provider = EdgarProvider(
-                s.sec_edgar_user_agent, timeout_seconds=s.edgar_provider_timeout_seconds
+                s.sec_edgar_user_agent,
+                timeout_seconds=s.edgar_provider_timeout_seconds,
+                min_request_interval_seconds=s.edgar_min_request_interval_seconds,
             )
         self._provider = provider
 
