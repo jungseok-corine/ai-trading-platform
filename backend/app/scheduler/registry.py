@@ -60,7 +60,23 @@ class ControllableJob:
     func: Callable[[FastAPI], Awaitable[None]]
     build_trigger: Callable[[Any], Any]  # settings -> APScheduler trigger
     env_enabled: Callable[[Any], bool]  # settings -> env 기본 활성 여부
+    # ── C-3.1: read-only 위험도/특성 메타데이터 (실행 동작과 무관, 표시 전용) ──
+    description: str = ""
+    risk_level: str = "MANUAL_FIRST"  # SAFE_ON | MANUAL_FIRST | KEEP_OFF | DO_NOT_ENABLE
+    recommended_state: str = "MANUAL_FIRST"  # ON_OK | MANUAL_FIRST | KEEP_OFF
+    writes_db: bool = False
+    uses_llm: bool = False
+    external_network: bool = False
+    creates_proposals: bool = False
+    action_taking: bool = False  # 제안 승인/ACTIVE 생성/실전주문 등 실제 적용 행동 (여기선 전부 False)
+    paper_action: bool = False  # paper 실험 상태 변경(auto-conclude 등). 실전 거래 아님
+    cost_risk: bool = False  # LLM 등 유료 호출 가능성
+    data_volume_risk: bool = False  # 다수 레코드 생성 가능
+    affects_live_trading: bool = False  # 항상 False — 어떤 잡도 실전 거래/주문/브로커에 영향 없음
+    safety_notes: tuple[str, ...] = ()
 
+
+_NO_LIVE = "실전 주문 영향 없음"
 
 CONTROLLABLE_JOBS: list[ControllableJob] = [
     ControllableJob(
@@ -70,6 +86,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
         func=run_research_pipeline_job,
         build_trigger=lambda s: IntervalTrigger(seconds=s.research_pipeline_interval_seconds),
         env_enabled=lambda s: s.research_pipeline_scheduler_enabled,
+        description="시장 데이터를 스캔해 후보를 찾고 전략에 배정하는 연구 파이프라인 (결정론적, LLM 미사용).",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        data_volume_risk=True,
+        safety_notes=("다수의 candidate/assignment 레코드 생성 가능", "LLM 미사용", _NO_LIVE),
     ),
     ControllableJob(
         job_id=DATA_REFRESH_JOB_ID,
@@ -80,6 +102,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.data_refresh_scheduler_hour, minute=s.data_refresh_scheduler_minute
         ),
         env_enabled=lambda s: s.data_refresh_scheduler_enabled,
+        description="KIS API에서 투자자별 수급 데이터를 수집해 저장한다.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        safety_notes=("KIS API 호출 — 레이트리밋 주의", _NO_LIVE),
     ),
     ControllableJob(
         job_id=US_MARKET_REFRESH_JOB_ID,
@@ -90,6 +118,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.us_market_refresh_scheduler_hour, minute=s.us_market_refresh_scheduler_minute
         ),
         env_enabled=lambda s: s.us_market_refresh_scheduler_enabled,
+        description="미국장 일별 스냅샷(지수/금리/VIX 등)을 수집한다. 기본 provider=manual이면 외부 호출 없음.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        safety_notes=("기본 provider=manual은 외부 호출 없음(no-op)", _NO_LIVE),
     ),
     ControllableJob(
         job_id=DAILY_ANALYSIS_JOB_ID,
@@ -100,6 +134,14 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.ai_daily_analysis_scheduler_hour, minute=s.ai_daily_analysis_scheduler_minute
         ),
         env_enabled=lambda s: s.ai_daily_analysis_enabled,
+        description="AI가 활성 전략 버전을 일일 분석해 기록한다 (읽기 전용 메타 분석). provider≠fake면 LLM 유료 호출.",
+        risk_level="KEEP_OFF",
+        recommended_state="KEEP_OFF",
+        writes_db=True,
+        uses_llm=True,
+        external_network=True,
+        cost_risk=True,
+        safety_notes=("provider≠fake 시 LLM 유료 호출", "읽기 전용 분석 — 제안/승인 없음", _NO_LIVE),
     ),
     ControllableJob(
         job_id=SCANNER_REVIEW_JOB_ID,
@@ -110,6 +152,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.scanner_review_scheduler_hour, minute=s.scanner_review_scheduler_minute
         ),
         env_enabled=lambda s: s.scanner_review_scheduler_enabled,
+        description="스캐너 룰 성과를 점검해 개선 제안(pending)을 생성한다 (휴리스틱, LLM 미사용).",
+        risk_level="KEEP_OFF",
+        recommended_state="KEEP_OFF",
+        writes_db=True,
+        creates_proposals=True,
+        data_volume_risk=True,
+        safety_notes=("pending 제안만 생성 — 자동 승인/활성화 없음", _NO_LIVE),
     ),
     ControllableJob(
         job_id=STRATEGY_REVIEW_JOB_ID,
@@ -120,6 +169,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.strategy_review_scheduler_hour, minute=s.strategy_review_scheduler_minute
         ),
         env_enabled=lambda s: s.strategy_review_scheduler_enabled,
+        description="전략 버전 성과를 점검해 개선 제안(pending)을 생성한다 (휴리스틱, LLM 미사용).",
+        risk_level="KEEP_OFF",
+        recommended_state="KEEP_OFF",
+        writes_db=True,
+        creates_proposals=True,
+        data_volume_risk=True,
+        safety_notes=("pending 제안만 생성 — 자동 승인/활성화 없음", _NO_LIVE),
     ),
     ControllableJob(
         job_id=DAILY_REPORT_JOB_ID,
@@ -130,6 +186,11 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.daily_report_scheduler_hour, minute=s.daily_report_scheduler_minute
         ),
         env_enabled=lambda s: s.daily_report_scheduler_enabled,
+        description="일일 연구 리포트를 생성해 저장한다 (읽기 전용 집계).",
+        risk_level="SAFE_ON",
+        recommended_state="ON_OK",
+        writes_db=True,
+        safety_notes=(_NO_LIVE,),
     ),
     ControllableJob(
         job_id=OPERATIONS_DIGEST_JOB_ID,
@@ -140,6 +201,11 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.operations_digest_scheduler_hour, minute=s.operations_digest_scheduler_minute
         ),
         env_enabled=lambda s: s.operations_digest_scheduler_enabled,
+        description="운영 상태를 집계해 다이제스트/스냅샷을 기록한다 (읽기 전용 리포트).",
+        risk_level="SAFE_ON",
+        recommended_state="ON_OK",
+        writes_db=True,
+        safety_notes=("알림 채널 미설정 시 외부 전송 없음(no-op)", _NO_LIVE),
     ),
     ControllableJob(
         job_id=DART_INGEST_JOB_ID,
@@ -148,6 +214,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
         func=run_dart_ingest_job,
         build_trigger=lambda s: IntervalTrigger(seconds=s.dart_ingest_interval_seconds),
         env_enabled=lambda s: s.dart_ingest_scheduler_enabled,
+        description="DART 공시를 주기적으로 수집해 저장한다.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        data_volume_risk=True,
+        safety_notes=("DART API 호출 — 레이트리밋 주의", _NO_LIVE),
     ),
     ControllableJob(
         job_id=EDGAR_INGEST_JOB_ID,
@@ -156,6 +229,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
         func=run_edgar_ingest_job,
         build_trigger=lambda s: IntervalTrigger(seconds=s.edgar_ingest_interval_seconds),
         env_enabled=lambda s: s.edgar_ingest_scheduler_enabled,
+        description="SEC EDGAR 미국 공시를 주기적으로 수집해 저장한다.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        data_volume_risk=True,
+        safety_notes=("SEC EDGAR 호출 — 레이트리밋 주의", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTRADAY_EVENT_MONITOR_JOB_ID,
@@ -166,6 +246,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             seconds=s.intraday_event_monitor_interval_seconds
         ),
         env_enabled=lambda s: s.intraday_event_monitor_scheduler_enabled,
+        description="보유/활성 종목의 장중 공시를 감시해 중요 알림을 기록한다 (감시 대상 한정).",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        safety_notes=("감시 대상(보유/활성) 종목 한정", _NO_LIVE),
     ),
     ControllableJob(
         job_id=DART_FINANCE_JOB_ID,
@@ -176,6 +262,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             hour=s.dart_finance_scheduler_hour, minute=s.dart_finance_scheduler_minute
         ),
         env_enabled=lambda s: s.dart_finance_scheduler_enabled,
+        description="DART XBRL 재무제표를 수집해 저장한다.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        data_volume_risk=True,
+        safety_notes=("DART XBRL 호출", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTELLIGENCE_INGEST_JOB_ID,
@@ -187,6 +280,13 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_ingest_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_ingest_scheduler_enabled,
+        description="뉴스 등 인텔리전스 소스를 수집해 이벤트로 저장한다 (어댑터 기반).",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        data_volume_risk=True,
+        safety_notes=("외부 소스(RSS 등) 호출", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTELLIGENCE_DISCOVERY_JOB_ID,
@@ -198,6 +298,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_discovery_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_discovery_scheduler_enabled,
+        description="수집된 이벤트에서 후보 종목을 발굴해 저장한다 (결정론적, LLM 미사용).",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        data_volume_risk=True,
+        safety_notes=("LLM 미사용(결정론적)", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID,
@@ -209,6 +315,15 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_scanner_proposal_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_scanner_proposal_scheduler_enabled,
+        description="인텔리전스 맥락을 근거로 LLM이 스캐너 룰 개선 제안(pending)을 생성한다.",
+        risk_level="KEEP_OFF",
+        recommended_state="KEEP_OFF",
+        writes_db=True,
+        uses_llm=True,
+        external_network=True,
+        creates_proposals=True,
+        cost_risk=True,
+        safety_notes=("LLM 유료 호출", "pending 제안만 생성 — 자동 승인 없음", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID,
@@ -219,6 +334,12 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             seconds=s.intelligence_experiment_autopilot_interval_seconds
         ),
         env_enabled=lambda s: s.intelligence_experiment_autopilot_scheduler_enabled,
+        description="RUNNING paper 실험을 점검해 종료 조건 충족 시 자동 종료(conclude)한다. 주문/전략 실행 없음.",
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        paper_action=True,
+        safety_notes=("Paper 실험 상태만 변경(auto-conclude) — 실전 거래 아님", "주문/전략 실행 없음", _NO_LIVE),
     ),
     ControllableJob(
         job_id=INTELLIGENCE_EVOLUTION_JOB_ID,
@@ -229,6 +350,15 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             seconds=s.intelligence_evolution_interval_seconds
         ),
         env_enabled=lambda s: s.intelligence_evolution_scheduler_enabled,
+        description="완료된 paper 실험을 LLM이 분석해 개선 제안(pending)을 생성한다.",
+        risk_level="KEEP_OFF",
+        recommended_state="KEEP_OFF",
+        writes_db=True,
+        uses_llm=True,
+        external_network=True,
+        creates_proposals=True,
+        cost_risk=True,
+        safety_notes=("LLM 유료 호출", "pending 제안만 생성 — 자동 승인 없음", _NO_LIVE),
     ),
 ]
 

@@ -7,44 +7,50 @@
 
 ## Current State
 
-**활성 구현 작업 없음 (No active implementation task).**
+**C-3.1 — Job Metadata & Risk Labels (`DONE`)**
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | C-2.30.1 — Bulk Approval Safety Guard (`DONE`) |
+| **마지막 완료 작업** | C-3.1 — Job Metadata & Risk Labels (`DONE`) |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | 다음 로드맵 방향을 사람이 선택해야 함 (아래 후보 참조) |
+| **다음에 필요한 것** | C-3.2 진행 여부 또는 다른 방향을 사람이 선택 |
 
-> ⚠️ 신규 Phase 로드맵(ROADMAP.md "다음 작업 로드맵")이 C-2.30까지 모두 완료되어,
-> 명확히 정의된 다음 작업이 없다. **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
+> C-3.1은 자율 잡을 실제로 켜지 않았다. 각 잡의 설명·위험도·비용/외부API/DB write/제안 생성
+> 여부·추천 상태를 read-only 메타데이터로 API/UI에 노출했을 뿐이다. 모든 잡 기본 OFF 유지.
+> **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
 
 ---
 
 ## Candidate Next Directions (사용자 선택 필요)
 
+**C-3.2. Enable Confirmation Gate (권장 후속)**
+- KEEP_OFF 잡(daily_analysis / scanner_review / strategy_review / intelligence_scanner_proposal /
+  intelligence_evolution)을 켤 때 비용·제안 생성 경고 + 확인 체크 게이트 (C-2.30.1 패턴 재사용)
+- frontend-only 가능. scheduler 실행 동작·기본값 변경 없음.
+
 **A. Approval Notification Integration**
-- 백엔드 + 프론트엔드 (full-stack)
-- Telegram 또는 알림 provider opt-in
-- 알림 설정/시크릿(토큰)을 다루므로 **사용자의 명시적 승인 필요**
-- 실전 주문/매매 코드 변경 없음
-- 참고: 백엔드 `app/services/notifications/`(telegram 등)와 config 키는 이미 존재하나,
-  알림 API 라우터·승인 이벤트 연결·프론트 알림 UI는 없음. `notification_provider="none"` 기본값.
-
-**B. Research/Operations Stabilization**
-- 알려진 10개 pre-existing 실패 테스트 정리
-- scheduler/test 환경 오염 정리
-- 기능 추가 전 신뢰성 개선
-
-**C. Intelligence Pipeline Productionization**
-- 어떤 자율 스케줄러 잡을 켤 수 있는지 결정
-- 더 안전한 잡 기본값, 실행 로그, 수동 실행 UX 추가
-- 여전히 실전 매매 없음
+- 백엔드 + 프론트엔드 (full-stack). Telegram/알림 provider opt-in.
+- 알림 설정/시크릿(토큰)을 다루므로 **사용자의 명시적 승인 필요**. 실전 주문/매매 코드 변경 없음.
+- 백엔드 `app/services/notifications/`와 config 키는 이미 존재하나 API 라우터·이벤트 연결·UI 없음.
 
 **D. Product/UI Polish**
-- 모바일 대시보드 사용성 개선
-- 매매 동작 변경 없음
+- 모바일 대시보드 사용성 개선. 매매 동작 변경 없음.
 
 **⛔ 위 방향 중 하나를 사용자가 선택하기 전에는 다음 기능을 착수하지 않는다.**
+
+---
+
+## Completed: C-3.1
+
+구현 완료 파일:
+- `backend/app/scheduler/registry.py` — `ControllableJob`에 read-only 메타데이터 필드 + 17개 잡 채움
+- `backend/app/services/scheduler_control_service.py` — `AutonomousJobStatus`에 메타데이터 전달
+- `backend/app/api/v1/autonomous_jobs.py` — API 응답에 메타데이터 additive 노출
+- `frontend/src/api/client.ts` — `AutonomousJob` 타입에 메타데이터 필드
+- `frontend/src/components/research/AutonomousJobsSection.tsx` — 위험도/추천/특성 배지 + 설명 + 안전 고지
+- `frontend/src/index.css` — 배지 스타일(모바일 wrap)
+- `backend/tests/test_c3_1_job_metadata.py` (8 tests)
+- 잡 기본 enabled 상태·scheduler 실행 동작·toggle/run-now 미변경. 실제로 잡을 켜지 않음.
 
 ---
 

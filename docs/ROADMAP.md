@@ -211,6 +211,26 @@
 
 ---
 
+### C-3.1 — Job Metadata & Risk Labels `DONE`
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | 각 자율 잡이 무엇을 하는지·위험도·비용/외부API/DB write/제안 생성 여부·추천 상태를 UI에서 이해할 수 있게 read-only 메타데이터로 노출 |
+| **범위** | `ControllableJob`에 메타데이터 필드 추가(17개 잡 채움), `autonomous-jobs` API 응답에 additive 노출, UI 배지/설명/안전 고지 표시 |
+| **하지 말 것** | 잡 기본 enabled 상태 변경 금지. high-risk 잡 자동 활성화 금지. scheduler 실행 동작 변경 금지. toggle/run-now 동작 변경 금지. 실제로 잡을 켜지 않음 — 메타데이터/표시만. |
+| **완료 기준** | 17개 잡 전체 메타데이터 + 위험도 분류(SAFE_ON/MANUAL_FIRST/KEEP_OFF), API/UI 노출, 테스트 통과, `npm run build` 통과 |
+| **선행 조건** | Operations Stabilization 완료(전체 스위트 green) |
+
+분류: SAFE_ON = operations_digest, daily_report · MANUAL_FIRST = data_refresh, us_market_refresh,
+dart_ingest, edgar_ingest, dart_finance, intelligence_ingest, intelligence_discovery,
+intraday_event_monitor, research_pipeline, intelligence_experiment_autopilot(paper auto-conclude) ·
+KEEP_OFF = daily_analysis, scanner_review, strategy_review, intelligence_scanner_proposal,
+intelligence_evolution · DO_NOT_ENABLE = 현재 없음.
+
+**후속 후보**: C-3.2 — Enable Confirmation Gate (KEEP_OFF 잡을 켤 때 비용/제안 경고 + 확인). 이번 작업엔 미포함.
+
+---
+
 ---
 
 ## 기존 Phase 로그 (C-1.x ~ C-5.21 완료 기록)

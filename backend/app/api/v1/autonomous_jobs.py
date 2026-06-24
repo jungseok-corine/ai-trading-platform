@@ -30,6 +30,20 @@ class AutonomousJobRead(BaseModel):
     running: bool
     last_run_at: datetime | None = None
     last_error: str | None = None
+    # ── C-3.1: read-only 위험도/특성 메타데이터 (표시 전용, additive) ──
+    description: str = ""
+    risk_level: str = "MANUAL_FIRST"
+    recommended_state: str = "MANUAL_FIRST"
+    writes_db: bool = False
+    uses_llm: bool = False
+    external_network: bool = False
+    creates_proposals: bool = False
+    action_taking: bool = False
+    paper_action: bool = False
+    cost_risk: bool = False
+    data_volume_risk: bool = False
+    affects_live_trading: bool = False
+    safety_notes: list[str] = []
 
 
 class ToggleRequest(BaseModel):
@@ -40,6 +54,11 @@ def _to_read(s: AutonomousJobStatus) -> AutonomousJobRead:
     return AutonomousJobRead(
         job_id=s.job_id, label=s.label, schedule=s.schedule, enabled=s.enabled,
         overridden=s.overridden, running=s.running, last_run_at=s.last_run_at, last_error=s.last_error,
+        description=s.description, risk_level=s.risk_level, recommended_state=s.recommended_state,
+        writes_db=s.writes_db, uses_llm=s.uses_llm, external_network=s.external_network,
+        creates_proposals=s.creates_proposals, action_taking=s.action_taking, paper_action=s.paper_action,
+        cost_risk=s.cost_risk, data_volume_risk=s.data_volume_risk,
+        affects_live_trading=s.affects_live_trading, safety_notes=s.safety_notes,
     )
 
 

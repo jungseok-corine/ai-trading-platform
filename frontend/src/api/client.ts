@@ -81,6 +81,20 @@ export interface AutonomousJob {
   running: boolean;
   last_run_at: string | null;
   last_error: string | null;
+  // C-3.1: read-only 위험도/특성 메타데이터 (표시 전용)
+  description: string;
+  risk_level: "SAFE_ON" | "MANUAL_FIRST" | "KEEP_OFF" | "DO_NOT_ENABLE";
+  recommended_state: "ON_OK" | "MANUAL_FIRST" | "KEEP_OFF";
+  writes_db: boolean;
+  uses_llm: boolean;
+  external_network: boolean;
+  creates_proposals: boolean;
+  action_taking: boolean;
+  paper_action: boolean;
+  cost_risk: boolean;
+  data_volume_risk: boolean;
+  affects_live_trading: boolean;
+  safety_notes: string[];
 }
 
 export async function getAutonomousJobs(): Promise<AutonomousJob[]> {

@@ -26,6 +26,20 @@ class AutonomousJobStatus:
     running: bool  # 현재 scheduler에 등록돼 있는지
     last_run_at: datetime | None
     last_error: str | None
+    # ── C-3.1: read-only 위험도/특성 메타데이터 (표시 전용) ──
+    description: str
+    risk_level: str
+    recommended_state: str
+    writes_db: bool
+    uses_llm: bool
+    external_network: bool
+    creates_proposals: bool
+    action_taking: bool
+    paper_action: bool
+    cost_risk: bool
+    data_volume_risk: bool
+    affects_live_trading: bool
+    safety_notes: list[str]
 
 
 class SchedulerControlService:
@@ -67,6 +81,19 @@ class SchedulerControlService:
                     running=job.job_id in running_ids,
                     last_run_at=getattr(app.state, f"{job.job_id}_last_run_at", None),
                     last_error=getattr(app.state, f"{job.job_id}_last_error", None),
+                    description=job.description,
+                    risk_level=job.risk_level,
+                    recommended_state=job.recommended_state,
+                    writes_db=job.writes_db,
+                    uses_llm=job.uses_llm,
+                    external_network=job.external_network,
+                    creates_proposals=job.creates_proposals,
+                    action_taking=job.action_taking,
+                    paper_action=job.paper_action,
+                    cost_risk=job.cost_risk,
+                    data_volume_risk=job.data_volume_risk,
+                    affects_live_trading=job.affects_live_trading,
+                    safety_notes=list(job.safety_notes),
                 )
             )
         return result
