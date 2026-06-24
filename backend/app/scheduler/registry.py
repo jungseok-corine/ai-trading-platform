@@ -22,6 +22,7 @@ from app.scheduler.jobs import (
     DATA_REFRESH_JOB_ID,
     EDGAR_INGEST_JOB_ID,
     INTELLIGENCE_DISCOVERY_JOB_ID,
+    INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID,
     INTELLIGENCE_INGEST_JOB_ID,
     INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID,
     INTRADAY_EVENT_MONITOR_JOB_ID,
@@ -37,6 +38,7 @@ from app.scheduler.jobs import (
     run_data_refresh_job,
     run_edgar_ingest_job,
     run_intelligence_discovery_job,
+    run_intelligence_experiment_autopilot_job,
     run_intelligence_ingest_job,
     run_intelligence_scanner_proposal_job,
     run_intraday_event_monitor_job,
@@ -205,6 +207,16 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
             minute=s.intelligence_scanner_proposal_scheduler_minute,
         ),
         env_enabled=lambda s: s.intelligence_scanner_proposal_scheduler_enabled,
+    ),
+    ControllableJob(
+        job_id=INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID,
+        label_ko="Intelligence Paper 실험 자동 종료 점검 (C-2.27)",
+        schedule_desc="1시간 간격",
+        func=run_intelligence_experiment_autopilot_job,
+        build_trigger=lambda s: IntervalTrigger(
+            seconds=s.intelligence_experiment_autopilot_interval_seconds
+        ),
+        env_enabled=lambda s: s.intelligence_experiment_autopilot_scheduler_enabled,
     ),
 ]
 

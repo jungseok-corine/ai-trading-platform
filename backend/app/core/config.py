@@ -226,6 +226,13 @@ class Settings(BaseSettings):
     intelligence_scanner_proposal_scheduler_hour: int = 8
     intelligence_scanner_proposal_scheduler_minute: int = 0
 
+    # Intelligence paper 실험 자동 종료 점검 (C-2.27). 기본 비활성.
+    # RUNNING intelligence experiment를 점검하고 종료 조건 충족 시 conclude한다.
+    intelligence_experiment_autopilot_scheduler_enabled: bool = False
+    intelligence_experiment_autopilot_interval_seconds: int = 3600  # 1시간
+    intelligence_experiment_autopilot_max_days: int = 7
+    intelligence_experiment_autopilot_min_trades: int = 20
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

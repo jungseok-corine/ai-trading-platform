@@ -1,15 +1,17 @@
 """Market Intelligence 수집, 후보 발굴, 스캐너 룰 개선 제안 API.
 
-POST /intelligence/ingest                         — 수동 트리거로 전체(또는 선택) 소스 수집 실행. (C-2.22)
-POST /intelligence/discover                       — 최근 이벤트에서 관심 후보 종목 발굴. (C-2.24)
-GET  /intelligence/candidates                     — 발굴된 후보 목록 조회.
-GET  /intelligence/candidates/{id}                — 후보 단건 조회.
-POST /intelligence/scanner-proposals/generate     — Intelligence 기반 스캐너 룰 개선 제안 생성. (C-2.25)
-POST /intelligence/strategy-proposals/generate    — heuristic 전략 배정 제안 생성. (C-2.26)
-GET  /intelligence/strategy-proposals             — 전략 배정 제안 목록 조회. (C-2.26)
-GET  /intelligence/strategy-proposals/{id}        — 전략 배정 제안 단건 조회. (C-2.26)
-POST /intelligence/strategy-proposals/{id}/approve — 제안 승인 (candidate → PROMOTED). (C-2.26)
-POST /intelligence/strategy-proposals/{id}/reject  — 제안 거절. (C-2.26)
+POST /intelligence/ingest                              — 수동 트리거로 전체(또는 선택) 소스 수집 실행. (C-2.22)
+POST /intelligence/discover                            — 최근 이벤트에서 관심 후보 종목 발굴. (C-2.24)
+GET  /intelligence/candidates                          — 발굴된 후보 목록 조회.
+GET  /intelligence/candidates/{id}                     — 후보 단건 조회.
+POST /intelligence/scanner-proposals/generate          — Intelligence 기반 스캐너 룰 개선 제안 생성. (C-2.25)
+POST /intelligence/strategy-proposals/generate         — heuristic 전략 배정 제안 생성. (C-2.26)
+GET  /intelligence/strategy-proposals                  — 전략 배정 제안 목록 조회. (C-2.26)
+GET  /intelligence/strategy-proposals/{id}             — 전략 배정 제안 단건 조회. (C-2.26)
+POST /intelligence/strategy-proposals/{id}/approve     — 제안 승인 (candidate → PROMOTED). (C-2.26)
+POST /intelligence/strategy-proposals/{id}/reject      — 제안 거절. (C-2.26)
+POST /intelligence/strategy-proposals/{id}/materialize — paper 실험 생성 (Strategy+Version+Experiment). (C-2.27)
+POST /intelligence/experiments/{id}/conclude           — 실험 종료 + 성과 비교 저장. (C-2.27)
 
 모두 read-only 수집·발굴이며 주문·전략 배정과 무관하다.
 """
@@ -38,6 +40,14 @@ from app.services.intelligence_ingest_service import IngestSummary, Intelligence
 from app.services.intelligence_scanner_proposal_generator import (
     IntelligenceScannerProposalGenerator,
     ProposalGenerationSummary,
+)
+from app.services.intelligence_experiment_service import (
+    AlreadyMaterializedError,
+    ExperimentAlreadyConcludedError,
+    IntelligenceExperimentService,
+    MaterializeResult,
+    ProposalNotApprovedError,
+    ProposalNotFoundError,
 )
 from app.services.intelligence_strategy_assignment_generator import (
     AssignmentGenerationSummary,
@@ -230,6 +240,8 @@ class IntelligenceStrategyProposalRead(BaseModel):
     reviewed_at: datetime | None
     reviewer_note: str | None
     dedup_hash: str
+    experiment_id: int | None
+    materialized_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -368,3 +380,96 @@ async def reject_strategy_proposal(
     await session.commit()
 
     return IntelligenceStrategyProposalRead.model_validate(proposal)
+
+
+# ── Paper Experiment Materialization (C-2.27) ─────────────────────────────────
+
+class MaterializeResultRead(BaseModel):
+    proposal_id: int
+    strategy_id: int
+    strategy_version_id: int
+    experiment_id: int
+    already_existed: bool
+
+
+class StopConditionRead(BaseModel):
+    experiment_id: int
+    days_elapsed: int
+    total_trades: int
+    max_days_met: bool
+    min_trades_met: bool
+    can_conclude: bool
+
+
+class ConcludeResultRead(BaseModel):
+    experiment_id: int
+    winner_variant_id: int | None
+    variants_count: int
+
+
+@router.post(
+    "/strategy-proposals/{proposal_id}/materialize",
+    response_model=MaterializeResultRead,
+    status_code=201,
+)
+async def materialize_strategy_proposal(
+    proposal_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> MaterializeResultRead:
+    """APPROVED proposal을 paper 실험으로 materialize한다.
+
+    - Strategy(paper 전용) + StrategyVersion(DRAFT, auto_trade_enabled=False) 생성
+    - Experiment(RUNNING) + ExperimentVariant(CHALLENGER) 생성
+    - proposal.experiment_id 연결
+    - PENDING/REJECTED proposal은 422
+    - 이미 materialize된 proposal은 기존 experiment 반환 (201 대신 200 처리는 already_existed로 구분)
+    """
+    svc = IntelligenceExperimentService(session)
+    try:
+        result: MaterializeResult = await svc.materialize(proposal_id)
+    except ProposalNotFoundError:
+        raise HTTPException(status_code=404, detail="strategy proposal not found")
+    except ProposalNotApprovedError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except AlreadyMaterializedError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return MaterializeResultRead(
+        proposal_id=result.proposal_id,
+        strategy_id=result.strategy_id,
+        strategy_version_id=result.strategy_version_id,
+        experiment_id=result.experiment_id,
+        already_existed=result.already_existed,
+    )
+
+
+@router.post(
+    "/experiments/{experiment_id}/conclude",
+    response_model=ConcludeResultRead,
+)
+async def conclude_intelligence_experiment(
+    experiment_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> ConcludeResultRead:
+    """Intelligence paper 실험을 종료하고 성과 비교를 저장한다.
+
+    - Experiment.status → COMPLETED
+    - Experiment.ended_at 기록
+    - ExperimentResult 저장 (각 variant의 승률/기대값/손익비/낙폭)
+    - 실전 주문/전략 실행 없음
+    """
+    svc = IntelligenceExperimentService(session)
+    try:
+        result = await svc.conclude(experiment_id)
+    except Exception as e:
+        if "not found" in str(e).lower() or "ExperimentNotFoundError" in type(e).__name__:
+            raise HTTPException(status_code=404, detail="experiment not found")
+        if "AlreadyConcluded" in type(e).__name__ or "already" in str(e).lower():
+            raise HTTPException(status_code=409, detail=str(e))
+        raise
+
+    return ConcludeResultRead(
+        experiment_id=result.experiment_id,
+        winner_variant_id=result.winner_variant_id,
+        variants_count=len(result.variants),
+    )

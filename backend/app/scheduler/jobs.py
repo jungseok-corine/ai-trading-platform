@@ -41,6 +41,7 @@ DART_FINANCE_JOB_ID = "dart_finance"
 INTELLIGENCE_INGEST_JOB_ID = "intelligence_ingest"
 INTELLIGENCE_DISCOVERY_JOB_ID = "intelligence_discovery"
 INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID = "intelligence_scanner_proposal"
+INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID = "intelligence_experiment_autopilot"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -691,3 +692,32 @@ async def run_intelligence_scanner_proposal_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.error("intelligence scanner proposal job failed: %s", exc_message(exc))
         app.state.intelligence_scanner_proposal_last_error = exc_message(exc)
+
+
+async def run_intelligence_experiment_autopilot_job(app: FastAPI) -> None:
+    """RUNNING intelligence experiment를 점검해 종료 조건 충족 시 자동 conclude한다 (C-2.27).
+
+    기본 비활성. 주문/전략 실행 없음. paper experiment 종료 및 성과 집계만 수행.
+    max_days/min_trades는 settings에서 읽는다.
+    """
+    from app.core.config import get_settings
+    from app.services.intelligence_experiment_service import IntelligenceExperimentService
+
+    settings = get_settings()
+    try:
+        async with async_session_factory() as session:
+            result = await IntelligenceExperimentService(session).autopilot_check(
+                max_days=settings.intelligence_experiment_autopilot_max_days,
+                min_trades=settings.intelligence_experiment_autopilot_min_trades,
+            )
+        logger.info(
+            "intelligence experiment autopilot: checked=%s concluded=%s skipped=%s errors=%s",
+            result["checked"],
+            len(result["concluded"]),
+            len(result["skipped"]),
+            len(result["errors"]),
+        )
+        app.state.intelligence_experiment_autopilot_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("intelligence experiment autopilot job failed: %s", exc_message(exc))
+        app.state.intelligence_experiment_autopilot_last_error = exc_message(exc)

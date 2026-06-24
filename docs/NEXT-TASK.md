@@ -7,45 +7,42 @@
 
 ## Current Task
 
-**C-2.26 — Strategy Assignment Automation**
+**C-2.27 — Paper Experiment Autopilot**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (IntelligenceCandidate 기반 heuristic 전략 배정 제안) |
+| **Type** | Feature (Intelligence proposal → paper 실험 materialize + 자동 conclude) |
 
 ---
 
 ## Goal
 
-PENDING IntelligenceCandidate에 적합한 strategy_type과 파라미터를 heuristic으로 제안.
-제안은 항상 pending. 사람 승인 시 candidate → PROMOTED. StrategyVersion 미생성.
+APPROVED IntelligenceStrategyProposal을 paper 실험으로 materialize하고, 실험 성과 비교를 자동화한다.
 
 ---
 
 ## Definition of Done
 
-- [x] `IntelligenceStrategyProposalStatus` enum 추가
-- [x] `IntelligenceStrategyProposal` 모델 신규 구현
-- [x] Alembic 마이그레이션 (`g1h2i3j4k5l6`)
-- [x] `IntelligenceStrategyProposalRepository` (create/get/list/approve/reject)
-- [x] `IntelligenceStrategyAssignmentGenerator` (heuristic, LLM 미사용)
-- [x] 8개 heuristic 매칭 규칙 + fallback
-- [x] 중복 방지 (`existing_for_candidate` + `dedup_hash`)
-- [x] `POST /intelligence/strategy-proposals/generate` API
-- [x] `GET /intelligence/strategy-proposals` API
-- [x] `GET /intelligence/strategy-proposals/{id}` API
-- [x] `POST /intelligence/strategy-proposals/{id}/approve` API
-- [x] `POST /intelligence/strategy-proposals/{id}/reject` API
-- [x] 30개 테스트 전체 통과
-- [x] StrategyVersion 자동 생성 없음
-- [x] StrategyAssignmentLog 자동 생성 없음
-- [x] auto_trade_enabled True 없음
-- [x] LLM/AnalysisProvider 호출 없음
-- [x] 기존 StrategyAssignmentLog FK 미수정
-- [x] 기존 AssignmentService.assign() 미변경
-- [x] 주문·실거래 코드 변경 없음
+- [x] `IntelligenceStrategyProposal.experiment_id` nullable FK 추가
+- [x] `IntelligenceStrategyProposal.materialized_at` nullable 추가
+- [x] Alembic 마이그레이션 (`h1i2j3k4l5m6`)
+- [x] `IntelligenceExperimentService.materialize()` — Strategy(DRAFT) + Experiment(RUNNING) 생성
+- [x] `IntelligenceExperimentService.conclude()` — COMPLETED + ExperimentResult 저장
+- [x] `IntelligenceExperimentService.check_stop_conditions()` — max_days / min_trades
+- [x] `IntelligenceExperimentService.autopilot_check()` — RUNNING 실험 자동 점검
+- [x] `POST /intelligence/strategy-proposals/{id}/materialize` API
+- [x] `POST /intelligence/experiments/{id}/conclude` API
+- [x] `intelligence_experiment_autopilot_scheduler_enabled=False` 기본 비활성 스케줄러 잡
+- [x] ControllableJob 레지스트리 등록
+- [x] 29개 테스트 전체 통과
+- [x] StrategyVersion.status = DRAFT (ACTIVE 미생성)
+- [x] auto_trade_enabled True 강제 False override
+- [x] 중복 materialize 방지 (already_existed 반환)
+- [x] ExperimentResult는 materialize 시 미생성 (conclude 시 생성)
+- [x] 실전 주문 코드 변경 없음
+- [x] 기존 ResearchPipelineService/AssignmentService 미변경
 
 ---
 
@@ -53,19 +50,33 @@ PENDING IntelligenceCandidate에 적합한 strategy_type과 파라미터를 heur
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- StrategyVersion 자동 생성 없음
-- AI 제안 자동 적용 금지 (pending → approved 자동 전환 없음)
-- C-2.27 이후 작업 시작 금지
+- StrategyVersion ACTIVE 자동 생성 없음
+- auto_trade_enabled True 없음
+- C-2.28 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.27 — Paper Experiment Autopilot**
+**C-2.28 — AI Evolution Loop**
 
-배정된 전략을 paper에서 자동 실험하고 성과를 자동 측정.
-범위: 실험 자동 시작/종료 조건, 성과 지표 자동 계산, 실험 비교 자동화.
-선행 조건: C-2.26 완료.
+실험 결과를 AI가 자동 분석하고, 개선 제안을 생성하며, 회고 결과가 다음 제안에 반영되는 루프 완성.
+범위: 실험 결과 → AI 분석 자동 트리거, 개선 제안 자동 생성, 회고 → 제안 품질 개선 피드백.
+선행 조건: C-2.27 완료.
+
+---
+
+## Completed: C-2.27
+
+구현 완료 파일:
+- `app/domain/models/intelligence_strategy_proposal.py` — experiment_id, materialized_at 필드 추가
+- `alembic/versions/h1i2j3k4l5m6_add_experiment_link_to_intelligence_proposal.py` (신규)
+- `app/services/intelligence_experiment_service.py` (신규)
+- `app/api/v1/intelligence.py` — materialize/conclude 엔드포인트 추가
+- `app/core/config.py` — intelligence_experiment_autopilot_* 설정 추가
+- `app/scheduler/jobs.py` — INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID 추가
+- `app/scheduler/registry.py` — ControllableJob 등록
+- `tests/test_c2_27_intelligence_paper_experiment.py` (29 tests, all pass)
 
 ---
 
@@ -109,41 +120,3 @@ PENDING IntelligenceCandidate에 적합한 strategy_type과 파라미터를 heur
 - `app/scheduler/jobs.py` — INTELLIGENCE_DISCOVERY_JOB_ID, run_intelligence_discovery_job 추가
 - `app/scheduler/registry.py` — ControllableJob 등록
 - `tests/test_c2_24_intelligence_candidate_discovery.py` (22 tests, all pass)
-
----
-
-## Completed: C-2.23
-
-구현 완료 파일:
-- `app/domain/repositories/intelligence.py` — list_recent(), list_recent_for_bundle() 추가
-- `app/services/theme_activity_service.py` — ThemeActivityService, compute_theme_synergy_bonus
-- `app/services/analysis_bundle_service.py` — themes, recent_intelligence 키 추가
-- `tests/test_c2_23_market_theme_context.py` (12 tests, all pass)
-
----
-
-## Completed: C-2.22
-
-구현 완료 파일:
-- `app/market_intelligence/adapters/generic_rss_adapter.py`
-- `app/market_intelligence/adapters/dart_disclosure_adapter.py`
-- `app/market_intelligence/adapters/__init__.py`
-- `app/services/intelligence_ingest_service.py`
-- `app/api/v1/intelligence.py`
-- `app/core/config.py` — intelligence_ingest_scheduler_* 추가
-- `app/scheduler/jobs.py` — INTELLIGENCE_INGEST_JOB_ID 추가
-- `app/scheduler/registry.py` — ControllableJob 등록
-- `app/main.py` — intelligence_api router 등록
-- `tests/test_c2_22_intelligence_ingestion.py` (19 tests, all pass)
-
----
-
-## Completed: C-2.21.1b
-
-구현 완료 파일:
-- `alembic/versions/e3f4a5b6c7d8_add_intelligence_tables.py`
-- `app/domain/models/intelligence.py`
-- `app/domain/models/enums.py` — IntelligenceSourceType/Provider/MarketScope/EventStatus 추가
-- `app/domain/repositories/intelligence.py`
-- `app/market_intelligence/adapters/base.py`
-- `tests/test_c2_21_1b_intelligence_foundation.py` (19 tests, all pass)
