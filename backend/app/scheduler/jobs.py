@@ -192,19 +192,39 @@ async def run_us_market_refresh_job(app: FastAPI) -> None:
     """설정된 provider에서 미국장 일별 스냅샷을 가져와 upsert한다 (C-2.44).
 
     기본 provider("manual")는 외부 호출 없이 no-op이다. read-only 수집으로 주문과 무관하다.
+    실행 결과를 scheduler_runs에 기록해 스케줄러 건강 점검(SchedulerHealthService)이 실제
+    실행을 반영하게 한다(기록 전에는 활성 잡이 '실행 기록 없음'으로 잘못 표시됨).
     """
     from app.services.us_market_refresh_service import UsMarketRefreshService
 
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    summary: dict = {}
     try:
         async with async_session_factory() as session:
             result = await UsMarketRefreshService(session).refresh()
+        summary = {
+            "provider": result.provider,
+            "updated": result.updated,
+            "session_date": result.session_date.isoformat() if result.session_date else None,
+            "reason": result.reason,
+        }
         logger.info(
             "us market refresh: provider=%s updated=%s", result.provider, result.updated
         )
         app.state.us_market_refresh_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 수집 실패가 스케줄러를 중단시키지 않도록
         logger.error("us market refresh job failed: %s", exc_message(exc))
-        app.state.us_market_refresh_last_error = exc_message(exc)
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        summary = {"error": error_message}
+        app.state.us_market_refresh_last_error = error_message
+    finally:
+        finished_at = datetime.now(KST)
+        await _record_run(
+            US_MARKET_REFRESH_JOB_ID, started_at, finished_at, status, error_message, summary
+        )
 
 
 async def run_strategy_review_job(app: FastAPI) -> None:
