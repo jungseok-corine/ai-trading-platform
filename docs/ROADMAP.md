@@ -211,7 +211,10 @@
 
 ---
 
-### C-3.1 — Job Metadata & Risk Labels `DONE`
+### C-OPS-3.1 — Job Metadata & Risk Labels `DONE`
+
+> **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID(예: C-3.1 비용
+> 대시보드, C-3.2 제안 퍼널)와 혼동을 피하려고 `C-OPS-3.x`로 별도 번호를 쓴다.
 
 | 항목 | 내용 |
 |------|------|
@@ -227,7 +230,7 @@ intraday_event_monitor, research_pipeline, intelligence_experiment_autopilot(pap
 KEEP_OFF = daily_analysis, scanner_review, strategy_review, intelligence_scanner_proposal,
 intelligence_evolution · DO_NOT_ENABLE = 현재 없음.
 
-**후속 후보**: C-3.2 — Enable Confirmation Gate (KEEP_OFF 잡을 켤 때 비용/제안 경고 + 확인). 이번 작업엔 미포함.
+**후속 후보**: C-OPS-3.2 — Enable Confirmation Gate (KEEP_OFF 잡을 켤 때 비용/제안 경고 + 확인). 이번 작업엔 미포함.
 
 ---
 

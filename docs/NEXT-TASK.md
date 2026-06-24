@@ -7,15 +7,18 @@
 
 ## Current State
 
-**C-3.1 — Job Metadata & Risk Labels (`DONE`)**
+**C-OPS-3.1 — Job Metadata & Risk Labels (`DONE`)**
+
+> **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID와 혼동을
+> 피하려고 `C-OPS-3.x`로 별도 번호를 쓴다.
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | C-3.1 — Job Metadata & Risk Labels (`DONE`) |
+| **마지막 완료 작업** | C-OPS-3.1 — Job Metadata & Risk Labels (`DONE`) |
 | **현재 상태** | 진행 중인 구현 작업 없음 |
-| **다음에 필요한 것** | C-3.2 진행 여부 또는 다른 방향을 사람이 선택 |
+| **다음에 필요한 것** | C-OPS-3.2 진행 여부 또는 다른 방향을 사람이 선택 |
 
-> C-3.1은 자율 잡을 실제로 켜지 않았다. 각 잡의 설명·위험도·비용/외부API/DB write/제안 생성
+> C-OPS-3.1은 자율 잡을 실제로 켜지 않았다. 각 잡의 설명·위험도·비용/외부API/DB write/제안 생성
 > 여부·추천 상태를 read-only 메타데이터로 API/UI에 노출했을 뿐이다. 모든 잡 기본 OFF 유지.
 > **사용자가 방향을 선택하기 전에는 새 기능을 시작하지 않는다.**
 
@@ -23,7 +26,7 @@
 
 ## Candidate Next Directions (사용자 선택 필요)
 
-**C-3.2. Enable Confirmation Gate (권장 후속)**
+**C-OPS-3.2. Enable Confirmation Gate (권장 후속)**
 - KEEP_OFF 잡(daily_analysis / scanner_review / strategy_review / intelligence_scanner_proposal /
   intelligence_evolution)을 켤 때 비용·제안 생성 경고 + 확인 체크 게이트 (C-2.30.1 패턴 재사용)
 - frontend-only 가능. scheduler 실행 동작·기본값 변경 없음.
@@ -40,7 +43,7 @@
 
 ---
 
-## Completed: C-3.1
+## Completed: C-OPS-3.1
 
 구현 완료 파일:
 - `backend/app/scheduler/registry.py` — `ControllableJob`에 read-only 메타데이터 필드 + 17개 잡 채움
