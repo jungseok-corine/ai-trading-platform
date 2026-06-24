@@ -4,7 +4,7 @@
 1.  FakeProvider 응답으로 pending proposal이 생성됨
 2.  생성된 proposal source가 "intelligence_ai"
 3.  생성 직후 proposal status는 PENDING
-4.  approve 시 기존 흐름대로 DRAFT version이 생성됨
+4.  approve 시 기존 흐름대로 TESTING version이 생성됨
 5.  기존 ScannerProposalGenerator(heuristic) 흐름이 깨지지 않음
 6.  pending proposal이 있는 base_version_id는 skip
 7.  invalid suggested_conditions는 저장하지 않음
@@ -245,8 +245,8 @@ async def test_proposal_status_is_pending_after_creation(db_session: AsyncSessio
 
 
 @pytest.mark.asyncio
-async def test_approve_creates_draft_version(db_session: AsyncSession) -> None:
-    """4. approve 시 기존 흐름대로 DRAFT version이 생성됨."""
+async def test_approve_creates_testing_version(db_session: AsyncSession) -> None:
+    """4. approve 시 기존 흐름대로 TESTING version이 생성됨."""
     rule, version = await _seed_scanner_rule_with_active_version(db_session)
     await _seed_intelligence_candidate(db_session)
 
@@ -269,7 +269,7 @@ async def test_approve_creates_draft_version(db_session: AsyncSession) -> None:
     approved, new_version = await svc.approve(proposal.id, reviewed_by="test_user")
 
     assert approved.status == ProposalStatus.APPROVED
-    assert new_version.status == ScannerRuleStatus.DRAFT
+    assert new_version.status == ScannerRuleStatus.TESTING
     assert new_version.scanner_rule_id == rule.id
 
 

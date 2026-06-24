@@ -19,6 +19,10 @@ from app.services.proposal_service import (
     ProposalNotPendingError,
     ProposalService,
 )
+from app.services.status_transition_planner import (
+    PlannerProposalNotFoundError,
+    StatusTransitionPlannerService,
+)
 from app.services.strategy_service import (
     StrategyNotFoundError,
     StrategyVersionNotFoundError,
@@ -102,6 +106,20 @@ class GenerateRequest(BaseModel):
 class ApproveResponse(BaseModel):
     proposal: ProposalRead
     created_version_id: int
+
+
+class TransitionPlanRead(BaseModel):
+    proposal_id: int
+    proposal_type: str
+    new_version: dict
+    previous_versions: list[dict]
+    blocked_actions: list[dict]
+    safety_warnings: list[str]
+    plan_valid: bool
+
+
+def get_planner(session: AsyncSession = Depends(get_db)) -> StatusTransitionPlannerService:
+    return StatusTransitionPlannerService(session)
 
 
 # --- endpoints -------------------------------------------------------------
@@ -228,3 +246,16 @@ async def reject_proposal(
     except ProposalNotPendingError as e:
         raise HTTPException(status_code=409, detail="proposal already reviewed") from e
     return ProposalRead.model_validate(proposal)
+
+
+@router.get("/{proposal_id}/transition-plan", response_model=TransitionPlanRead)
+async def get_transition_plan(
+    proposal_id: int,
+    planner: StatusTransitionPlannerService = Depends(get_planner),
+) -> TransitionPlanRead:
+    """제안 승인 시 발생할 버전 상태 전환 계획을 반환한다 (read-only, deterministic)."""
+    try:
+        plan = await planner.plan_for_strategy_proposal(proposal_id)
+    except PlannerProposalNotFoundError:
+        raise HTTPException(status_code=404, detail="proposal not found")
+    return TransitionPlanRead(**plan.to_dict())

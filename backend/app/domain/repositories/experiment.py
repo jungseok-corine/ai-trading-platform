@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.domain.models.enums import MarketCode
+from app.domain.models.enums import ExperimentStatus, MarketCode
 from app.domain.models.experiment import (
     Experiment,
     ExperimentResult,
@@ -50,6 +50,23 @@ class ExperimentVariantRepository(BaseRepository[ExperimentVariant]):
             )
         )
         return result.scalar_one_or_none() is not None
+
+    async def list_running_for_strategy_version(
+        self, strategy_version_id: int
+    ) -> list[ExperimentVariant]:
+        """RUNNING 상태 실험에서 이 strategy_version을 사용하는 variant 목록을 반환한다.
+
+        반환된 버전들은 archive/status 변경 대상에서 제외해야 한다(안전 보호).
+        """
+        result = await self.session.execute(
+            select(ExperimentVariant)
+            .join(Experiment, ExperimentVariant.experiment_id == Experiment.id)
+            .where(
+                ExperimentVariant.strategy_version_id == strategy_version_id,
+                Experiment.status == ExperimentStatus.RUNNING,
+            )
+        )
+        return list(result.scalars().all())
 
 
 class ExperimentResultRepository(BaseRepository[ExperimentResult]):

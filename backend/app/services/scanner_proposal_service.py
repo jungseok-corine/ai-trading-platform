@@ -141,9 +141,9 @@ class ScannerProposalService:
         reviewed_by: str | None = None,
         review_note: str | None = None,
     ) -> tuple[ScannerRuleProposal, ScannerRuleVersion]:
-        """제안을 승인하고, suggested_conditions로 새 DRAFT 룰 버전을 생성한다.
+        """제안을 승인하고, suggested_conditions로 새 TESTING 룰 버전을 생성한다.
 
-        안전장치: 생성되는 버전은 항상 status=DRAFT다(자동 활성화 금지).
+        안전장치: 생성되는 버전은 항상 status=TESTING이다(자동 활성화 금지).
         이미 검토된 제안은 ScannerProposalNotPendingError를 발생시킨다.
         """
         proposal = await self._proposal_repo.get(proposal_id)
@@ -156,7 +156,7 @@ class ScannerProposalService:
             proposal.scanner_rule_id,
             conditions=proposal.suggested_conditions or [],
             change_description=f"AI 제안 #{proposal.id} 승인: {proposal.title}",
-            status=ScannerRuleStatus.DRAFT,
+            status=ScannerRuleStatus.TESTING,
         )
 
         proposal.status = ProposalStatus.APPROVED

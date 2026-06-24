@@ -7,37 +7,36 @@
 
 ## Current Task
 
-**C-2.29 — Live Promotion Gate**
+**C-2.29.1 — AI Status Transition Planner**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (실전 승격 심사 게이트 — 사람 승인 감사 로그) |
+| **Type** | Feature (제안 승인 시 안전한 버전 상태 전환 계획 생성) |
 
 ---
 
 ## Goal
 
-paper 전략이 실전 검토 기준을 통과했는지 평가하고, 사람이 명시적으로 승인했다는 감사 로그(LivePromotionRecord)를 남기는 게이트를 완성한다.
+제안 승인 시 발생할 버전 상태 전환을 사전에 계획하고 검증한다. LLM을 사용하지 않는 deterministic rule-based planner. 승인 버전은 DRAFT 대신 TESTING으로 생성된다.
 
 ---
 
 ## Definition of Done
 
-- [x] `LivePromotionRecord` 모델 신규 (promotion.py)
-- [x] Alembic 마이그레이션 (`j1k2l3m4n5o6`)
-- [x] `LivePromotionRecordRepository` — find_approved, list_by_version
-- [x] `LivePromotionGateService.check_readiness()` — PromotionService.evaluate + intel context
-- [x] `LivePromotionGateService.approve_live_promotion()` — 확인 필수, 중복 방지, 감사 로그 생성
-- [x] `GET /strategy-versions/{id}/live-readiness` API
-- [x] `POST /strategy-versions/{id}/live-promote` API
-- [x] 26개 테스트 전체 통과
-- [x] StrategyVersion.status 변경 없음
-- [x] 자동매매 플래그 변경 없음
-- [x] 실전 거래 활성화 환경변수 변경 없음
-- [x] 실주문 API 호출 없음
-- [x] 기존 PromotionService 미변경
+- [x] `StatusTransitionPlannerService` — plan_for_strategy_proposal, plan_for_scanner_proposal, validate
+- [x] `ExperimentVariantRepository.list_running_for_strategy_version()` 추가
+- [x] `ProposalService.approve()` → TESTING (기존 DRAFT 변경)
+- [x] `ScannerProposalService.approve()` → TESTING (기존 DRAFT 변경)
+- [x] `GET /strategy-proposals/{id}/transition-plan` API
+- [x] `GET /scanner-proposals/{id}/transition-plan` API
+- [x] 22개 신규 테스트 전체 통과
+- [x] 기존 DRAFT 기대 테스트 3개 → TESTING으로 업데이트
+- [x] LLM 호출 없음
+- [x] ACTIVE 자동 생성 없음
+- [x] auto_trade_enabled=true 없음
+- [x] 이전 버전 자동 archive 없음
 
 ---
 
@@ -45,8 +44,9 @@ paper 전략이 실전 검토 기준을 통과했는지 평가하고, 사람이 
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- StrategyVersion.status 자동 변경 없음
-- auto_trade_enabled 자동 설정 없음
+- LLM 호출 금지
+- ACTIVE 버전 자동 생성 금지
+- auto_trade_enabled 자동 활성화 금지
 - C-2.30 이후 작업 시작 금지
 
 ---
@@ -57,9 +57,23 @@ paper 전략이 실전 검토 기준을 통과했는지 평가하고, 사람이 
 
 모바일에서 AI 제안 검토·승인, 실전 배치 승인, 알림 수신이 가능한 UX.
 범위: 모바일 반응형 UI 개선, Telegram/모바일 알림 통합, 주요 승인 화면 모바일 최적화.
-선행 조건: C-2.29 완료.
+선행 조건: C-2.29.1 완료.
 
 ---
+
+## Completed: C-2.29.1
+
+구현 완료 파일:
+- `app/services/status_transition_planner.py` (신규)
+- `app/domain/repositories/experiment.py` — list_running_for_strategy_version 추가
+- `app/services/proposal_service.py` — DRAFT → TESTING
+- `app/services/scanner_proposal_service.py` — DRAFT → TESTING
+- `app/api/v1/strategy_proposals.py` — transition-plan 엔드포인트 추가
+- `app/api/v1/scanner_proposals.py` — transition-plan 엔드포인트 추가
+- `tests/test_c2_29_1_status_transition_planner.py` (22 tests, all pass)
+- `tests/test_c2_27_ai_proposals.py` — DRAFT → TESTING 업데이트
+- `tests/test_c2_39_scanner_proposals.py` — DRAFT → TESTING 업데이트
+- `tests/test_c2_25_intelligence_scanner_proposal.py` — DRAFT → TESTING 업데이트
 
 ## Completed: C-2.29
 

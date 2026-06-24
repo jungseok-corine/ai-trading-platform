@@ -138,9 +138,9 @@ class ProposalService:
         reviewed_by: str | None = None,
         review_note: str | None = None,
     ) -> tuple[StrategyProposal, StrategyVersion]:
-        """제안을 승인하고, suggested_parameters로 새 DRAFT 버전을 생성한다.
+        """제안을 승인하고, suggested_parameters로 새 TESTING 버전을 생성한다.
 
-        안전장치: 생성되는 버전은 항상 auto_trade_enabled=False, status=DRAFT다.
+        안전장치: 생성되는 버전은 항상 auto_trade_enabled=False, status=TESTING이다.
         이미 검토된 제안은 ProposalNotPendingError를 발생시킨다.
         """
         proposal = await self._proposal_repo.get(proposal_id)
@@ -157,7 +157,7 @@ class ProposalService:
             proposal.strategy_id,
             parameters=params,
             change_description=f"AI 제안 #{proposal.id} 승인: {proposal.title}",
-            status=StrategyVersionStatus.DRAFT,
+            status=StrategyVersionStatus.TESTING,
         )
 
         proposal.status = ProposalStatus.APPROVED

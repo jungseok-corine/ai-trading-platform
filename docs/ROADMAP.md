@@ -161,6 +161,18 @@
 
 ---
 
+### C-2.29.1 — AI Status Transition Planner `DONE`
+
+| 항목 | 내용 |
+|------|------|
+| **목표** | 제안 승인 시 안전한 버전 상태 전환 계획 생성 (deterministic, no LLM) |
+| **범위** | `StatusTransitionPlannerService`, `GET /strategy-proposals/{id}/transition-plan`, `GET /scanner-proposals/{id}/transition-plan` |
+| **하지 말 것** | LLM 호출 금지. ACTIVE 자동 생성 금지. auto_trade_enabled=true 금지. 이전 버전 자동 archive 금지. |
+| **완료 기준** | 22 테스트 통과. 제안 승인 시 TESTING 버전 생성 (기존 DRAFT 정책 변경). |
+| **선행 조건** | C-2.29 완료 |
+
+---
+
 ### C-2.30 — Mobile Approval Report UX `TODO`
 
 | 항목 | 내용 |

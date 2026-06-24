@@ -82,8 +82,8 @@ async def test_create_proposal_invalid_strategy_type_422(db_session: AsyncSessio
         app.dependency_overrides.clear()
 
 
-async def test_approve_creates_draft_version_with_auto_trade_off(db_session: AsyncSession) -> None:
-    """승인 시 새 DRAFT 버전이 생성되고, auto_trade_enabled는 강제로 False여야 한다."""
+async def test_approve_creates_testing_version_with_auto_trade_off(db_session: AsyncSession) -> None:
+    """승인 시 새 TESTING 버전이 생성되고, auto_trade_enabled는 강제로 False여야 한다."""
     strategy_id, base_version_id = await _make_strategy_with_version(db_session)
     app.dependency_overrides[get_db] = _override_get_db(db_session)
     try:
@@ -116,12 +116,12 @@ async def test_approve_creates_draft_version_with_auto_trade_off(db_session: Asy
             new_version_id = approve.json()["created_version_id"]
             assert approve.json()["proposal"]["status"] == "approved"
 
-            # 생성된 버전 확인: DRAFT + auto_trade_enabled=False (안전장치)
+            # 생성된 버전 확인: TESTING + auto_trade_enabled=False (안전장치)
             versions = (
                 await client.get(f"/api/v1/strategies/{strategy_id}/versions")
             ).json()
             new_v = next(v for v in versions if v["id"] == new_version_id)
-            assert new_v["status"] == "draft"
+            assert new_v["status"] == "testing"
             assert new_v["parameters"]["auto_trade_enabled"] is False
             assert new_v["parameters"]["volume_multiplier"] == 2.0
     finally:

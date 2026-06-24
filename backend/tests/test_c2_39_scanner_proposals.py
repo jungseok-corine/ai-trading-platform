@@ -131,7 +131,7 @@ async def test_generate_skips_when_too_few_candidates(db_session: AsyncSession) 
     assert proposal is None
 
 
-async def test_approve_creates_draft_version(db_session: AsyncSession) -> None:
+async def test_approve_creates_testing_version(db_session: AsyncSession) -> None:
     sv_id = await _seed_low_winrate(db_session)
     service = ScannerProposalService(db_session)
     generator = ScannerProposalGenerator(db_session)
@@ -142,8 +142,8 @@ async def test_approve_creates_draft_version(db_session: AsyncSession) -> None:
 
     assert approved.status == ProposalStatus.APPROVED
     assert approved.created_version_id == version.id
-    # 승인으로 생성된 버전은 항상 DRAFT (자동 활성화 금지).
-    assert version.status == ScannerRuleStatus.DRAFT
+    # 승인으로 생성된 버전은 항상 TESTING (자동 활성화 금지).
+    assert version.status == ScannerRuleStatus.TESTING
     by_type = {c["type"]: c["params"] for c in version.conditions}
     assert by_type["volume_spike"]["multiplier"] == 2.6
 
