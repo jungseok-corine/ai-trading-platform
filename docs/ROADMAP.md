@@ -137,7 +137,7 @@
 
 ---
 
-### C-2.28 — AI Evolution Loop `TODO`
+### C-2.28 — AI Evolution Loop `DONE`
 
 | 항목 | 내용 |
 |------|------|

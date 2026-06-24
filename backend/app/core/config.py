@@ -233,6 +233,12 @@ class Settings(BaseSettings):
     intelligence_experiment_autopilot_max_days: int = 7
     intelligence_experiment_autopilot_min_trades: int = 20
 
+    # Intelligence AI Evolution Loop (C-2.28). 기본 비활성.
+    # COMPLETED intelligence experiment를 AI가 분석해 개선 제안을 생성한다.
+    intelligence_evolution_scheduler_enabled: bool = False
+    intelligence_evolution_interval_seconds: int = 3600
+    intelligence_evolution_min_trades_for_proposal: int = 5
+
     # AI Analysis Provider (C-2.3)
     # 현재 기본값은 "fake" — 네트워크 호출 없는 테스트용 provider.
     ai_default_provider: str = "fake"

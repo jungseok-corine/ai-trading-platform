@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.enums import IntelligenceStrategyProposalStatus, MarketCode
+from app.domain.models.enums import ExperimentStatus, IntelligenceStrategyProposalStatus, MarketCode
+from app.domain.models.experiment import Experiment
 from app.domain.models.intelligence_strategy_proposal import IntelligenceStrategyProposal
 from app.domain.repositories.base import BaseRepository
 
@@ -90,3 +91,31 @@ class IntelligenceStrategyProposalRepository(BaseRepository[IntelligenceStrategy
         await self.session.flush()
         await self.session.refresh(proposal)
         return proposal
+
+    async def find_by_experiment_id(
+        self, experiment_id: int
+    ) -> IntelligenceStrategyProposal | None:
+        """experiment_id로 IntelligenceStrategyProposal을 조회한다 (C-2.28)."""
+        result = await self.session.execute(
+            select(IntelligenceStrategyProposal)
+            .where(IntelligenceStrategyProposal.experiment_id == experiment_id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_pending_evolution(self) -> list[IntelligenceStrategyProposal]:
+        """COMPLETED experiment와 연결됐지만 evolution 분석이 안 된 제안 목록 (C-2.28)."""
+        result = await self.session.execute(
+            select(IntelligenceStrategyProposal)
+            .join(
+                Experiment,
+                IntelligenceStrategyProposal.experiment_id == Experiment.id,
+            )
+            .where(
+                IntelligenceStrategyProposal.experiment_id.is_not(None),
+                IntelligenceStrategyProposal.evolution_analyzed_at.is_(None),
+                Experiment.status == ExperimentStatus.COMPLETED,
+            )
+            .order_by(IntelligenceStrategyProposal.id)
+        )
+        return list(result.scalars().all())

@@ -12,6 +12,7 @@ POST /intelligence/strategy-proposals/{id}/approve     — 제안 승인 (candid
 POST /intelligence/strategy-proposals/{id}/reject      — 제안 거절. (C-2.26)
 POST /intelligence/strategy-proposals/{id}/materialize — paper 실험 생성 (Strategy+Version+Experiment). (C-2.27)
 POST /intelligence/experiments/{id}/conclude           — 실험 종료 + 성과 비교 저장. (C-2.27)
+POST /intelligence/experiments/{id}/analyze            — AI Evolution 분석 + pending 개선 제안 생성. (C-2.28)
 
 모두 read-only 수집·발굴이며 주문·전략 배정과 무관하다.
 """
@@ -48,6 +49,13 @@ from app.services.intelligence_experiment_service import (
     MaterializeResult,
     ProposalNotApprovedError,
     ProposalNotFoundError,
+)
+from app.services.experiment_service import ExperimentNotFoundError
+from app.services.intelligence_evolution_service import (
+    AlreadyAnalyzedError,
+    ExperimentNotCompletedError,
+    IntelligenceEvolutionService,
+    ProposalNotFoundForExperimentError,
 )
 from app.services.intelligence_strategy_assignment_generator import (
     AssignmentGenerationSummary,
@@ -242,6 +250,10 @@ class IntelligenceStrategyProposalRead(BaseModel):
     dedup_hash: str
     experiment_id: int | None
     materialized_at: datetime | None
+    evolution_analyzed_at: datetime | None
+    evolution_strategy_proposal_id: int | None
+    evolution_status: str | None
+    evolution_reason: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -473,3 +485,63 @@ async def conclude_intelligence_experiment(
         winner_variant_id=result.winner_variant_id,
         variants_count=len(result.variants),
     )
+
+
+# ── AI Evolution Loop (C-2.28) ────────────────────────────────────────────────
+
+class AnalyzeRequest(BaseModel):
+    force: bool = False
+    min_trades: int = 5
+
+
+class EvolutionResultRead(BaseModel):
+    experiment_id: int
+    intel_proposal_id: int | None
+    analyzed: bool
+    status: str
+    reason: str
+    trades_count: int
+    min_trades_required: int
+    run_id: int | None
+    strategy_proposal_id: int | None
+
+
+@router.post(
+    "/experiments/{experiment_id}/analyze",
+    response_model=EvolutionResultRead,
+    status_code=201,
+)
+async def analyze_intelligence_experiment(
+    experiment_id: int,
+    payload: AnalyzeRequest = AnalyzeRequest(),
+    session: AsyncSession = Depends(get_db),
+) -> EvolutionResultRead:
+    """COMPLETED intelligence 실험을 AI가 분석해 pending 개선 제안을 생성한다 (C-2.28).
+
+    - LLM으로 실험 결과를 분석해 파라미터 개선 방향 도출
+    - trades_count < min_trades 이면 분석은 기록하되 StrategyProposal 생성 안 함
+    - 생성된 제안은 항상 PENDING (자동 승인 없음)
+    - auto_trade_enabled True 없음
+    - 실전 주문/전략 실행 없음
+    - force=True 이면 이미 분석된 실험도 재분석
+    """
+    svc = IntelligenceEvolutionService(session)
+    try:
+        result = await svc.analyze_experiment(
+            experiment_id,
+            force=payload.force,
+            min_trades=payload.min_trades,
+        )
+    except ExperimentNotFoundError:
+        raise HTTPException(status_code=404, detail="experiment not found")
+    except ExperimentNotCompletedError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ProposalNotFoundForExperimentError:
+        raise HTTPException(
+            status_code=404,
+            detail="no intelligence strategy proposal linked to this experiment",
+        )
+    except AlreadyAnalyzedError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return EvolutionResultRead(**result.to_dict())

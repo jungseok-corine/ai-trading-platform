@@ -69,6 +69,14 @@ class IntelligenceStrategyProposal(Base):
         Integer, ForeignKey("experiments.id", ondelete="SET NULL"), nullable=True
     )
     materialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # AI Evolution 분석 추적 (C-2.28)
+    evolution_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evolution_strategy_proposal_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("strategy_proposals.id", ondelete="SET NULL"), nullable=True
+    )
+    # not_analyzed / analyzed_no_proposal / proposal_created / failed
+    evolution_status: Mapped[str | None] = mapped_column(String(50))
+    evolution_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

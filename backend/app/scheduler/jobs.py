@@ -42,6 +42,7 @@ INTELLIGENCE_INGEST_JOB_ID = "intelligence_ingest"
 INTELLIGENCE_DISCOVERY_JOB_ID = "intelligence_discovery"
 INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID = "intelligence_scanner_proposal"
 INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID = "intelligence_experiment_autopilot"
+INTELLIGENCE_EVOLUTION_JOB_ID = "intelligence_evolution"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -721,3 +722,31 @@ async def run_intelligence_experiment_autopilot_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.error("intelligence experiment autopilot job failed: %s", exc_message(exc))
         app.state.intelligence_experiment_autopilot_last_error = exc_message(exc)
+
+
+async def run_intelligence_evolution_job(app: FastAPI) -> None:
+    """COMPLETED intelligence experiment를 AI가 분석해 개선 제안을 생성한다 (C-2.28).
+
+    기본 비활성. 주문/전략 실행 없음. pending StrategyProposal 생성만 수행.
+    min_trades는 settings에서 읽는다.
+    """
+    from app.core.config import get_settings
+    from app.services.intelligence_evolution_service import IntelligenceEvolutionService
+
+    settings = get_settings()
+    try:
+        async with async_session_factory() as session:
+            summary = await IntelligenceEvolutionService(session, settings).evolution_loop(
+                min_trades=settings.intelligence_evolution_min_trades_for_proposal,
+            )
+        logger.info(
+            "intelligence evolution loop: checked=%s analyzed=%s proposals_created=%s errors=%s",
+            summary.checked,
+            summary.analyzed,
+            summary.proposals_created,
+            len(summary.errors),
+        )
+        app.state.intelligence_evolution_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("intelligence evolution job failed: %s", exc_message(exc))
+        app.state.intelligence_evolution_last_error = exc_message(exc)
