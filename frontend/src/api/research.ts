@@ -664,6 +664,31 @@ export async function getOperationsDigest(days = 30): Promise<OperationsDigest> 
   return data;
 }
 
+// --- Action Inbox v1 (read-only) -------------------------------------------
+export interface ActionInboxItem {
+  id: string;
+  type: string;
+  severity: "info" | "attention" | "alert";
+  title: string;
+  description: string;
+  source: string;
+  as_of: string;
+  related_url: string | null;
+  related_id: number | null;
+  dismissible: boolean;
+}
+
+export interface ActionInbox {
+  generated_at: string;
+  counts: { alert: number; attention: number; total: number };
+  items: ActionInboxItem[];
+}
+
+export async function getActionInbox(): Promise<ActionInbox> {
+  const { data } = await apiClient.get<ActionInbox>("/action-inbox");
+  return data;
+}
+
 // --- Portfolio summary (C-3.6) ---------------------------------------------
 export interface PortfolioPosition {
   account_id: number;

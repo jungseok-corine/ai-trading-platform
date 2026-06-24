@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ActionInboxSection from "../components/research/ActionInboxSection";
 import ScannersSection from "../components/research/ScannersSection";
 import CandidatesSection from "../components/research/CandidatesSection";
 import AssignmentsSection from "../components/research/AssignmentsSection";
@@ -26,6 +27,7 @@ import AutonomousJobsSection from "../components/research/AutonomousJobsSection"
 
 type Section =
   | "ops"
+  | "inbox"
   | "ops-trend"
   | "autonomous-jobs"
   | "pipeline"
@@ -52,6 +54,7 @@ type Section =
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "ops", label: "운영 종합" },
+  { key: "inbox", label: "액션 인박스" },
   { key: "ops-trend", label: "운영 추세" },
   { key: "autonomous-jobs", label: "자율 잡 제어" },
   { key: "pipeline", label: "파이프라인" },
@@ -96,6 +99,7 @@ export default function ResearchPage() {
       </div>
 
       {section === "ops" && <OperationsSection />}
+      {section === "inbox" && <ActionInboxSection />}
       {section === "ops-trend" && <OperationsTrendSection />}
       {section === "autonomous-jobs" && <AutonomousJobsSection />}
       {section === "pipeline" && <PipelineSection />}

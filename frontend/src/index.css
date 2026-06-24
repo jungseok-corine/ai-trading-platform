@@ -974,6 +974,18 @@ tr.selected {
   .job-enable-confirm .approval-actions button { width: 100%; min-height: 44px; font-size: 1rem; }
 }
 
+/* Action Inbox v1: 검토 대기 항목 목록 (읽기 전용) */
+.inbox-list { list-style: none; padding: 0; margin: 8px 0; }
+.inbox-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 6px 0;
+  background: #f8f9fa;
+  border-left: 4px solid #adb5bd;
+}
+.inbox-item.inbox-alert { border-left-color: #c92a2a; background: #fff5f5; }
+.inbox-item.inbox-attention { border-left-color: #f0a000; background: #fffdf5; }
+
 /* 운영 다이제스트 헤더: 기준 시각 + 새로고침 */
 .digest-header {
   display: flex;

@@ -15,6 +15,7 @@ from app.api.v1 import dart as dart_api
 from app.api.v1 import dart_finance as dart_finance_api
 from app.api.v1 import edgar as edgar_api
 from app.api.v1 import intelligence as intelligence_api
+from app.api.v1 import action_inbox as action_inbox_api
 from app.api.v1 import candidates as candidates_api
 from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import data_freshness as data_freshness_api
@@ -206,6 +207,7 @@ app.include_router(trade_activity_api.router, prefix="/api/v1")
 app.include_router(risk_events_api.router, prefix="/api/v1")
 app.include_router(promotion_readiness_api.router, prefix="/api/v1")
 app.include_router(scheduler_health_api.router, prefix="/api/v1")
+app.include_router(action_inbox_api.router, prefix="/api/v1")
 
 
 @app.get("/health")
