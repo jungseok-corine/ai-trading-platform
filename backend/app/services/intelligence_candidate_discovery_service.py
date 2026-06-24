@@ -1,7 +1,7 @@
 """IntelligenceEvent 기반 관심 후보 자동 발굴 서비스 (C-2.24).
 
 LLM을 호출하지 않는다. 검증 가능한 휴리스틱 점수만 사용한다:
-  - importance_score (이벤트 중요도 0-100)
+  - importance_score (이벤트 중요도 0.0–1.0, × 100 → 0–100 점수)
   - theme synergy bonus (symbol 테마 ∩ 활성 테마)
   - recency bonus (최근 이벤트일수록 소폭 가산)
   - source bonus (공시 > 뉴스)
