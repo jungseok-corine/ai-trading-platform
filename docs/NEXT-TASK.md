@@ -7,35 +7,38 @@
 
 ## Current Task
 
-**C-2.24 — Candidate Discovery System**
+**C-2.25 — Scanner Rule Auto-Generation**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (IntelligenceEvent 기반 관심 후보 자동 발굴) |
+| **Type** | Feature (IntelligenceCandidate 기반 LLM 스캐너 룰 개선 제안) |
 
 ---
 
 ## Goal
 
-수집된 IntelligenceEvent에서 symbol_code가 있는 이벤트를 후보로 발굴하고 저장한다.
-LLM 미호출, 휴리스틱 점수 계산, deterministic why_text.
+최근 IntelligenceCandidate 패턴과 시장 맥락을 LLM이 분석해 기존 스캐너 룰의 개선 버전을 "제안"한다.
+기존 ScannerRule 개선만 허용. 새 ScannerRule 생성 금지. 제안은 항상 pending.
 
 ---
 
 ## Definition of Done
 
-- [x] `IntelligenceCandidateStatus` enum (PENDING/REVIEWED/PROMOTED/IGNORED) 추가
-- [x] `IntelligenceCandidate` 모델 (기존 CandidateEvent와 완전 분리, scanner FK 없음)
-- [x] Alembic 마이그레이션 `f1a2b3c4d5e6_add_intelligence_candidates.py`
-- [x] `IntelligenceCandidateRepository` — create/list_recent/existing_hashes/update_status
-- [x] `IntelligenceCandidateDiscoveryService` — discover(), _calc_score(), _build_why_text()
-- [x] `POST /intelligence/discover`, `GET /intelligence/candidates`, `GET /intelligence/candidates/{id}` API
-- [x] `intelligence_discovery_scheduler_enabled=False` 기본 비활성 스케줄러 잡
-- [x] 22개 테스트 전체 통과
-- [x] 기존 CandidateEvent.scanner_rule_version_id NOT NULL 유지
-- [x] LLM 호출 없음
+- [x] `IntelligenceScannerProposalGenerator` 클래스 신규 구현
+- [x] LLM 입력 bundle 구성 (후보 + 활성 룰 + 테마 + 매크로)
+- [x] LLM 출력 JSON 파싱 + `validate_conditions()` 검증
+- [x] `ScannerProposalService.create_proposal(source="intelligence_ai")` 재사용
+- [x] pending 중복 방지 (`pending_base_version_ids()` 패턴)
+- [x] `POST /intelligence/scanner-proposals/generate` API
+- [x] `intelligence_scanner_proposal_scheduler_enabled=False` 기본 비활성 스케줄러 잡
+- [x] ControllableJob 레지스트리 등록
+- [x] 18개 테스트 전체 통과
+- [x] 새 ScannerRule 생성 없음
+- [x] ScannerRuleVersion 자동 ACTIVE 없음
+- [x] 기존 heuristic ScannerProposalGenerator 미수정
+- [x] LLM 호출 없음 (테스트에서 FakeProvider 주입)
 - [x] 주문·실거래 코드 변경 없음
 
 ---
@@ -44,18 +47,31 @@ LLM 미호출, 휴리스틱 점수 계산, deterministic why_text.
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- 기존 CandidateEvent 미수정
-- C-2.25 이후 작업 시작 금지
+- 새 스케줄러 잡 기본 비활성
+- AI 제안 자동 적용 금지 (pending → approved 자동 전환 없음)
+- C-2.26 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.25 — Scanner Rule Auto-Generation**
+**C-2.26 — Strategy Assignment Automation**
 
-AI가 시장 맥락과 후보 패턴을 분석해 스캐너 룰을 자동 생성/제안.
-범위: LLM 기반 스캐너 룰 생성, 제안→사람 승인→DRAFT 버전 생성 흐름.
-선행 조건: C-2.24 완료.
+후보 종목에 적합한 전략을 AI가 자동 추천·배정.
+범위: 후보 특성 기반 전략 매칭 로직, 배정 제안 생성, 사람 승인 후 배정 확정.
+선행 조건: C-2.25 완료.
+
+---
+
+## Completed: C-2.25
+
+구현 완료 파일:
+- `app/services/intelligence_scanner_proposal_generator.py` (신규)
+- `app/api/v1/intelligence.py` — scanner-proposals/generate 엔드포인트 추가
+- `app/core/config.py` — intelligence_scanner_proposal_scheduler_* 설정 추가
+- `app/scheduler/jobs.py` — INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID, run_intelligence_scanner_proposal_job 추가
+- `app/scheduler/registry.py` — ControllableJob 등록
+- `tests/test_c2_25_intelligence_scanner_proposal.py` (18 tests, all pass)
 
 ---
 

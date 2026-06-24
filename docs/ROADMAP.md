@@ -101,7 +101,7 @@
 
 ---
 
-### C-2.25 — Scanner Rule Auto-Generation `TODO`
+### C-2.25 — Scanner Rule Auto-Generation `DONE`
 
 | 항목 | 내용 |
 |------|------|
