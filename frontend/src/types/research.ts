@@ -274,6 +274,73 @@ export interface PromotionEvaluation {
   checks: PromotionCheck[];
 }
 
+// --- Status transition plan (C-2.29.1) -------------------------------------
+export interface TransitionPlanNewVersion {
+  status: string;
+  reason: string;
+  // strategy 제안에만 존재. scanner 제안에는 없을 수 있다.
+  auto_trade_enabled?: boolean;
+}
+
+export interface TransitionPlanPreviousVersion {
+  version_id: number;
+  current_status: string;
+  proposed_action: string; // "KEEP" | "ARCHIVE"
+  reason: string;
+  running_experiment_ids: number[];
+  roles: string[];
+}
+
+export interface TransitionPlanBlockedAction {
+  action: string; // e.g. "ARCHIVE_VERSION"
+  version_id: number;
+  reason: string;
+}
+
+export interface TransitionPlan {
+  proposal_id: number;
+  proposal_type: "strategy" | "scanner";
+  new_version: TransitionPlanNewVersion;
+  previous_versions: TransitionPlanPreviousVersion[];
+  blocked_actions: TransitionPlanBlockedAction[];
+  safety_warnings: string[];
+  plan_valid: boolean;
+}
+
+// --- Live promotion review (C-2.29) ----------------------------------------
+export interface LiveReadinessReport {
+  strategy_version_id: number;
+  criteria_id: number | null;
+  passed: boolean;
+  trades_count: number;
+  days: number;
+  expectancy: number;
+  max_drawdown: number;
+  checks: PromotionCheck[];
+  intel_context: Record<string, unknown> | null;
+  evaluation_id: number | null;
+}
+
+export interface LivePromotionRecord {
+  id: number;
+  strategy_version_id: number;
+  promotion_evaluation_id: number | null;
+  status: string;
+  criteria_passed: boolean;
+  readiness_snapshot: Record<string, unknown> | null;
+  risk_snapshot: Record<string, unknown> | null;
+  approved_at: string;
+  approved_by: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface LivePromoteResponse {
+  record: LivePromotionRecord;
+  readiness_snapshot: Record<string, unknown> | null;
+  message: string;
+}
+
 // --- Research pipeline ------------------------------------------------------
 export interface PipelineVersionRun {
   scanner_rule_version_id: number;

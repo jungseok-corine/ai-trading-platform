@@ -912,4 +912,81 @@ tr.selected {
 .badge-pending { background: #fff3bf; color: #856404; }
 .badge-approved { background: #d3f9d8; color: #2b8a3e; }
 .badge-rejected { background: #ffe3e3; color: #c92a2a; }
+.badge-testing { background: #e7f5ff; color: #1971c2; }
 .winner-row { background: #ebfbee; font-weight: 600; }
+
+/* C-2.30: 승인 리포트 카드 ---------------------------------------------------- */
+.approval-report-card {
+  border-left: 4px solid #1971c2;
+}
+.approval-summary p { margin: 4px 0; }
+.approval-block {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+.approval-block.safe { background: #ebfbee; }
+.approval-block.warn { background: #fff4e6; }
+.approval-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.approval-list li { margin: 3px 0; word-break: break-word; }
+.approval-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.confirm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.confirm-check input { margin-top: 3px; flex-shrink: 0; }
+.live-banner {
+  background: #fff3bf;
+  color: #856404;
+  border: 1px solid #f0c000;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+.raw-json { margin: 8px 0; }
+.raw-json-pre {
+  background: #f1f3f5;
+  border-radius: 6px;
+  padding: 10px;
+  overflow-x: auto;
+  max-height: 320px;
+  font-size: 0.8rem;
+}
+.link-button {
+  background: none;
+  border: none;
+  color: #1971c2;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.full-width { width: 100%; box-sizing: border-box; }
+
+/* 모바일: 승인 카드는 1열로, 버튼은 충분히 크게, 표는 가로 스크롤 유지 */
+@media (max-width: 640px) {
+  .approval-report-card .table-wrapper { overflow-x: auto; }
+  .approval-actions .form-row { flex-direction: column; align-items: stretch; }
+  .approval-actions button,
+  .approval-report-card .approval-actions .primary,
+  .approval-report-card .approval-actions .danger {
+    width: 100%;
+    min-height: 44px;
+    font-size: 1rem;
+  }
+  .approval-report-card { border-left-width: 3px; }
+  .raw-json-pre { font-size: 0.72rem; }
+}

@@ -4,45 +4,14 @@ import {
   approveScannerProposal,
   bulkReviewScannerProposals,
   generateScannerProposal,
-  getScannerProposal,
   getScannerProposals,
   rejectScannerProposal,
   runScannerReview,
 } from "../../api/research";
 import type { ProposalStatus } from "../../types/research";
+import ScannerProposalReportCard from "./ScannerProposalReportCard";
 
 const STATUS_FILTERS: (ProposalStatus | "all")[] = ["all", "pending", "approved", "rejected"];
-
-function ProposalDetailPanel({ proposalId }: { proposalId: number }) {
-  const { data } = useQuery({
-    queryKey: ["scanner-proposal", proposalId],
-    queryFn: () => getScannerProposal(proposalId),
-  });
-  if (!data) return <p className="muted">불러오는 중...</p>;
-  return (
-    <div>
-      {data.rationale && <p><strong>근거:</strong> {data.rationale}</p>}
-      {data.expected_effect && <p><strong>예상 효과:</strong> {data.expected_effect}</p>}
-      {data.risk_notes && <p><strong>리스크:</strong> {data.risk_notes}</p>}
-      <p><strong>조건 변경 (before → after):</strong></p>
-      {data.diff.length === 0 && <p className="muted">변경 없음</p>}
-      {data.diff.length > 0 && (
-        <table>
-          <thead><tr><th>조건 타입</th><th>before</th><th>after</th></tr></thead>
-          <tbody>
-            {data.diff.map((d) => (
-              <tr key={d.type}>
-                <td>{d.type}</td>
-                <td>{JSON.stringify(d.before)}</td>
-                <td><strong>{JSON.stringify(d.after)}</strong></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
 
 export default function ScannerProposalsSection() {
   const queryClient = useQueryClient();
@@ -99,7 +68,7 @@ export default function ScannerProposalsSection() {
       <h3>AI 스캐너 제안</h3>
       <p className="muted">
         AI가 후보 성과 분석을 근거로 만든 스캐너 '조건 강화' 제안입니다. 승률이 낮은 룰의 진입
-        문턱을 높입니다. 승인 시에만 새 DRAFT 룰 버전이 생성되며, 룰은 자동 활성화되지 않습니다.
+        문턱을 높입니다. 승인 시에만 새 TESTING 룰 버전이 생성되며, 룰은 자동 활성화되지 않습니다.
       </p>
 
       <div className="card" style={{ background: "#f8f9fa" }}>
@@ -144,7 +113,7 @@ export default function ScannerProposalsSection() {
         <div className="table-wrapper">
           <table>
             <thead>
-              <tr><th>ID</th><th>제목</th><th>룰</th><th>상태</th><th>출처</th><th>상세</th><th>검토</th></tr>
+              <tr><th>ID</th><th>제목</th><th>룰</th><th>상태</th><th>출처</th><th>검토 리포트</th></tr>
             </thead>
             <tbody>
               {data.map((p) => (
@@ -156,20 +125,8 @@ export default function ScannerProposalsSection() {
                   <td>{p.source}</td>
                   <td>
                     <button onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-                      {expanded === p.id ? "닫기" : "보기"}
+                      {expanded === p.id ? "닫기" : "검토 리포트"}
                     </button>
-                  </td>
-                  <td>
-                    {p.status === "pending" ? (
-                      <>
-                        <button className="primary" disabled={approveMut.isPending}
-                          onClick={() => approveMut.mutate(p.id)}>승인</button>
-                        <button className="danger" disabled={rejectMut.isPending}
-                          onClick={() => rejectMut.mutate(p.id)}>거절</button>
-                      </>
-                    ) : (
-                      <span className="muted">{p.reviewed_by ?? "-"}</span>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -178,7 +135,15 @@ export default function ScannerProposalsSection() {
         </div>
       )}
       {expanded !== null && (
-        <div className="card"><ProposalDetailPanel proposalId={expanded} /></div>
+        <ScannerProposalReportCard
+          key={expanded}
+          proposalId={expanded}
+          status={(data ?? []).find((p) => p.id === expanded)?.status ?? "pending"}
+          approving={approveMut.isPending}
+          rejecting={rejectMut.isPending}
+          onApprove={() => approveMut.mutate(expanded)}
+          onReject={() => rejectMut.mutate(expanded)}
+        />
       )}
     </div>
   );

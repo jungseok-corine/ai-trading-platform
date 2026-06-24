@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getPromotionReadiness } from "../../api/research";
+import LivePromotionReviewCard from "./LivePromotionReviewCard";
 
 export default function PromotionReadinessSection() {
+  const [reviewVersionId, setReviewVersionId] = useState<number | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["promotion-readiness"],
     queryFn: () => getPromotionReadiness(),
@@ -34,7 +37,7 @@ export default function PromotionReadinessSection() {
                 <thead>
                   <tr>
                     <th>전략 버전</th><th>상태</th><th>판정</th><th>충족</th>
-                    <th>거래</th><th>일수</th><th>기댓값</th><th>MDD</th>
+                    <th>거래</th><th>일수</th><th>기댓값</th><th>MDD</th><th>실전 승격 검토</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -48,11 +51,32 @@ export default function PromotionReadinessSection() {
                       <td>{r.days}</td>
                       <td>{r.expectancy.toLocaleString()}</td>
                       <td>{r.max_drawdown.toLocaleString()}</td>
+                      <td>
+                        <button
+                          onClick={() =>
+                            setReviewVersionId(
+                              reviewVersionId === r.strategy_version_id
+                                ? null
+                                : r.strategy_version_id,
+                            )
+                          }
+                        >
+                          {reviewVersionId === r.strategy_version_id ? "닫기" : "검토 승인"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+
+          {reviewVersionId !== null && (
+            <LivePromotionReviewCard
+              key={reviewVersionId}
+              strategyVersionId={reviewVersionId}
+              criteriaId={data.criteria?.id}
+            />
           )}
         </>
       )}

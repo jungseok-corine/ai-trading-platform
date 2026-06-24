@@ -4,45 +4,14 @@ import {
   approveProposal,
   bulkReviewStrategyProposals,
   generateProposal,
-  getProposal,
   getProposals,
   rejectProposal,
   runStrategyReview,
 } from "../../api/research";
 import type { ProposalStatus } from "../../types/research";
+import StrategyProposalReportCard from "./StrategyProposalReportCard";
 
 const STATUS_FILTERS: (ProposalStatus | "all")[] = ["all", "pending", "approved", "rejected"];
-
-function ProposalDetailPanel({ proposalId }: { proposalId: number }) {
-  const { data } = useQuery({
-    queryKey: ["proposal", proposalId],
-    queryFn: () => getProposal(proposalId),
-  });
-  if (!data) return <p className="muted">불러오는 중...</p>;
-  return (
-    <div>
-      {data.rationale && <p><strong>근거:</strong> {data.rationale}</p>}
-      {data.expected_effect && <p><strong>예상 효과:</strong> {data.expected_effect}</p>}
-      {data.risk_notes && <p><strong>리스크:</strong> {data.risk_notes}</p>}
-      <p><strong>변경점 (before → after):</strong></p>
-      {data.diff.length === 0 && <p className="muted">변경 없음</p>}
-      {data.diff.length > 0 && (
-        <table>
-          <thead><tr><th>파라미터</th><th>before</th><th>after</th></tr></thead>
-          <tbody>
-            {data.diff.map((d) => (
-              <tr key={d.key}>
-                <td>{d.key}</td>
-                <td>{JSON.stringify(d.before)}</td>
-                <td><strong>{JSON.stringify(d.after)}</strong></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
 
 export default function ProposalsSection() {
   const queryClient = useQueryClient();
@@ -100,8 +69,8 @@ export default function ProposalsSection() {
     <div className="card">
       <h3>AI 전략 제안</h3>
       <p className="muted">
-        AI가 전략 성과를 분석해 만든 개선 제안입니다. 승인 시에만 새 DRAFT 버전이 생성되며,
-        자동매매는 켜지지 않습니다.
+        AI가 전략 성과를 분석해 만든 개선 제안입니다. 승인 시에만 새 TESTING 버전이 생성되며,
+        자동매매는 켜지지 않습니다. 승인 전 「검토 리포트」에서 변경점과 안전 사항을 확인하세요.
       </p>
 
       <div className="card" style={{ background: "#f8f9fa" }}>
@@ -148,7 +117,7 @@ export default function ProposalsSection() {
         <div className="table-wrapper">
           <table>
             <thead>
-              <tr><th>ID</th><th>제목</th><th>전략</th><th>상태</th><th>출처</th><th>상세</th><th>검토</th></tr>
+              <tr><th>ID</th><th>제목</th><th>전략</th><th>상태</th><th>출처</th><th>검토 리포트</th></tr>
             </thead>
             <tbody>
               {data.map((p) => (
@@ -160,20 +129,8 @@ export default function ProposalsSection() {
                   <td>{p.source}</td>
                   <td>
                     <button onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-                      {expanded === p.id ? "닫기" : "보기"}
+                      {expanded === p.id ? "닫기" : "검토 리포트"}
                     </button>
-                  </td>
-                  <td>
-                    {p.status === "pending" ? (
-                      <>
-                        <button className="primary" disabled={approveMut.isPending}
-                          onClick={() => approveMut.mutate(p.id)}>승인</button>
-                        <button className="danger" disabled={rejectMut.isPending}
-                          onClick={() => rejectMut.mutate(p.id)}>거절</button>
-                      </>
-                    ) : (
-                      <span className="muted">{p.reviewed_by ?? "-"}</span>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -182,7 +139,15 @@ export default function ProposalsSection() {
         </div>
       )}
       {expanded !== null && (
-        <div className="card"><ProposalDetailPanel proposalId={expanded} /></div>
+        <StrategyProposalReportCard
+          key={expanded}
+          proposalId={expanded}
+          status={(data ?? []).find((p) => p.id === expanded)?.status ?? "pending"}
+          approving={approveMut.isPending}
+          rejecting={rejectMut.isPending}
+          onApprove={() => approveMut.mutate(expanded)}
+          onReject={() => rejectMut.mutate(expanded)}
+        />
       )}
     </div>
   );

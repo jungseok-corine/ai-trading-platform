@@ -10,6 +10,8 @@ import type {
   Experiment,
   ExperimentDetail,
   ExperimentVariant,
+  LivePromoteResponse,
+  LiveReadinessReport,
   MarketCode,
   NewsEvent,
   PipelineRun,
@@ -26,6 +28,7 @@ import type {
   ScannerRuleStatus,
   ScannerRuleVersion,
   StrategyProposal,
+  TransitionPlan,
   UsMarketSnapshot,
   VariantRole,
 } from "../types/research";
@@ -263,6 +266,45 @@ export async function rejectScannerProposal(
   const { data } = await apiClient.post<ScannerProposal>(
     `/scanner-proposals/${id}/reject`,
     payload,
+  );
+  return data;
+}
+
+// --- Status transition plan / live promotion review (C-2.30) ---------------
+export async function getStrategyTransitionPlan(proposalId: number): Promise<TransitionPlan> {
+  const { data } = await apiClient.get<TransitionPlan>(
+    `/strategy-proposals/${proposalId}/transition-plan`,
+  );
+  return data;
+}
+
+export async function getScannerTransitionPlan(proposalId: number): Promise<TransitionPlan> {
+  const { data } = await apiClient.get<TransitionPlan>(
+    `/scanner-proposals/${proposalId}/transition-plan`,
+  );
+  return data;
+}
+
+export async function getLiveReadiness(
+  strategyVersionId: number,
+  criteriaId?: number,
+): Promise<LiveReadinessReport> {
+  const { data } = await apiClient.get<LiveReadinessReport>(
+    `/strategy-versions/${strategyVersionId}/live-readiness`,
+    { params: criteriaId !== undefined ? { criteria_id: criteriaId } : undefined },
+  );
+  return data;
+}
+
+export async function approveLivePromotion(
+  strategyVersionId: number,
+  body: { confirmed: boolean; confirmed_by: string; note?: string | null },
+  criteriaId?: number,
+): Promise<LivePromoteResponse> {
+  const { data } = await apiClient.post<LivePromoteResponse>(
+    `/strategy-versions/${strategyVersionId}/live-promote`,
+    body,
+    { params: criteriaId !== undefined ? { criteria_id: criteriaId } : undefined },
   );
   return data;
 }
