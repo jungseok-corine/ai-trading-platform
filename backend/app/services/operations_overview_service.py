@@ -43,6 +43,9 @@ class OperationsOverviewService:
             "safety": {
                 "invariants_ok": safety["invariants_ok"],
                 "warnings": safety["warnings"],
+                # 다이제스트가 paper/test vs 실거래를 구분해 문구를 정하도록 추가(additive).
+                "real_trading_enabled": safety["real_trading_enabled"],
+                "auto_trade_versions": safety["auto_trade_versions"],
             },
             "research": {
                 "pending_total": research_d["pending"]["total"],

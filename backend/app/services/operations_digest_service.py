@@ -35,8 +35,22 @@ class OperationsDigestService:
 
         safety = ov["safety"]
         if not safety["invariants_ok"]:
-            for w in safety["warnings"]:
-                alerts.append({"level": "alert", "text": f"안전 불변식: {w}"})
+            # 실거래 OFF인데 invariants_ok=false인 유일한 원인은 paper/test auto_trade다
+            # (invariants_ok = not real_trading AND auto_trade==0). 이때는 심각도는 그대로 두되
+            # 문구만 paper/test 기록 수집용으로 부드럽게 표시한다(copy-only, 안전로직 미변경).
+            if not safety.get("real_trading_enabled", False):
+                n = safety.get("auto_trade_versions", 0)
+                alerts.append({
+                    "level": "alert",
+                    "text": (
+                        f"운영 안내: 테스트 자동매매 전략 {n}개 (paper/test, 실거래 OFF) — "
+                        "거래 기록 수집용. 실전 거래 설정은 별도로 확인하세요."
+                    ),
+                })
+            else:
+                # 실거래 ON — 진짜 안전 사고. 보수적 강한 경고 유지.
+                for w in safety["warnings"]:
+                    alerts.append({"level": "alert", "text": f"안전 불변식: {w}"})
 
         cost = ov["cost"]
         if cost["budget_status"] == "over":
