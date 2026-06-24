@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.enums import MarketCode
 from app.domain.repositories.financial_statement import FinancialStatementRepository
+from app.domain.repositories.intelligence import IntelligenceEventRepository
+from app.domain.repositories.market_context import SymbolThemeMembershipRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
 from app.services.macro_regime_service import MacroRegimeService
 from app.services.news_curator_service import NewsCuratorService
@@ -46,6 +48,8 @@ class AnalysisBundleService:
         self._news_curator = NewsCuratorService(session)
         self._retro_svc = ProposalRetrospectiveService(session)
         self._finstat_repo = FinancialStatementRepository(session)
+        self._intelligence_repo = IntelligenceEventRepository(session)
+        self._membership_repo = SymbolThemeMembershipRepository(session)
 
     async def build_full(
         self,
@@ -86,6 +90,10 @@ class AnalysisBundleService:
         )
 
         financials = await self._build_financials(symbol_code)
+        themes = await self._build_themes(symbol_code)
+        recent_intelligence = await self._intelligence_repo.list_recent_for_bundle(
+            hours=24, market=market, symbol_code=symbol_code, limit=10
+        )
 
         return {
             "meta": {
@@ -101,9 +109,17 @@ class AnalysisBundleService:
             "macro": macro,
             "news": news,
             "financials": financials,
+            "themes": themes,
+            "recent_intelligence": recent_intelligence,
             "retrospective": await self._retro_svc.summary(),
             "analyst_note": analyst_note,
         }
+
+    async def _build_themes(self, symbol_code: str | None) -> list[dict]:
+        if not symbol_code:
+            return []
+        themes = await self._membership_repo.list_themes_for_symbol(symbol_code)
+        return [{"code": t.code, "name": t.name, "market": t.market.value} for t in themes]
 
     async def _build_financials(self, symbol_code: str | None) -> dict | None:
         """symbol_code의 최신 연간 재무제표 요약을 반환한다. 없으면 None."""

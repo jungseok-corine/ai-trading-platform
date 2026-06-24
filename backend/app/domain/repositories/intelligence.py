@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.timezone import KST
+from app.domain.models.enums import MarketCode
 from app.domain.models.intelligence import IntelligenceEvent, IntelligenceSource
 from app.domain.repositories.base import BaseRepository
 
@@ -57,3 +61,67 @@ class IntelligenceEventRepository(BaseRepository[IntelligenceEvent]):
             )
         )
         return {row[0] for row in result.all()}
+
+    async def list_recent(
+        self,
+        hours: int = 24,
+        market: MarketCode | None = None,
+        symbol_code: str | None = None,
+        limit: int = 50,
+    ) -> list[IntelligenceEvent]:
+        """최근 N시간 내 수집된 IntelligenceEvent 목록 (최신순)."""
+        cutoff = datetime.now(KST) - timedelta(hours=hours)
+        stmt = (
+            select(IntelligenceEvent)
+            .where(IntelligenceEvent.collected_at >= cutoff)
+            .order_by(IntelligenceEvent.collected_at.desc())
+        )
+        if market is not None:
+            stmt = stmt.where(IntelligenceEvent.market == market)
+        if symbol_code is not None:
+            stmt = stmt.where(IntelligenceEvent.symbol_code == symbol_code)
+        stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_recent_for_bundle(
+        self,
+        hours: int = 24,
+        market: MarketCode | None = None,
+        symbol_code: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        """번들용 최근 이벤트 목록 (IntelligenceSource JOIN으로 source_key 포함, dict 반환)."""
+        cutoff = datetime.now(KST) - timedelta(hours=hours)
+        stmt = (
+            select(
+                IntelligenceEvent.event_type,
+                IntelligenceEvent.title,
+                IntelligenceEvent.summary,
+                IntelligenceSource.source_key,
+                IntelligenceEvent.occurred_at,
+                IntelligenceEvent.symbol_code,
+                IntelligenceEvent.importance_score,
+            )
+            .join(IntelligenceSource, IntelligenceEvent.source_id == IntelligenceSource.id)
+            .where(IntelligenceEvent.collected_at >= cutoff)
+            .order_by(IntelligenceEvent.collected_at.desc())
+        )
+        if market is not None:
+            stmt = stmt.where(IntelligenceEvent.market == market)
+        if symbol_code is not None:
+            stmt = stmt.where(IntelligenceEvent.symbol_code == symbol_code)
+        stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return [
+            {
+                "event_type": r.event_type,
+                "title": r.title,
+                "summary": r.summary,
+                "source_key": r.source_key,
+                "occurred_at": r.occurred_at.isoformat() if r.occurred_at else None,
+                "symbol_code": r.symbol_code,
+                "importance_score": float(r.importance_score) if r.importance_score else None,
+            }
+            for r in result.all()
+        ]

@@ -1,6 +1,6 @@
 # ROADMAP — AI 시장지능 전략 연구소
 
-> 마지막 갱신: 2026-06-23  
+> 마지막 갱신: 2026-06-24  
 > **작업 규칙**: `CLAUDE.md` | **비전·철학**: `docs/PROJECT-VISION.md` | **현재 작업**: `docs/NEXT-TASK.md`  
 > **운영 콘솔 사용법**: `docs/OPERATIONS.md`
 
@@ -77,7 +77,7 @@
 
 ---
 
-### C-2.23 — Market/Theme Context Foundation `TODO`
+### C-2.23 — Market/Theme Context Foundation `DONE`
 
 | 항목 | 내용 |
 |------|------|

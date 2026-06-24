@@ -7,32 +7,33 @@
 
 ## Current Task
 
-**C-2.22 — Intelligence Ingestion Pipeline**
+**C-2.23 — Market/Theme Context Foundation**
 
 | 필드 | 값 |
 |------|----|
 | **Status** | `DONE` |
 | **Priority** | 높음 |
-| **Type** | Feature (Intelligence 수집 파이프라인) |
+| **Type** | Feature (테마·맥락 기반 AI 분석 번들 확장) |
 
 ---
 
 ## Goal
 
-여러 데이터 소스가 IntelligenceEvent로 들어오는 ingestion pipeline 구현.
+테마·섹터 맥락을 AI 분석 번들에 통합, ThemeActivityService로 활성 테마 탐지,
+ThemeSynergyScorer로 시너지 bonus 계산.
 
 ---
 
 ## Definition of Done
 
-- [x] `GenericRssAdapter` — config JSONB의 feed_url에서 RSS 수집, xml.etree 파싱, keyword_filter 지원
-- [x] `DartDisclosureAdapter` — news_events(source="dart") 브리징, 기존 DartIngestService 불변
-- [x] `IntelligenceIngestionService` — 어댑터 순회, dedup, enabled 필터, 결과 summary
-- [x] `POST /intelligence/ingest` — 수동 트리거, source_keys 필터 지원
-- [x] 스케줄러 잡 `intelligence_ingest` — 기본 비활성(`intelligence_ingest_scheduler_enabled=False`)
-- [x] 19개 테스트 전체 통과
-- [x] feedparser 의존성 없음 (xml.etree.ElementTree만 사용)
-- [x] 특정 언론사 URL 하드코딩 없음
+- [x] `IntelligenceEventRepository.list_recent()` — 최근 N시간 이벤트 조회
+- [x] `IntelligenceEventRepository.list_recent_for_bundle()` — source_key JOIN 포함, dict 반환
+- [x] `ThemeActivityService.get_active_themes()` — 이벤트 title/summary에서 Theme.code/name 매칭
+- [x] `compute_theme_synergy_bonus()` — pure function, CandidateEvent.score 비수정
+- [x] `AnalysisBundleService.build_full()` — `themes` + `recent_intelligence` 키 추가
+- [x] 12개 테스트 전체 통과
+- [x] Alembic 마이그레이션 없음 (기존 data JSONB 사용)
+- [x] CandidateEvent.score 수정 없음
 - [x] 주문·실거래 코드 변경 없음
 
 ---
@@ -41,19 +42,28 @@
 
 - `KIS_REAL_TRADING_ENABLED=false` 유지
 - 실주문 API 호출 없음
-- AI 분석 연동 없음 (C-2.28에서)
-- 후보 종목 생성 없음
-- C-2.23 이후 작업 시작 금지
+- CandidateEvent.score 자동 수정 금지
+- C-2.24 이후 작업 시작 금지
 
 ---
 
 ## Next Task After Completion
 
-**C-2.23 — Market/Theme Context Foundation**
+**C-2.24 — Candidate Discovery System**
 
-테마·섹터 맥락을 후보 발굴과 AI 분석에 통합.  
-범위: 테마/섹터 데이터 모델, 시장 맥락 스냅샷 확장, 후보 점수에 테마 반영.  
-선행 조건: C-2.22 완료.
+AI가 수집된 인텔리전스 데이터에서 자동으로 유망 후보 종목을 발굴.
+범위: AI 기반 후보 점수 산정, 맥락(why) 자동 생성·보존, 후보 이벤트와 연결.
+선행 조건: C-2.23 완료.
+
+---
+
+## Completed: C-2.23
+
+구현 완료 파일:
+- `app/domain/repositories/intelligence.py` — `list_recent()`, `list_recent_for_bundle()` 추가
+- `app/services/theme_activity_service.py` — `ThemeActivityService`, `compute_theme_synergy_bonus`
+- `app/services/analysis_bundle_service.py` — `themes`, `recent_intelligence` 키 추가, `_build_themes()` 헬퍼
+- `tests/test_c2_23_market_theme_context.py` (12 tests, all pass)
 
 ---
 
