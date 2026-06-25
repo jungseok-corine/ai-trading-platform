@@ -3,12 +3,14 @@
 //   - '제안 저장'은 PENDING 제안 레코드만 만든다 (전략 적용/배정 실행/자동매매 아님).
 //   - 자동 배정/버전 생성/자동매매/주문/실전 연결 없음.
 //   - 확정 배정은 별도의 '전략 배정' 액션, 실험/실전은 사람이 별도 승인.
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
+  reviewCandidateStrategyProposal,
 } from "../../api/research";
-import type { CandidateEvent } from "../../types/research";
+import type { CandidateEvent, CandidateStrategyProposal } from "../../types/research";
 
 // 스캐너 매칭 조건(matched_conditions) → 검토해볼 만한 전략 템플릿 가이드.
 // 이는 권위 있는 배정 알고리즘이 아니라, 후보 facts 기반의 *검토 힌트*다(읽기 전용).
@@ -59,6 +61,81 @@ export function buildProposalPreview(candidate: CandidateEvent): StrategyProposa
   }
   if (out.length === 0) out.push(FALLBACK);
   return out;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "검토 대기",
+  approved: "승인됨 (APPROVED)",
+  rejected: "거절됨 (REJECTED)",
+};
+
+// 저장된 제안 한 건. PENDING이면 승인/거절(상태만) 버튼을 보여준다. 어떤 실행도 하지 않는다.
+function SavedProposalRow({
+  proposal,
+  candidateId,
+}: {
+  proposal: CandidateStrategyProposal;
+  candidateId: number;
+}) {
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState("");
+  const reviewMut = useMutation({
+    // 상태만 approved/rejected로 변경 — 전략 생성/배정/실험/매매 없음.
+    mutationFn: (status: "approved" | "rejected") =>
+      reviewCandidateStrategyProposal(proposal.id, {
+        status,
+        reviewed_by: "manual_user",
+        review_note: note || undefined,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["candidate-proposals", candidateId] }),
+  });
+  const isPending = proposal.status === "pending";
+
+  return (
+    <li className="proposal-review-row">
+      <div>
+        <strong>#{proposal.id}</strong> <code>{proposal.suggested_strategy_type}</code>{" "}
+        <span className={`proposal-status status-${proposal.status}`}>
+          {STATUS_LABEL[proposal.status] ?? proposal.status}
+        </span>
+      </div>
+
+      {isPending ? (
+        <div className="form-row" style={{ marginTop: 4, alignItems: "center", gap: 6 }}>
+          <input
+            type="text"
+            placeholder="검토 메모(선택)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            style={{ flex: "1 1 160px" }}
+          />
+          <button disabled={reviewMut.isPending} onClick={() => reviewMut.mutate("approved")}>
+            제안 승인
+          </button>
+          <button disabled={reviewMut.isPending} onClick={() => reviewMut.mutate("rejected")}>
+            제안 거절
+          </button>
+        </div>
+      ) : (
+        <div className="muted" style={{ fontSize: "0.8em" }}>
+          검토자: {proposal.reviewed_by ?? "-"}
+          {proposal.review_note ? ` · 메모: ${proposal.review_note}` : ""}
+        </div>
+      )}
+
+      {reviewMut.isSuccess && (
+        <div className="muted" style={{ fontSize: "0.8em", marginTop: 2 }}>
+          상태만 변경됨 — 실행/배정/전략 생성은 하지 않았습니다.
+        </div>
+      )}
+      {reviewMut.isError && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c" }}>
+          상태 변경 실패 — 다시 시도하세요.
+        </div>
+      )}
+    </li>
+  );
 }
 
 interface Props {
@@ -132,10 +209,14 @@ export default function CandidateStrategyProposalPanel({ candidate, onClose }: P
       </div>
 
       {saved && saved.length > 0 && (
-        <p className="muted" style={{ fontSize: "0.82em", marginTop: 6 }}>
-          저장된 제안:{" "}
-          {saved.map((s) => `#${s.id} ${s.suggested_strategy_type}(${s.status})`).join(", ")}
-        </p>
+        <div style={{ marginTop: 8 }}>
+          <strong style={{ fontSize: "0.86em" }}>저장된 제안 (상태만 관리 — 실행 아님)</strong>
+          <ul className="proposal-review-list">
+            {saved.map((s) => (
+              <SavedProposalRow key={s.id} proposal={s} candidateId={candidate.id} />
+            ))}
+          </ul>
+        </div>
       )}
 
       <p className="muted safety-note" style={{ fontSize: "0.82em", marginTop: 8 }}>

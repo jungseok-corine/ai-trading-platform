@@ -145,6 +145,18 @@ export async function getCandidateStrategyProposals(
   return data;
 }
 
+// 제안의 상태만 approved/rejected로 변경한다. 어떤 실행/배정/전략 생성도 하지 않는다.
+export async function reviewCandidateStrategyProposal(
+  proposalId: number,
+  body: { status: "approved" | "rejected"; reviewed_by?: string; review_note?: string },
+): Promise<CandidateStrategyProposal> {
+  const { data } = await apiClient.patch<CandidateStrategyProposal>(
+    `/candidate-strategy-proposals/${proposalId}/review`,
+    body,
+  );
+  return data;
+}
+
 // --- Assignment rules ------------------------------------------------------
 export async function getAssignmentRules(): Promise<AssignmentRule[]> {
   const { data } = await apiClient.get<AssignmentRule[]>("/assignment-rules");

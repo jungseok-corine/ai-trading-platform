@@ -33,8 +33,15 @@
 `intelligence_candidates`(NOT NULL FK) 종속, `StrategyProposal`은 `strategies`(NOT NULL FK)·
 파라미터 변경용. force-fit 금지 규칙에 따라 신규 테이블로 분리.
 
+**Proposal Review UX (frontend-only, `DONE`)**: `CandidateStrategyProposalPanel`의 "저장된 제안"
+영역을 검토 리스트로 바꿨다. PENDING 제안마다 **검토 메모(선택) + "제안 승인" / "제안 거절"** 버튼이
+있고, 클릭 시 `PATCH /candidate-strategy-proposals/{id}/review`로 **status만** approved/rejected로
+바꾼다(`reviewed_by="manual_user"`). 결과로 "상태만 변경됨 — 실행/배정/전략 생성은 하지 않았습니다."
+를 표시하고 목록을 refetch한다. backend 변경 없음(기존 PATCH 엔드포인트 사용). 버튼 라벨은
+"제안 승인/거절"만 사용하며 실행을 암시하는 라벨은 쓰지 않는다.
+
 **⛔ 명시적으로 이연(deferred)**: 제안 **승인 → paper 실험/전략 버전 생성/실험 연결**은 다음 작업.
-이 작업은 제안 영속화 + status-only review까지만. ACTIVE 전환·auto_trade·실주문 없음.
+승인/거절은 **status만** 바꾼다. 이 작업까지 ACTIVE 전환·auto_trade·실주문·실험 생성 없음.
 
 ---
 
