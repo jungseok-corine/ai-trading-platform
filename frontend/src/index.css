@@ -503,6 +503,35 @@ tr.selected {
   min-width: 70px;
 }
 
+/* 후보 성과 보드 (CandidatesSection) — 읽기 전용 요약 지표 */
+.outcome-board {
+  margin-bottom: 12px;
+}
+
+.outcome-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 4px 0;
+}
+
+.outcome-metrics .metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.outcome-metrics .metric-label {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.outcome-metrics .metric-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .perf-panel {
   padding: 10px 16px 12px;
 }

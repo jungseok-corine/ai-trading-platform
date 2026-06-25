@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignCandidate, getCandidateAnalysis, getCandidates } from "../../api/research";
 import type { BucketStat } from "../../types/research";
@@ -23,15 +23,36 @@ function StatRows({ data }: { data: Record<string, BucketStat> }) {
   );
 }
 
+// by_condition 중 평균수익률이 가장 좋은/나쁜 조건을 뽑는다 (count>0, avg_return_pct 존재).
+function bestWorstCondition(byCondition: Record<string, BucketStat>) {
+  const entries = Object.entries(byCondition).filter(
+    ([, s]) => s.count > 0 && s.avg_return_pct != null,
+  );
+  if (entries.length === 0) return { best: null, worst: null };
+  const sorted = [...entries].sort(
+    (a, b) => (b[1].avg_return_pct ?? 0) - (a[1].avg_return_pct ?? 0),
+  );
+  return { best: sorted[0], worst: sorted[sorted.length - 1] };
+}
+
+function fmtPct(v: number | null | undefined) {
+  return v == null ? "-" : `${v}%`;
+}
+
 export default function CandidatesSection() {
   const queryClient = useQueryClient();
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const { data, isLoading } = useQuery({ queryKey: ["candidates"], queryFn: () => getCandidates({ limit: 100 }) });
-  const { data: analysis } = useQuery({
+  // 성과 보드는 읽기 전용 집계 — 마운트 시 자동 로드(외부 API 호출 없음, DB 집계만).
+  const { data: analysis, isLoading: analysisLoading } = useQuery({
     queryKey: ["candidate-analysis"],
     queryFn: () => getCandidateAnalysis(30),
-    enabled: showAnalysis,
   });
+
+  const { best, worst } = useMemo(
+    () => (analysis ? bestWorstCondition(analysis.by_condition) : { best: null, worst: null }),
+    [analysis],
+  );
 
   const assignMut = useMutation({
     mutationFn: (id: number) => assignCandidate(id),
@@ -43,22 +64,59 @@ export default function CandidatesSection() {
       <h3>후보 종목 (Candidate Events)</h3>
       <p className="muted">스캐너 룰에 걸린 종목입니다. "왜 후보가 됐는지"가 facts/matched_conditions에 남습니다.</p>
 
-      <div className="form-row">
-        <button onClick={() => setShowAnalysis((v) => !v)}>
-          {showAnalysis ? "성과 분석 닫기" : "성과 분석 (30분 후 수익률)"}
-        </button>
+      {/* 성과 보드: 후보 발견이 실제로 유용했는지 한눈에 본다 (읽기 전용). */}
+      <div className="card outcome-board" style={{ background: "#f8f9fa" }}>
+        <h4 style={{ marginTop: 0 }}>후보 성과 보드 <span className="muted" style={{ fontWeight: 400 }}>(발견 후 30분 forward 수익률)</span></h4>
+        {analysisLoading && <p className="muted">집계 중…</p>}
+        {analysis && analysis.analyzed === 0 && (
+          <p className="muted">
+            분석 가능한 후보가 없습니다 (총 {analysis.total}건 중 시세 데이터로 수익률을 계산할 수 있는 후보 없음).
+          </p>
+        )}
+        {analysis && analysis.analyzed > 0 && (
+          <>
+            <div className="outcome-metrics">
+              <span className="metric">
+                <span className="metric-label">분석 후보</span>
+                <span className="metric-value">{analysis.analyzed}/{analysis.total}건</span>
+              </span>
+              <span className="metric">
+                <span className="metric-label">평균 forward 수익률</span>
+                <span className="metric-value">{fmtPct(analysis.overall.avg_return_pct)}</span>
+              </span>
+              <span className="metric">
+                <span className="metric-label">승률(양의 수익 비율)</span>
+                <span className="metric-value">{fmtPct(analysis.overall.win_rate)}</span>
+              </span>
+            </div>
+            {(best || worst) && (
+              <div className="muted" style={{ fontSize: "0.9em", marginTop: 6 }}>
+                {best && (
+                  <span>가장 좋은 조건: <strong>{best[0]}</strong> ({fmtPct(best[1].avg_return_pct)}, {best[1].count}건)</span>
+                )}
+                {best && worst && best[0] !== worst[0] && " · "}
+                {worst && worst[0] !== best?.[0] && (
+                  <span>가장 나쁜 조건: <strong>{worst[0]}</strong> ({fmtPct(worst[1].avg_return_pct)}, {worst[1].count}건)</span>
+                )}
+              </div>
+            )}
+            <div className="form-row" style={{ marginTop: 8 }}>
+              <button onClick={() => setShowDetail((v) => !v)}>
+                {showDetail ? "조건/시간대 상세 닫기" : "조건/시간대 상세 보기"}
+              </button>
+            </div>
+            {showDetail && (
+              <>
+                <h4>조건별</h4>
+                <StatRows data={analysis.by_condition} />
+                <h4>시간대별</h4>
+                <StatRows data={analysis.by_time_bucket} />
+              </>
+            )}
+          </>
+        )}
       </div>
-      {showAnalysis && analysis && (
-        <div className="card" style={{ background: "#f8f9fa" }}>
-          <strong>
-            전체: {analysis.analyzed}/{analysis.total}건 분석 · 승률 {analysis.overall.win_rate ?? "-"}% · 평균 {analysis.overall.avg_return_pct ?? "-"}%
-          </strong>
-          <h4>조건별</h4>
-          <StatRows data={analysis.by_condition} />
-          <h4>시간대별</h4>
-          <StatRows data={analysis.by_time_bucket} />
-        </div>
-      )}
+
       {isLoading && <p className="muted">불러오는 중...</p>}
       {data && data.length === 0 && <p className="muted">후보가 없습니다. 스캐너에서 시장 스캔을 실행하세요.</p>}
       {data && data.length > 0 && (
