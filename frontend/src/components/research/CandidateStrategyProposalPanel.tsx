@@ -10,8 +10,11 @@ import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
   getExperiment,
+  getPaperSignalSessions,
   preparePaperExperiment,
   reviewCandidateStrategyProposal,
+  startPaperSignalSession,
+  stopPaperSignalSession,
 } from "../../api/research";
 import { useSettings } from "../../i18n/SettingsContext";
 import type { CandidateEvent, CandidateStrategyProposal } from "../../types/research";
@@ -73,6 +76,83 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "거절됨 (REJECTED)",
 };
 
+// 준비·준비승인된 제안에 대한 Paper 신호 기록 세션 제어(signal-only).
+// 시작/중지만 — 주문/자동매매/상태전환 없음. SignalLog만 쌓인다.
+function PaperSignalSessionControl({
+  proposal,
+}: {
+  proposal: CandidateStrategyProposal;
+}) {
+  const queryClient = useQueryClient();
+  const { formatDateTime } = useSettings();
+  const [confirm, setConfirm] = useState(false);
+  const { data: sessions } = useQuery({
+    queryKey: ["paper-signal-sessions", "active"],
+    queryFn: () => getPaperSignalSessions("active"),
+  });
+  const active = (sessions ?? []).find(
+    (s) => s.candidate_strategy_proposal_id === proposal.id,
+  );
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["paper-signal-sessions", "active"] });
+
+  const startMut = useMutation({
+    // 신호 기록 세션 시작 — SignalLog만, 주문/자동매매 없음.
+    mutationFn: () =>
+      startPaperSignalSession(proposal.id, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: invalidate,
+  });
+  const stopMut = useMutation({
+    mutationFn: (sessionId: number) =>
+      stopPaperSignalSession(sessionId, { confirmed_by: "manual_user" }),
+    onSuccess: invalidate,
+  });
+
+  if (active) {
+    return (
+      <div className="paper-signal-session" style={{ marginTop: 6 }}>
+        <div>
+          <span className="proposal-status status-running">Paper 신호 기록 중</span>
+          <span className="muted"> · 주문 없음 · 자동매매 아님 · SignalLog 기록</span>
+        </div>
+        <div className="muted" style={{ fontSize: "0.8em" }}>
+          세션 #{active.id} · 신호 {active.signal_count}건 · 실행 {active.run_count}회
+          {active.last_run_at ? ` · 최근 ${formatDateTime(active.last_run_at)}` : ""}
+        </div>
+        <button
+          disabled={stopMut.isPending}
+          onClick={() => stopMut.mutate(active.id)}
+          style={{ marginTop: 4 }}
+        >
+          {stopMut.isPending ? "중지 중…" : "신호 기록 중지"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="paper-signal-session" style={{ marginTop: 6 }}>
+      <label style={{ display: "block", fontSize: "0.82em" }}>
+        <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />{" "}
+        주문 없이 SignalLog만 기록합니다 (자동매매 아님 · DRAFT 유지)
+      </label>
+      <button
+        disabled={!confirm || startMut.isPending}
+        onClick={() => startMut.mutate()}
+        style={{ marginTop: 4 }}
+      >
+        {startMut.isPending ? "시작 중…" : "Paper 신호 기록 시작"}
+      </button>
+      {startMut.isError && (
+        <span className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginLeft: 8 }}>
+          시작 실패 — 다시 시도하세요.
+        </span>
+      )}
+    </div>
+  );
+}
+
 // 준비된 DRAFT paper 실험을 읽기 전용으로 보여준다(검토용). 실행/시작/활성 버튼 없음.
 // 실제 실험 상태는 GET /experiments/{id}로 읽어 그대로 표시한다(상태 변경 안 함).
 function PreparedExperimentView({
@@ -120,12 +200,15 @@ function PreparedExperimentView({
         <div className="muted">준비 시각: {formatDateTime(proposal.prepared_at)}</div>
       )}
 
-      {/* 준비 승인 게이트(상태 전환 없음). 이미 승인됐으면 승인 결과만 표시. */}
+      {/* 준비 승인 게이트(상태 전환 없음). 이미 승인됐으면 승인 결과 + 신호 세션 제어. */}
       {isReady ? (
-        <div className="muted" style={{ fontSize: "0.82em", marginTop: 4 }}>
-          ✓ 준비 승인됨 — 아직 실행 전 · DRAFT 유지 · 신호 기록 시작 아님 · 자동매매 아님 · 주문 없음
-          {readyAt && ` (${formatDateTime(readyAt)})`}
-        </div>
+        <>
+          <div className="muted" style={{ fontSize: "0.82em", marginTop: 4 }}>
+            ✓ 준비 승인됨 — DRAFT 유지 · 자동매매 아님 · 주문 없음
+            {readyAt && ` (${formatDateTime(readyAt)})`}
+          </div>
+          <PaperSignalSessionControl proposal={proposal} />
+        </>
       ) : (
         <div style={{ marginTop: 6 }}>
           <label style={{ display: "block", fontSize: "0.82em" }}>

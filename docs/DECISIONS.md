@@ -256,3 +256,39 @@ C-2.30.1(Bulk Approval Safety Guard)에서 먼저 처리했다.
 - `NEXT-TASK.md`는 "활성 구현 작업 없음" 상태로 두고 후보 방향만 제시한다.
 - 알림 통합 착수 시 백엔드/시크릿을 다루므로 안전 검토 + 사용자 승인이 선행되어야 한다.
 - 실전 매매/주문/브로커/실계좌 코드는 어느 후보에서도 건드리지 않는다.
+
+---
+
+## D-12. Paper 신호 기록은 TESTING 전환이 아니라 전용 PaperSignalSession + signal-only 잡으로 한다
+
+**날짜**: 2026-06-26  
+**상태**: 확정
+
+**경위**:  
+후보 → 제안 → 준비 → 준비승인 파이프라인 다음의 첫 "실행" 단계로 paper 신호 기록을 추가하려 했다.
+초기 시도는 StrategyVersion을 TESTING으로 올리는 방식이었으나, runner의 `list_active()`가
+ACTIVE/**TESTING**을 잡으므로 기본 활성인 `strategy_scheduler`(60초)가 즉시 대상화해 매 tick
+SignalLog를 만드는 백그라운드 실행 효과가 생겼다(주문은 auto_trade=false로 막히지만). 이 결합을
+의도적으로 롤백했다(준비승인은 상태를 바꾸지 않는 readiness-only로 확정).
+
+**결정 내용**:
+
+1. **버전은 DRAFT로 유지한다.** paper 신호 기록을 위해 StrategyVersion 상태를 바꾸지 않는다.
+   DRAFT는 trade-capable runner(`list_active`)의 비대상이라 기존 매매 경로와 완전히 분리된다.
+
+2. **전용 PaperSignalSession 테이블 + signal-only 잡으로 분리한다.** suggested_parameters에
+   세션 상태를 욱여넣지 않고(first-class 레코드로 관리), 전용 잡 `paper_signal_session_runner`가
+   active 세션의 DRAFT 버전으로 `SignalService.generate_and_log_signal`만 호출한다.
+
+3. **잡은 TradeService/주문 클라이언트를 구성하지 않는다.** 구조적으로 주문 경로가 없다.
+   broker_client는 시세(캔들) 조회에만 쓰인다. 잡은 기본 비활성(D-8)이며 사람이 명시 시작/중지한다.
+
+**이유**:  
+- TESTING 전환은 "준비"와 "실행"을 분리하지 못하고, 매매 가능한 runner에 결합된다.
+- 전용 세션 + 전용 signal-only 잡은 주문 불가능성을 *구조적으로* 보장한다(코드에 주문 경로 부재).
+- 세션을 stop하면 신호 기록이 즉시 멈춘다(명시적 수명주기).
+
+**구현**: `paper_signal_sessions`(m1n2o3p4q5r6), `paper_signal_service.py`,
+`run_paper_signal_session_job`(기본 OFF), `POST .../paper-signal-sessions` 외.
+
+**이연**: 전략 버전 ACTIVE 승격, 실주문/자동매매, 실험 compare 자동화, 실전 승격은 별도 후속 작업.

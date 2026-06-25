@@ -43,6 +43,7 @@ INTELLIGENCE_DISCOVERY_JOB_ID = "intelligence_discovery"
 INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID = "intelligence_scanner_proposal"
 INTELLIGENCE_EXPERIMENT_AUTOPILOT_JOB_ID = "intelligence_experiment_autopilot"
 INTELLIGENCE_EVOLUTION_JOB_ID = "intelligence_evolution"
+PAPER_SIGNAL_SESSION_RUNNER_JOB_ID = "paper_signal_session_runner"
 
 
 async def run_dart_ingest_job(app: FastAPI) -> None:
@@ -523,6 +524,50 @@ async def run_strategy_job(app: FastAPI) -> None:
         finished_at = datetime.now(KST)
         app.state.scheduler_last_run_at = finished_at
         await _record_run(STRATEGY_RUNNER_JOB_ID, started_at, finished_at, status, error_message, summary)
+
+
+async def run_paper_signal_session_job(app: FastAPI) -> None:
+    """active Paper Signal Session마다 DRAFT 전략 버전으로 SignalLog만 기록한다 (signal-only).
+
+    기본 비활성. **주문/체결/브로커 주문 호출 없음**:
+    - TradeService를 구성하지 않는다. broker_client는 SignalService의 시세(캔들) 조회에만 쓰인다.
+    - PaperSignalService.run_due_sessions는 SignalService.generate_and_log_signal만 호출한다.
+    - 연결된 StrategyVersion은 DRAFT 그대로 → 기존 trade-capable runner는 보지 못한다.
+    """
+    from app.services.paper_signal_service import PaperSignalService  # noqa: PLC0415
+
+    started_at = datetime.now(KST)
+    status = SchedulerRunStatus.SUCCESS
+    error_message: str | None = None
+    summary: dict = {}
+    try:
+        async with async_session_factory() as session:
+            broker = app.state.broker_client
+            overseas_client = getattr(app.state, "overseas_client", None)
+            # 시세(캔들) 조회 전용 SignalService — TradeService/주문 클라이언트 미구성.
+            signal_service = SignalService(
+                session,
+                MarketDataService(broker, session, overseas_client=overseas_client),
+                InvestorFlowRepository(session),
+            )
+            result = await PaperSignalService(session, signal_service).run_due_sessions()
+        summary = result.to_dict()
+        if result.errors and result.signals_created == 0 and result.checked > 0:
+            status = SchedulerRunStatus.FAILED
+            error_message = "; ".join(result.errors)
+        elif result.checked == 0:
+            status = SchedulerRunStatus.SKIPPED
+        app.state.paper_signal_session_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 스케줄러는 예외로 죽으면 안 됨
+        logger.error("paper signal session job failed: %s", exc_message(exc))
+        status = SchedulerRunStatus.FAILED
+        error_message = exc_message(exc)
+        app.state.paper_signal_session_last_error = error_message
+    finally:
+        finished_at = datetime.now(KST)
+        await _record_run(
+            PAPER_SIGNAL_SESSION_RUNNER_JOB_ID, started_at, finished_at, status, error_message, summary
+        )
 
 
 async def order_sync_job(app: FastAPI) -> None:

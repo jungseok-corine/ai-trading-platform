@@ -567,6 +567,11 @@ tr.selected {
   background: #dbeafe;
 }
 
+.proposal-status.status-running {
+  color: #3730a3;
+  background: #e0e7ff;
+}
+
 .prepared-exp {
   margin-top: 4px;
   padding: 6px 8px;

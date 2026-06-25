@@ -32,6 +32,28 @@ from app.services.candidate_strategy_proposal_service import (
     InvalidStrategyTypeError,
     ProposalNotFoundError,
 )
+from app.services.paper_signal_service import (
+    ConfirmationRequiredError as PaperConfirmationRequiredError,
+)
+from app.services.paper_signal_service import (
+    DuplicateActiveSessionError,
+    InvalidVersionStateError,
+    NotReadyError,
+    PaperSignalService,
+    SessionNotFoundError,
+)
+from app.services.paper_signal_service import (
+    NotPreparedError as PaperNotPreparedError,
+)
+from app.services.paper_signal_service import (
+    ProposalNotApprovedError as PaperProposalNotApprovedError,
+)
+from app.services.paper_signal_service import (
+    ProposalNotFoundError as PaperProposalNotFoundError,
+)
+from app.services.paper_signal_service import (
+    UnexpectedAutoTradeError as PaperUnexpectedAutoTradeError,
+)
 from app.services.scanner_scan_service import ScannerScanService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 
@@ -60,6 +82,13 @@ def get_proposal_experiment_service(
     session: AsyncSession = Depends(get_db),
 ) -> CandidateProposalExperimentService:
     return CandidateProposalExperimentService(session)
+
+
+def get_paper_signal_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalService:
+    # signal_service 없이 생성 — 시작/중지/조회 전용(run_due_sessions는 스케줄러 잡에서만).
+    return PaperSignalService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -399,6 +428,113 @@ async def approve_paper_readiness(
     except UnexpectedAutoTradeError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return ReadinessResultRead(**result.__dict__)
+
+
+# --- Paper Signal Sessions (signal-only) -------------------------------------
+class StartPaperSignalSessionRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+class StopPaperSignalSessionRequest(BaseModel):
+    confirmed_by: str | None = None
+    note: str | None = None
+
+
+class PaperSignalSessionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    candidate_strategy_proposal_id: int
+    experiment_id: int | None
+    strategy_version_id: int | None
+    candidate_event_id: int | None
+    symbol_code: str
+    status: str  # active | stopped
+    started_by: str
+    started_at: datetime
+    stopped_at: datetime | None
+    stopped_by: str | None
+    last_run_at: datetime | None
+    last_error: str | None
+    run_count: int
+    signal_count: int
+    note: str | None
+    created_at: datetime
+
+
+@router.post(
+    "/candidate-strategy-proposals/{proposal_id}/paper-signal-sessions",
+    response_model=PaperSignalSessionRead,
+    status_code=201,
+)
+async def start_paper_signal_session(
+    proposal_id: int,
+    payload: StartPaperSignalSessionRequest,
+    service: PaperSignalService = Depends(get_paper_signal_service),
+) -> PaperSignalSessionRead:
+    """준비·준비승인된 제안에 대해 active 신호 기록 세션을 시작한다. **주문/자동매매 아님.**
+
+    SignalLog만 기록하는 전용 잡이 처리한다. StrategyVersion은 DRAFT 유지(상태 전환 없음).
+    confirmed=true + confirmed_by + readiness 승인 + 준비된 실험 필요.
+    """
+    try:
+        session_row = await service.start_session_from_candidate_strategy_proposal(
+            proposal_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except PaperProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except PaperConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except PaperProposalNotApprovedError as e:
+        raise HTTPException(status_code=422, detail="proposal must be approved") from e
+    except NotReadyError as e:
+        raise HTTPException(
+            status_code=422, detail="approve paper readiness before starting a signal session"
+        ) from e
+    except PaperNotPreparedError as e:
+        raise HTTPException(
+            status_code=422, detail="prepare a paper experiment before starting a signal session"
+        ) from e
+    except InvalidVersionStateError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except PaperUnexpectedAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except DuplicateActiveSessionError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return PaperSignalSessionRead.model_validate(session_row)
+
+
+@router.get("/paper-signal-sessions", response_model=list[PaperSignalSessionRead])
+async def list_paper_signal_sessions(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    service: PaperSignalService = Depends(get_paper_signal_service),
+) -> list[PaperSignalSessionRead]:
+    sessions = await service.list_sessions(status=status, limit=limit, offset=offset)
+    return [PaperSignalSessionRead.model_validate(s) for s in sessions]
+
+
+@router.post(
+    "/paper-signal-sessions/{session_id}/stop",
+    response_model=PaperSignalSessionRead,
+)
+async def stop_paper_signal_session(
+    session_id: int,
+    payload: StopPaperSignalSessionRequest,
+    service: PaperSignalService = Depends(get_paper_signal_service),
+) -> PaperSignalSessionRead:
+    """active 세션을 중지한다. 이후 신호가 더 쌓이지 않는다. 상태 전환/주문 없음."""
+    try:
+        session_row = await service.stop_session(
+            session_id, confirmed_by=payload.confirmed_by, note=payload.note
+        )
+    except PaperConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    return PaperSignalSessionRead.model_validate(session_row)
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

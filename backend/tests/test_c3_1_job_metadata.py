@@ -37,6 +37,7 @@ _EXPECTED_RISK = {
     "intraday_event_monitor": "MANUAL_FIRST",
     "research_pipeline": "MANUAL_FIRST",
     "intelligence_experiment_autopilot": "MANUAL_FIRST",
+    "paper_signal_session_runner": "MANUAL_FIRST",
     "daily_analysis": "KEEP_OFF",
     "scanner_review": "KEEP_OFF",
     "strategy_review": "KEEP_OFF",

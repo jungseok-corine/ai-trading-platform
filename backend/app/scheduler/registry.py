@@ -28,6 +28,7 @@ from app.scheduler.jobs import (
     INTELLIGENCE_SCANNER_PROPOSAL_JOB_ID,
     INTRADAY_EVENT_MONITOR_JOB_ID,
     OPERATIONS_DIGEST_JOB_ID,
+    PAPER_SIGNAL_SESSION_RUNNER_JOB_ID,
     RESEARCH_PIPELINE_JOB_ID,
     SCANNER_REVIEW_JOB_ID,
     STRATEGY_REVIEW_JOB_ID,
@@ -45,6 +46,7 @@ from app.scheduler.jobs import (
     run_intelligence_scanner_proposal_job,
     run_intraday_event_monitor_job,
     run_operations_digest_job,
+    run_paper_signal_session_job,
     run_research_pipeline_job,
     run_scanner_review_job,
     run_strategy_review_job,
@@ -359,6 +361,32 @@ CONTROLLABLE_JOBS: list[ControllableJob] = [
         creates_proposals=True,
         cost_risk=True,
         safety_notes=("LLM 유료 호출", "pending 제안만 생성 — 자동 승인 없음", _NO_LIVE),
+    ),
+    ControllableJob(
+        job_id=PAPER_SIGNAL_SESSION_RUNNER_JOB_ID,
+        label_ko="Paper 신호 세션 실행기 (signal-only)",
+        schedule_desc="1분 간격",
+        func=run_paper_signal_session_job,
+        build_trigger=lambda s: IntervalTrigger(
+            seconds=s.paper_signal_session_runner_interval_seconds
+        ),
+        env_enabled=lambda s: s.paper_signal_session_runner_enabled,
+        description=(
+            "active Paper Signal Session의 DRAFT 전략 버전으로 SignalLog만 기록한다. "
+            "TradeService 미구성 — 주문/체결/브로커 주문 없음. 버전은 DRAFT 유지."
+        ),
+        risk_level="MANUAL_FIRST",
+        recommended_state="MANUAL_FIRST",
+        writes_db=True,
+        external_network=True,
+        data_volume_risk=True,
+        safety_notes=(
+            "SignalLog만 기록 — 주문/체결/Trade 없음",
+            "TradeService/주문 클라이언트 미구성",
+            "연결 StrategyVersion은 DRAFT 유지 → trade-capable runner가 보지 못함",
+            "KIS 시세(캔들) 조회만 — 주문 TR 없음",
+            _NO_LIVE,
+        ),
     ),
 ]
 

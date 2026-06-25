@@ -16,6 +16,7 @@ import type {
   MarketCode,
   NewsEvent,
   PaperReadinessApproval,
+  PaperSignalSession,
   PipelineRun,
   PipelineSummary,
   PreparedExperiment,
@@ -167,6 +168,38 @@ export async function reviewCandidateStrategyProposal(
 ): Promise<CandidateStrategyProposal> {
   const { data } = await apiClient.patch<CandidateStrategyProposal>(
     `/candidate-strategy-proposals/${proposalId}/review`,
+    body,
+  );
+  return data;
+}
+
+// 준비·준비승인된 제안에 대해 active 신호 기록 세션을 시작한다. 주문/자동매매 아님 — SignalLog만.
+export async function startPaperSignalSession(
+  proposalId: number,
+  body: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalSession> {
+  const { data } = await apiClient.post<PaperSignalSession>(
+    `/candidate-strategy-proposals/${proposalId}/paper-signal-sessions`,
+    body,
+  );
+  return data;
+}
+
+export async function getPaperSignalSessions(
+  status?: string,
+): Promise<PaperSignalSession[]> {
+  const { data } = await apiClient.get<PaperSignalSession[]>("/paper-signal-sessions", {
+    params: status ? { status } : undefined,
+  });
+  return data;
+}
+
+export async function stopPaperSignalSession(
+  sessionId: number,
+  body: { confirmed_by: string; note?: string },
+): Promise<PaperSignalSession> {
+  const { data } = await apiClient.post<PaperSignalSession>(
+    `/paper-signal-sessions/${sessionId}/stop`,
     body,
   );
   return data;

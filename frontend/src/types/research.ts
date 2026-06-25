@@ -78,6 +78,26 @@ export interface PaperReadinessApproval {
   message: string;
 }
 
+export interface PaperSignalSession {
+  id: number;
+  candidate_strategy_proposal_id: number;
+  experiment_id: number | null;
+  strategy_version_id: number | null;
+  candidate_event_id: number | null;
+  symbol_code: string;
+  status: string; // active | stopped
+  started_by: string;
+  started_at: string;
+  stopped_at: string | null;
+  stopped_by: string | null;
+  last_run_at: string | null;
+  last_error: string | null;
+  run_count: number;
+  signal_count: number;
+  note: string | null;
+  created_at: string;
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

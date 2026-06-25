@@ -85,9 +85,33 @@ Experiment도 DRAFT(RUNNING 아님) → 실행/오토파일럿 대상 아님. �
   pending/rejected/미준비 거부, **상태 불변(DRAFT 유지·started_at null)**, signal_logs/Trade/
   AssignmentLog 미생성, **runner 대상 0(ACTIVE/TESTING 없음)**, idempotent.
 
-**⛔ 명시적으로 이연(deferred)**: 실제 **paper 신호 기록 시작(runner 대상화)**, 전략 버전 승격, 실험
-결과 **비교(compare)** 자동화, 실전 승격은 다음 작업("paper signal logging start gate" 등). 준비·검토·
-준비승인은 모두 **상태를 바꾸지 않으며** 실거래가 아니다. 자동매매·실주문·버전 승격 없음(이 작업까지).
+**Paper Signal Logging Start (Design B, `DONE`)**: 준비·준비승인된 제안에서 사람이 명시적으로
+**Paper Signal Session**을 시작하면, 전용 signal-only 스케줄러 잡이 SignalLog만 기록한다.
+
+- **안전 구조**: 연결된 StrategyVersion은 **DRAFT 그대로** 유지된다 → 기존 trade-capable runner
+  (`list_active`=ACTIVE/TESTING)는 절대 보지 못한다. 전용 잡 `paper_signal_session_runner`는
+  **TradeService를 구성하지 않고** `SignalService.generate_and_log_signal`만 호출한다 → 주문/체결/
+  Trade/브로커 주문 없음. broker_client는 시세(캔들) 조회에만 쓰인다.
+- 모델/마이그레이션: `paper_signal_session.py` / `m1n2o3p4q5r6_add_paper_signal_sessions`
+  (proposal FK CASCADE, experiment/version/candidate FK SET NULL, status active/stopped, started_by,
+  last_run_at, run_count, signal_count). additive only.
+- 서비스 `paper_signal_service.py`: `start_session_from_candidate_strategy_proposal`(confirmed+
+  confirmed_by+approved+prepared+**readiness 승인**+버전 DRAFT+자동매매 off, 중복 active 거부),
+  `stop_session`, `list_sessions`, `run_due_sessions`(active 세션마다 SignalLog만, 상태 불변).
+- 잡: `run_paper_signal_session_job` — **기본 비활성**(CONTROLLABLE_JOBS, MANUAL_FIRST), TradeService
+  미구성. config `paper_signal_session_runner_enabled=False`.
+- API: `POST /candidate-strategy-proposals/{id}/paper-signal-sessions`,
+  `GET /paper-signal-sessions?status=`, `POST /paper-signal-sessions/{id}/stop`.
+- 프론트: 준비승인 후 "Paper 신호 기록 시작"(확인 체크박스 "주문 없이 SignalLog만 기록합니다") +
+  active 세션이면 "Paper 신호 기록 중 · 주문 없음 · 자동매매 아님" + "신호 기록 중지".
+- 테스트 `tests/test_paper_signal_session.py` (13): 게이트, 상태 불변, run_due가 SignalLog만 생성·
+  Trade/AssignmentLog 미생성·버전 DRAFT 유지, 중복 거부, 잡 기본 비활성.
+
+**핵심 불변식**: 버전 DRAFT 유지 → trade-capable runner 비대상. 전용 잡은 TradeService/주문 클라이언트
+미구성 → 주문 불가능. SignalLog만 기록. stop하면 신호 중단. 잡 기본 OFF.
+
+**⛔ 명시적으로 이연(deferred)**: 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 결과 **비교(compare)**
+자동화, 실전 승격은 다음 작업. paper 신호 기록은 **주문이 아니다**.
 
 ---
 
