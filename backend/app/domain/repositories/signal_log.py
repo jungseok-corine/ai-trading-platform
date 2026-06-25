@@ -46,6 +46,19 @@ class SignalLogRepository(BaseRepository[SignalLog]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_by_paper_signal_session(
+        self, paper_signal_session_id: int, limit: int = 1000
+    ) -> list[SignalLog]:
+        """해당 Paper Signal Session이 만든 신호를 최신순으로 조회한다(세션 outcome 집계용)."""
+        stmt = (
+            select(SignalLog)
+            .where(SignalLog.paper_signal_session_id == paper_signal_session_id)
+            .order_by(SignalLog.generated_at.desc(), SignalLog.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def count_by_strategy_version(self, strategy_version_id: int) -> int:
         """해당 strategy_version_id를 참조하는 signal_log 개수를 반환한다."""
         result = await self.session.execute(

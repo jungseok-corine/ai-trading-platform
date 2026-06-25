@@ -10,6 +10,7 @@ import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
   getExperiment,
+  getPaperSignalSessionOutcomes,
   getPaperSignalSessions,
   preparePaperExperiment,
   reviewCandidateStrategyProposal,
@@ -76,8 +77,28 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "거절됨 (REJECTED)",
 };
 
+// 세션 outcome 요약(읽기 전용). SignalLog + market_data forward 수익률 — 주문/실행 아님.
+function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
+  const { data } = useQuery({
+    queryKey: ["paper-signal-outcomes", sessionId],
+    queryFn: () => getPaperSignalSessionOutcomes(sessionId, 30),
+  });
+  if (!data) return null;
+  if (data.signal_count === 0) {
+    return <div className="muted" style={{ fontSize: "0.8em" }}>아직 기록된 SignalLog가 없습니다</div>;
+  }
+  const fmt = (v: number | null) => (v == null ? "-" : v);
+  return (
+    <div className="muted" style={{ fontSize: "0.8em" }}>
+      신호 {data.signal_count}건 · 분석 {data.analyzed_count} · 대기 {data.pending_count} · 승률{" "}
+      {fmt(data.win_rate)}% · 평균 {fmt(data.avg_return_pct)}% · 최고 {fmt(data.best_return_pct)}% ·
+      최저 {fmt(data.worst_return_pct)}% <span style={{ fontSize: "0.92em" }}>(30분 forward)</span>
+    </div>
+  );
+}
+
 // 준비·준비승인된 제안에 대한 Paper 신호 기록 세션 제어(signal-only).
-// 시작/중지만 — 주문/자동매매/상태전환 없음. SignalLog만 쌓인다.
+// 시작/중지만 — 주문/자동매매/상태전환 없음. SignalLog만 쌓인다. + 세션 outcome 요약(읽기 전용).
 function PaperSignalSessionControl({
   proposal,
 }: {
@@ -87,15 +108,15 @@ function PaperSignalSessionControl({
   const { formatDateTime } = useSettings();
   const [confirm, setConfirm] = useState(false);
   const { data: sessions } = useQuery({
-    queryKey: ["paper-signal-sessions", "active"],
-    queryFn: () => getPaperSignalSessions("active"),
+    queryKey: ["paper-signal-sessions"],
+    queryFn: () => getPaperSignalSessions(),
   });
-  const active = (sessions ?? []).find(
-    (s) => s.candidate_strategy_proposal_id === proposal.id,
-  );
+  const mine = (sessions ?? []).filter((s) => s.candidate_strategy_proposal_id === proposal.id);
+  const active = mine.find((s) => s.status === "active");
+  const latest = mine[0]; // 목록은 id desc → 가장 최근 세션
 
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["paper-signal-sessions", "active"] });
+    queryClient.invalidateQueries({ queryKey: ["paper-signal-sessions"] });
 
   const startMut = useMutation({
     // 신호 기록 세션 시작 — SignalLog만, 주문/자동매매 없음.
@@ -120,6 +141,7 @@ function PaperSignalSessionControl({
           세션 #{active.id} · 신호 {active.signal_count}건 · 실행 {active.run_count}회
           {active.last_run_at ? ` · 최근 ${formatDateTime(active.last_run_at)}` : ""}
         </div>
+        <SessionOutcomeSummary sessionId={active.id} />
         <button
           disabled={stopMut.isPending}
           onClick={() => stopMut.mutate(active.id)}
@@ -133,6 +155,13 @@ function PaperSignalSessionControl({
 
   return (
     <div className="paper-signal-session" style={{ marginTop: 6 }}>
+      {latest && latest.status === "stopped" && (
+        <div style={{ marginBottom: 4 }}>
+          <span className="proposal-status status-draft">신호 기록 중지됨</span>
+          <span className="muted"> · 세션 #{latest.id}</span>
+          <SessionOutcomeSummary sessionId={latest.id} />
+        </div>
+      )}
       <label style={{ display: "block", fontSize: "0.82em" }}>
         <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />{" "}
         주문 없이 SignalLog만 기록합니다 (자동매매 아님 · DRAFT 유지)

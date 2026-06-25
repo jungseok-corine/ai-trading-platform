@@ -240,6 +240,8 @@ class PaperSignalService:
             created = log is not None
             if created:
                 signals_created += 1
+                # 세션별 outcome 집계를 위해 신호에 세션 id를 남긴다(정확 추적, 주문과 무관).
+                log.paper_signal_session_id = s.id
             await self._repo.update(
                 s,
                 last_run_at=run_at,

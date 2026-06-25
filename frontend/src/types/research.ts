@@ -98,6 +98,38 @@ export interface PaperSignalSession {
   created_at: string;
 }
 
+export interface PaperSignalOutcomeRow {
+  signal_id: number;
+  created_at: string | null;
+  action: string;
+  entry_price: number | null;
+  return_pct: number | null;
+  is_win: boolean | null;
+  outcome_status: string; // analyzed | pending
+}
+
+export interface PaperSignalOutcomeBoard {
+  session_id: number;
+  status: string;
+  symbol_code: string;
+  horizon_minutes: number;
+  signal_count: number;
+  analyzed_count: number;
+  pending_count: number;
+  win_rate: number | null;
+  avg_return_pct: number | null;
+  best_return_pct: number | null;
+  worst_return_pct: number | null;
+  by_action: {
+    action: string;
+    count: number;
+    analyzed_count: number;
+    win_rate: number | null;
+    avg_return_pct: number | null;
+  }[];
+  recent_signals: PaperSignalOutcomeRow[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

@@ -110,8 +110,25 @@ Experiment도 DRAFT(RUNNING 아님) → 실행/오토파일럿 대상 아님. �
 **핵심 불변식**: 버전 DRAFT 유지 → trade-capable runner 비대상. 전용 잡은 TradeService/주문 클라이언트
 미구성 → 주문 불가능. SignalLog만 기록. stop하면 신호 중단. 잡 기본 OFF.
 
+**Paper Signal Session Outcome Board (`DONE`, read-only)**: 세션이 만든 SignalLog의 forward 수익률을
+market_data로 계산해 세션 단위로 집계·표시한다.
+
+- **추적(Design A)**: SignalLog에 `paper_signal_session_id`(FK SET NULL) 추가(마이그레이션
+  `n1o2p3q4r5s6`). `run_due_sessions`가 생성한 신호에 세션 id를 남겨 **정확 귀속**(세션 재시작 시에도
+  version_id로는 구분 불가 → 컬럼 필요). 일반 strategy_runner 신호는 NULL.
+- 서비스 `paper_signal_outcome_service.py`(읽기 전용): SignalLog를 session_id로 모아
+  `SignalOutcomeService`로 forward 수익률을 계산, horizon(5/15/30/60)별 집계. **Trade/Order/
+  AssignmentLog 미생성, 상태 전환 없음, 스케줄러 미점화.**
+- API: `GET /paper-signal-sessions/{id}/outcomes?horizon_minutes=30` → signal_count/analyzed/pending/
+  win_rate/avg·best·worst_return_pct/by_action/recent_signals(signal_id,created_at,action,entry,
+  return_pct,is_win,outcome_status).
+- 프론트: 세션(active/stopped)에 outcome 요약(신호/분석/대기/승률/평균/최고/최저) 표시. 신호 없으면
+  "아직 기록된 SignalLog가 없습니다". 읽기 전용 — run/start/enable 컨트롤 추가 없음.
+- 테스트 `tests/test_paper_signal_outcomes.py` (8): empty/pending/analyzed/세션필터/읽기전용
+  (Trade·AssignmentLog 미생성)/invalid horizon/404/API.
+
 **⛔ 명시적으로 이연(deferred)**: 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 결과 **비교(compare)**
-자동화, 실전 승격은 다음 작업. paper 신호 기록은 **주문이 아니다**.
+자동화, AI 성과 비교/제안 연결, 실전 승격은 다음 작업. outcome 보드는 **읽기 전용**이며 주문이 아니다.
 
 ---
 

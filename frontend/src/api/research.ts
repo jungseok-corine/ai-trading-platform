@@ -16,6 +16,7 @@ import type {
   MarketCode,
   NewsEvent,
   PaperReadinessApproval,
+  PaperSignalOutcomeBoard,
   PaperSignalSession,
   PipelineRun,
   PipelineSummary,
@@ -201,6 +202,18 @@ export async function stopPaperSignalSession(
   const { data } = await apiClient.post<PaperSignalSession>(
     `/paper-signal-sessions/${sessionId}/stop`,
     body,
+  );
+  return data;
+}
+
+// 세션이 만든 SignalLog의 forward 수익률 집계(읽기 전용 — 주문/실행 아님).
+export async function getPaperSignalSessionOutcomes(
+  sessionId: number,
+  horizonMinutes = 30,
+): Promise<PaperSignalOutcomeBoard> {
+  const { data } = await apiClient.get<PaperSignalOutcomeBoard>(
+    `/paper-signal-sessions/${sessionId}/outcomes`,
+    { params: { horizon_minutes: horizonMinutes } },
   );
   return data;
 }

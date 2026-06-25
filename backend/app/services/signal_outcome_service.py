@@ -77,6 +77,10 @@ class SignalOutcomeService:
             return None
         return await self._compute_outcome(signal)
 
+    async def compute_outcomes(self, signals: list[SignalLog]) -> list[SignalOutcomeRead]:
+        """주어진 신호 목록의 forward outcome을 배치로 계산한다(read-only, 주문과 무관)."""
+        return await self._compute_outcomes_batch(signals)
+
     async def get_summary(
         self,
         limit: int = 100,

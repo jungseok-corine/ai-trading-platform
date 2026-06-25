@@ -32,6 +32,13 @@ from app.services.candidate_strategy_proposal_service import (
     InvalidStrategyTypeError,
     ProposalNotFoundError,
 )
+from app.services.paper_signal_outcome_service import (
+    InvalidHorizonError,
+    PaperSignalOutcomeService,
+)
+from app.services.paper_signal_outcome_service import (
+    SessionNotFoundError as OutcomeSessionNotFoundError,
+)
 from app.services.paper_signal_service import (
     ConfirmationRequiredError as PaperConfirmationRequiredError,
 )
@@ -89,6 +96,12 @@ def get_paper_signal_service(
 ) -> PaperSignalService:
     # signal_service 없이 생성 — 시작/중지/조회 전용(run_due_sessions는 스케줄러 잡에서만).
     return PaperSignalService(session)
+
+
+def get_paper_signal_outcome_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalOutcomeService:
+    return PaperSignalOutcomeService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -535,6 +548,22 @@ async def stop_paper_signal_session(
     except SessionNotFoundError as e:
         raise HTTPException(status_code=404, detail="session not found") from e
     return PaperSignalSessionRead.model_validate(session_row)
+
+
+@router.get("/paper-signal-sessions/{session_id}/outcomes")
+async def get_paper_signal_session_outcomes(
+    session_id: int,
+    horizon_minutes: int = Query(default=30),
+    service: PaperSignalOutcomeService = Depends(get_paper_signal_outcome_service),
+) -> dict:
+    """세션이 만든 SignalLog의 forward 수익률을 집계한다 (읽기 전용 — 주문/실행 아님)."""
+    try:
+        board = await service.session_outcomes(session_id, horizon_minutes=horizon_minutes)
+    except OutcomeSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    except InvalidHorizonError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return board.to_dict()
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

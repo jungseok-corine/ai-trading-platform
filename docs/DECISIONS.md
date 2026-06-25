@@ -292,3 +292,31 @@ SignalLog를 만드는 백그라운드 실행 효과가 생겼다(주문은 auto
 `run_paper_signal_session_job`(기본 OFF), `POST .../paper-signal-sessions` 외.
 
 **이연**: 전략 버전 ACTIVE 승격, 실주문/자동매매, 실험 compare 자동화, 실전 승격은 별도 후속 작업.
+
+---
+
+## D-13. SignalLog에 paper_signal_session_id를 추가해 세션별 outcome을 정확 귀속한다
+
+**날짜**: 2026-06-26  
+**상태**: 확정
+
+**경위**:  
+Paper Signal Session의 신호 성과(outcome)를 세션 단위로 보려면 SignalLog를 세션에 귀속해야 한다.
+SignalLog에는 `strategy_version_id`만 있고 세션 id가 없었다. 후보:
+(A) SignalLog에 `paper_signal_session_id` 추가, (B) `strategy_version_id` + 시간창으로 추정,
+(C) 세션 메타에 신호 id 목록 저장.
+
+**결정 내용**:  
+**Option A 채택** — SignalLog에 `paper_signal_session_id`(nullable FK, ON DELETE SET NULL)를 추가하고
+(`n1o2p3q4r5s6`), `run_due_sessions`가 생성한 신호에 세션 id를 남긴다.
+
+**이유**:  
+- Option B는 **세션 재시작** 시 같은 제안의 동일 DRAFT 버전을 재사용하므로 version_id로는 세션 #1/#2를
+  구분할 수 없다(오귀속). 정확 귀속에는 컬럼이 필요하다.
+- additive nullable 컬럼이라 기존 데이터/경로에 영향 없음(일반 strategy_runner 신호는 NULL 유지).
+- 프로젝트의 "왜 이렇게 됐는가" 추적 가치와 일치.
+
+**영향**:  
+- 세션 outcome 보드는 `paper_signal_session_id`로 정확히 필터링한다.
+- outcome 계산은 기존 `SignalOutcomeService`(market_data forward 수익률)를 읽기 전용으로 재사용한다.
+- 주문/체결/상태 전환과 무관하다.

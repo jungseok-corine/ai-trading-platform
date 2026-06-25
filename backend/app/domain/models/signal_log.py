@@ -44,6 +44,11 @@ class SignalLog(Base):
     strategy_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategy_versions.id", ondelete="SET NULL")
     )
+    # 이 신호를 만든 Paper Signal Session (있으면). 세션별 outcome 집계용 정확 추적.
+    # 일반 strategy_runner 신호는 NULL. (SET NULL: 세션이 지워져도 신호 기록은 남긴다)
+    paper_signal_session_id: Mapped[int | None] = mapped_column(
+        ForeignKey("paper_signal_sessions.id", ondelete="SET NULL")
+    )
     signal_type: Mapped[TradeSide] = mapped_column(pg_enum(TradeSide, "signal_type"), nullable=False)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     candle_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
