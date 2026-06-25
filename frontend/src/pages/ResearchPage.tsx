@@ -99,7 +99,9 @@ export default function ResearchPage() {
       </div>
 
       {section === "ops" && <OperationsSection />}
-      {section === "inbox" && <ActionInboxSection />}
+      {section === "inbox" && (
+        <ActionInboxSection onNavigate={(s) => setSection(s as Section)} />
+      )}
       {section === "ops-trend" && <OperationsTrendSection />}
       {section === "autonomous-jobs" && <AutonomousJobsSection />}
       {section === "pipeline" && <PipelineSection />}
