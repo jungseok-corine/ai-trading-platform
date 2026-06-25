@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignCandidate, getCandidateAnalysis, getCandidates } from "../../api/research";
 import type { BucketStat } from "../../types/research";
+import CandidateStrategyProposalPanel from "./CandidateStrategyProposalPanel";
 
 function StatRows({ data }: { data: Record<string, BucketStat> }) {
   const keys = Object.keys(data);
@@ -42,6 +43,8 @@ function fmtPct(v: number | null | undefined) {
 export default function CandidatesSection() {
   const queryClient = useQueryClient();
   const [showDetail, setShowDetail] = useState(false);
+  // 전략 제안(미리보기) 패널을 펼친 후보 id. 읽기 전용 — 어떤 상태도 저장하지 않는다.
+  const [proposalFor, setProposalFor] = useState<number | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["candidates"], queryFn: () => getCandidates({ limit: 100 }) });
   // 성과 보드는 읽기 전용 집계 — 마운트 시 자동 로드(외부 API 호출 없음, DB 집계만).
   const { data: analysis, isLoading: analysisLoading } = useQuery({
@@ -123,23 +126,40 @@ export default function CandidatesSection() {
         <div className="table-wrapper">
           <table>
             <thead>
-              <tr><th>ID</th><th>종목</th><th>점수</th><th>매칭 조건</th><th>facts</th><th>발견시각</th><th>배정</th></tr>
+              <tr><th>ID</th><th>종목</th><th>점수</th><th>매칭 조건</th><th>facts</th><th>발견시각</th><th>다음 단계</th></tr>
             </thead>
             <tbody>
               {data.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.id}</td>
-                  <td>{c.symbol_code}</td>
-                  <td>{c.score}</td>
-                  <td><code>{(c.matched_conditions ?? []).join(", ")}</code></td>
-                  <td><pre className="parameters-cell">{JSON.stringify(c.facts, null, 1)}</pre></td>
-                  <td>{new Date(c.triggered_at).toLocaleString()}</td>
-                  <td>
-                    <button disabled={assignMut.isPending} onClick={() => assignMut.mutate(c.id)}>
-                      전략 배정
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={c.id}>
+                  <tr>
+                    <td>{c.id}</td>
+                    <td>{c.symbol_code}</td>
+                    <td>{c.score}</td>
+                    <td><code>{(c.matched_conditions ?? []).join(", ")}</code></td>
+                    <td><pre className="parameters-cell">{JSON.stringify(c.facts, null, 1)}</pre></td>
+                    <td>{new Date(c.triggered_at).toLocaleString()}</td>
+                    <td>
+                      <button
+                        onClick={() => setProposalFor((id) => (id === c.id ? null : c.id))}
+                      >
+                        {proposalFor === c.id ? "전략 제안 닫기" : "전략 제안 보기"}
+                      </button>{" "}
+                      <button disabled={assignMut.isPending} onClick={() => assignMut.mutate(c.id)}>
+                        전략 배정
+                      </button>
+                    </td>
+                  </tr>
+                  {proposalFor === c.id && (
+                    <tr>
+                      <td colSpan={7}>
+                        <CandidateStrategyProposalPanel
+                          candidate={c}
+                          onClose={() => setProposalFor(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

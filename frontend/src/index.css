@@ -503,6 +503,31 @@ tr.selected {
   min-width: 70px;
 }
 
+/* 후보 → 전략 제안 미리보기 (CandidatesSection) — 읽기 전용, 미저장 */
+.proposal-preview {
+  margin: 4px 0;
+}
+
+.proposal-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proposal-preview .pending-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.proposal-preview .safety-note {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+}
+
 /* 후보 성과 보드 (CandidatesSection) — 읽기 전용 요약 지표 */
 .outcome-board {
   margin-bottom: 12px;

@@ -7,6 +7,27 @@
 
 ## Current State
 
+**Candidate → Strategy Assignment Proposal (V1, Option A — 읽기 전용 미리보기, `DONE`)**
+
+CandidatesSection의 각 후보 행에 **"전략 제안"** 버튼을 추가했다. 클릭 시 후보의
+`matched_conditions`/`score`를 근거로 *검토해볼 만한* 전략 템플릿을 제안하는 **읽기 전용 패널**
+(`CandidateStrategyProposalPanel.tsx`)이 펼쳐진다. **저장하지 않으며**(미persist), 자동 배정·
+전략 버전 생성·자동매매·주문·실전 연결이 전혀 없다(PENDING 미리보기). 확정 배정은 기존
+'전략 배정'(배정 규칙 기반 로그), 실험·실전은 사람이 별도 승인.
+
+**왜 Option A인가 (분석 결과)**: `candidate_event → PENDING 전략 제안`을 깔끔히 담을 기존 테이블이
+없다. `StrategyAssignmentLog`는 status/근거 없는 *확정 로그*이고, `IntelligenceStrategyProposal`은
+`intelligence_candidates`(NOT NULL FK)에 묶여 있어 `candidate_event`에 안 맞으며,
+`StrategyProposal`은 `strategies`(NOT NULL FK)·파라미터 변경용이다. 새 테이블 = "큰 신규 시스템"이라
+사람 승인 전 착수 금지 규칙에 걸린다 → 가장 작고 안전한 Option A(frontend-only) 선택.
+
+**Option B (후속, 사람 승인 필요)**: `candidate_strategy_assignment_proposal` 신규 모델/마이그레이션
+(candidate_event_id FK + symbol_code + suggested_strategy_type + rationale + confidence +
+suggested_parameters + status=PENDING) + `POST /candidates/{id}/strategy-proposal`(PENDING 생성) +
+read-only 목록 + 테스트. 승인 실행(버전 생성/실험 연결)은 그 다음 단계로 분리. 승인 전 착수 금지.
+
+---
+
 **C-OPS-3.3 — Run History / Manual Run Result Visibility (`DONE`, us_market 한정)**
 
 > **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID와 혼동을
