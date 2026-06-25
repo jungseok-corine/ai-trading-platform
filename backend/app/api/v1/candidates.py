@@ -14,6 +14,13 @@ from app.db.session import get_db
 from app.domain.models.enums import MarketCode
 from app.services.candidate_outcome_service import CandidateOutcomeService
 from app.services.candidate_service import CandidateService
+from app.services.candidate_strategy_proposal_service import (
+    CandidateNotFoundError,
+    CandidateStrategyProposalService,
+    InvalidReviewStatusError,
+    InvalidStrategyTypeError,
+    ProposalNotFoundError,
+)
 from app.services.scanner_scan_service import ScannerScanService
 from app.services.scanner_service import ScannerRuleVersionNotFoundError
 
@@ -30,6 +37,12 @@ def get_scan_service(session: AsyncSession = Depends(get_db)) -> ScannerScanServ
 
 def get_outcome_service(session: AsyncSession = Depends(get_db)) -> CandidateOutcomeService:
     return CandidateOutcomeService(session)
+
+
+def get_proposal_service(
+    session: AsyncSession = Depends(get_db),
+) -> CandidateStrategyProposalService:
+    return CandidateStrategyProposalService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -161,6 +174,117 @@ async def analyze_candidates(
         by_time_bucket=result.by_time_bucket,
         by_condition=result.by_condition,
     )
+
+
+class StrategyProposalCreateRequest(BaseModel):
+    # 모두 선택. 미지정 시 후보 matched_conditions/score에서 안전한 기본값을 유추한다.
+    suggested_strategy_type: str | None = None
+    rationale: str | None = None
+    confidence: float | None = None
+    suggested_parameters: dict | None = None
+
+
+class StrategyProposalReviewRequest(BaseModel):
+    status: str  # approved | rejected (실행 없음, 상태만 변경)
+    reviewed_by: str | None = None
+    review_note: str | None = None
+
+
+class CandidateStrategyProposalRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    candidate_event_id: int
+    symbol_code: str
+    suggested_strategy_type: str
+    rationale: str | None
+    confidence: float | None
+    suggested_parameters: dict | None
+    status: str
+    source: str
+    reviewed_at: datetime | None
+    reviewed_by: str | None
+    review_note: str | None
+    created_at: datetime
+
+
+@router.post(
+    "/candidates/{candidate_event_id}/strategy-proposals",
+    response_model=CandidateStrategyProposalRead,
+    status_code=201,
+)
+async def create_candidate_strategy_proposal(
+    candidate_event_id: int,
+    payload: StrategyProposalCreateRequest | None = None,
+    service: CandidateStrategyProposalService = Depends(get_proposal_service),
+) -> CandidateStrategyProposalRead:
+    """후보에 대한 PENDING 전략 제안을 저장한다(제안만 — 실행/배정/버전 생성 없음)."""
+    body = payload or StrategyProposalCreateRequest()
+    try:
+        proposal = await service.create(
+            candidate_event_id,
+            suggested_strategy_type=body.suggested_strategy_type,
+            rationale=body.rationale,
+            confidence=body.confidence,
+            suggested_parameters=body.suggested_parameters,
+        )
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail="candidate event not found") from e
+    except InvalidStrategyTypeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return CandidateStrategyProposalRead.model_validate(proposal)
+
+
+@router.get(
+    "/candidates/{candidate_event_id}/strategy-proposals",
+    response_model=list[CandidateStrategyProposalRead],
+)
+async def list_candidate_strategy_proposals(
+    candidate_event_id: int,
+    service: CandidateStrategyProposalService = Depends(get_proposal_service),
+) -> list[CandidateStrategyProposalRead]:
+    proposals = await service.list_for_candidate(candidate_event_id)
+    return [CandidateStrategyProposalRead.model_validate(p) for p in proposals]
+
+
+@router.get(
+    "/candidate-strategy-proposals",
+    response_model=list[CandidateStrategyProposalRead],
+)
+async def list_recent_candidate_strategy_proposals(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    service: CandidateStrategyProposalService = Depends(get_proposal_service),
+) -> list[CandidateStrategyProposalRead]:
+    proposals = await service.list_recent(status=status, limit=limit, offset=offset)
+    return [CandidateStrategyProposalRead.model_validate(p) for p in proposals]
+
+
+@router.patch(
+    "/candidate-strategy-proposals/{proposal_id}/review",
+    response_model=CandidateStrategyProposalRead,
+)
+async def review_candidate_strategy_proposal(
+    proposal_id: int,
+    payload: StrategyProposalReviewRequest,
+    service: CandidateStrategyProposalService = Depends(get_proposal_service),
+) -> CandidateStrategyProposalRead:
+    """제안 상태만 approved/rejected로 갱신한다. 어떤 실행/배정/버전 생성도 하지 않는다."""
+    try:
+        proposal = await service.review(
+            proposal_id,
+            status=payload.status,
+            reviewed_by=payload.reviewed_by,
+            review_note=payload.review_note,
+        )
+    except ProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except InvalidReviewStatusError as e:
+        raise HTTPException(
+            status_code=422, detail="status must be 'approved' or 'rejected'"
+        ) from e
+    return CandidateStrategyProposalRead.model_validate(proposal)
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

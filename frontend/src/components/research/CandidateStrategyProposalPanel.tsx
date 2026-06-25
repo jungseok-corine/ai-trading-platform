@@ -1,8 +1,13 @@
-// 후보 종목 → 전략 제안 미리보기 (읽기 전용, 미저장).
+// 후보 종목 → 전략 제안 (검토용 미리보기 + PENDING 제안 저장).
 // 이 패널은 "이 후보에 어떤 전략 템플릿을 실험해볼지"를 *제안*만 한다.
-//   - 저장하지 않는다 (PENDING 개념의 미리보기일 뿐, DB 변경 없음).
+//   - '제안 저장'은 PENDING 제안 레코드만 만든다 (전략 적용/배정 실행/자동매매 아님).
 //   - 자동 배정/버전 생성/자동매매/주문/실전 연결 없음.
-//   - 확정 배정은 별도의 '전략 배정' 액션(배정 규칙 기반 로그)으로, 실험/실전은 사람이 별도 승인.
+//   - 확정 배정은 별도의 '전략 배정' 액션, 실험/실전은 사람이 별도 승인.
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createCandidateStrategyProposal,
+  getCandidateStrategyProposals,
+} from "../../api/research";
 import type { CandidateEvent } from "../../types/research";
 
 // 스캐너 매칭 조건(matched_conditions) → 검토해볼 만한 전략 템플릿 가이드.
@@ -62,12 +67,31 @@ interface Props {
 }
 
 export default function CandidateStrategyProposalPanel({ candidate, onClose }: Props) {
+  const queryClient = useQueryClient();
   const previews = buildProposalPreview(candidate);
+  const top = previews[0];
+
+  const { data: saved } = useQuery({
+    queryKey: ["candidate-proposals", candidate.id],
+    queryFn: () => getCandidateStrategyProposals(candidate.id),
+  });
+
+  const saveMut = useMutation({
+    // 제안(PENDING)만 저장한다 — 어떤 실행/배정/매매도 하지 않는다.
+    mutationFn: () =>
+      createCandidateStrategyProposal(candidate.id, {
+        suggested_strategy_type: top.strategy,
+        rationale: top.reason,
+        confidence: candidate.score ? Math.round((candidate.score / 100) * 10000) / 10000 : undefined,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["candidate-proposals", candidate.id] }),
+  });
 
   return (
     <div className="card proposal-preview" style={{ background: "#f1f5f9" }}>
       <div className="proposal-preview-head">
-        <strong>전략 제안 (검토용 · 미저장)</strong>
+        <strong>전략 제안 (검토용)</strong>
         <span className="pending-badge">PENDING</span>
         <button className="link-button" onClick={onClose} style={{ marginLeft: "auto" }}>
           닫기 ✕
@@ -93,10 +117,31 @@ export default function CandidateStrategyProposalPanel({ candidate, onClose }: P
         </tbody>
       </table>
 
+      <div className="form-row" style={{ marginTop: 8, alignItems: "center", gap: 8 }}>
+        <button disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+          {saveMut.isPending ? "저장 중…" : "PENDING 제안으로 저장"}
+        </button>
+        {saveMut.isSuccess && (
+          <span className="action-result value" style={{ margin: 0 }}>
+            저장됨 — PENDING 제안 #{saveMut.data.id} (실행/배정 아님)
+          </span>
+        )}
+        {saveMut.isError && (
+          <span className="muted" style={{ color: "#b91c1c" }}>저장 실패 — 다시 시도하세요.</span>
+        )}
+      </div>
+
+      {saved && saved.length > 0 && (
+        <p className="muted" style={{ fontSize: "0.82em", marginTop: 6 }}>
+          저장된 제안:{" "}
+          {saved.map((s) => `#${s.id} ${s.suggested_strategy_type}(${s.status})`).join(", ")}
+        </p>
+      )}
+
       <p className="muted safety-note" style={{ fontSize: "0.82em", marginTop: 8 }}>
-        ⚠️ 이것은 <strong>제안(검토용)</strong>일 뿐입니다 — 저장하지 않으며 자동 배정·전략 버전 생성·
-        자동매매·주문·실전 연결을 하지 않습니다. 확정 배정은 ‘전략 배정’(배정 규칙 기반 기록)으로,
-        실험·실전 배치는 사람이 별도로 승인합니다.
+        ⚠️ ‘제안 저장’은 <strong>PENDING 제안</strong>만 만듭니다 — 전략을 적용하거나 배정을 실행하지
+        않으며 전략 버전 생성·자동매매·주문·실전 연결을 하지 않습니다. 확정 배정은 ‘전략 배정’(배정 규칙
+        기반 기록)으로, 실험·실전 배치는 사람이 별도로 승인합니다.
       </p>
     </div>
   );

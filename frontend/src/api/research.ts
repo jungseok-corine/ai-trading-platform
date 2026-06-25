@@ -5,6 +5,7 @@ import type {
   AssignmentRule,
   CandidateAnalysis,
   CandidateEvent,
+  CandidateStrategyProposal,
   ComparisonResult,
   DailyReport,
   Experiment,
@@ -114,6 +115,33 @@ export async function getCandidateAnalysis(horizonMinutes = 30): Promise<Candida
   const { data } = await apiClient.get<CandidateAnalysis>("/candidates/analysis", {
     params: { horizon_minutes: horizonMinutes },
   });
+  return data;
+}
+
+// 후보에 대한 PENDING 전략 제안을 저장한다(제안만 — 실행/배정/버전 생성 없음).
+// body를 비우면 백엔드가 후보 facts에서 안전한 기본값을 유추한다.
+export async function createCandidateStrategyProposal(
+  candidateEventId: number,
+  body?: {
+    suggested_strategy_type?: string;
+    rationale?: string;
+    confidence?: number;
+    suggested_parameters?: Record<string, unknown>;
+  },
+): Promise<CandidateStrategyProposal> {
+  const { data } = await apiClient.post<CandidateStrategyProposal>(
+    `/candidates/${candidateEventId}/strategy-proposals`,
+    body ?? {},
+  );
+  return data;
+}
+
+export async function getCandidateStrategyProposals(
+  candidateEventId: number,
+): Promise<CandidateStrategyProposal[]> {
+  const { data } = await apiClient.get<CandidateStrategyProposal[]>(
+    `/candidates/${candidateEventId}/strategy-proposals`,
+  );
   return data;
 }
 

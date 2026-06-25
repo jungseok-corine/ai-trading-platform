@@ -5,6 +5,7 @@ from app.domain.models.intelligence_candidate import IntelligenceCandidate
 from app.domain.models.intelligence_strategy_proposal import IntelligenceStrategyProposal
 from app.domain.models.ai_analysis import AiAnalysisRun, AiModelResponse
 from app.domain.models.candidate_event import CandidateEvent
+from app.domain.models.candidate_strategy_proposal import CandidateStrategyProposal
 from app.domain.models.daily_report import DailyResearchReport
 from app.domain.models.experiment import (
     Experiment,
@@ -45,6 +46,7 @@ __all__ = [
     "AiAnalysisRun",
     "AiModelResponse",
     "CandidateEvent",
+    "CandidateStrategyProposal",
     "DailyResearchReport",
     "FinancialStatement",
     "IntelligenceCandidate",

@@ -46,6 +46,22 @@ export interface CandidateEvent {
   created_at: string;
 }
 
+export interface CandidateStrategyProposal {
+  id: number;
+  candidate_event_id: number;
+  symbol_code: string;
+  suggested_strategy_type: string;
+  rationale: string | null;
+  confidence: number | null;
+  suggested_parameters: Record<string, unknown> | null;
+  status: string; // pending | approved | rejected
+  source: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  review_note: string | null;
+  created_at: string;
+}
+
 export interface ScanResponse {
   scanner_rule_version_id: number;
   scanned: number;
