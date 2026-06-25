@@ -378,3 +378,42 @@ recent_signals는 상한(10)으로 bounded.
 - enum downgrade는 PG가 값 제거를 지원하지 않아 index만 되돌린다(값은 미사용 시 무해).
 
 **이연**: AI 제안 생성(CandidateStrategyProposal/ScannerRuleProposal), 전략 승격, 실거래는 별도 승인 게이트.
+
+---
+
+## D-16. Paper Signal AI 개선 제안은 기존 StrategyProposal을 재사용한다(전용 테이블·세션 컬럼 없음)
+
+**날짜**: 2026-06-26  
+**상태**: 확정
+
+**경위**:  
+세션 AI 분석 리포트에서 "개선 제안 초안"을 만드는 M1이 필요했다. `StrategyProposal`은 이미
+`ai_analysis_run_id`(FK), `base_version_id`(FK), 자유 `source`, `suggested_parameters`, `status`(PENDING)와
+승인 시 버전 생성 플로우(`proposal_service.approve`)를 갖춰 "AI 분석 run → 개선 제안" 용도로 설계돼 있다.
+또한 `AnalysisProposalService.create_from_text`가 JSON 분석 출력을 검증해 PENDING 제안을 만든다.
+
+**결정 내용**:
+
+1. **기존 `StrategyProposal` 재사용.** 전용 `PaperSignalImprovementProposal` 테이블을 만들지 않는다.
+   세션 추적은 `StrategyProposal.ai_analysis_run_id` → `AiAnalysisRun.target_id`(=세션 id)로 한다 →
+   **세션 id 컬럼/마이그레이션 불필요.** base 버전은 `base_version_id`.
+
+2. **CandidateStrategyProposal 미사용(V1).** 후보 중심이고 AI-run 링크/base 버전이 없어 부적합.
+
+3. **구조화 우선 + 보수적 폴백.** 리포트가 검증 가능한 JSON 가설이면 `AnalysisProposalService`로 검증된
+   param 변경 제안(source="ai_llm"). 아니면(마크다운/근거 부족) 현재 버전 파라미터 그대로의 **무변경**
+   초안(source="paper_signal_analysis") + "insufficient evidence — no parameter change recommended".
+   **파라미터를 지어내지 않는다.**
+
+4. **V1은 PENDING까지만.** `proposal_service.approve`를 호출하지 않는다. 승인/버전 생성/머티리얼라이즈는
+   기존 `ProposalsSection`에서 사람이 별도로.
+
+**이유**:  
+- `StrategyProposal`이 이미 범용(ai_analysis_run_id·base_version·free source) → 재사용이 가장 작고 정직.
+- 기존 제안 검토 UI/승인 플로우 그대로 활용 → 중복 시스템 방지.
+
+**주의(후속)**: `proposal_service.approve`는 status=TESTING 버전을 만든다(TESTING은 runner 대상, 단
+auto_trade=false라 주문은 없음). paper-signal 제안 *승인/머티리얼라이즈* 단계에서 DRAFT 유지 vs TESTING을
+의도적으로 결정해야 한다(readiness/activation 마일스톤과 동일한 고려).
+
+**이연**: 제안 승인·버전 생성·compare·승격·실거래는 별도 승인 게이트.

@@ -207,6 +207,25 @@ export async function stopPaperSignalSession(
   return data;
 }
 
+// AI 분석 run에서 PENDING 개선 제안 초안을 만든다(검토용 — 승인/적용 아님).
+export async function createImprovementProposal(
+  runId: number,
+  body: { confirmed: boolean; confirmed_by: string; proposal_kind?: string },
+): Promise<StrategyProposal> {
+  const { data } = await apiClient.post<StrategyProposal>(
+    `/analysis-runs/${runId}/improvement-proposals`,
+    body,
+  );
+  return data;
+}
+
+export async function getImprovementProposals(runId: number): Promise<StrategyProposal[]> {
+  const { data } = await apiClient.get<StrategyProposal[]>(
+    `/analysis-runs/${runId}/improvement-proposals`,
+  );
+  return data;
+}
+
 // 세션 AI 분석 리포트 run 목록(최신순).
 export async function getPaperSignalAnalysisRuns(
   sessionId: number,

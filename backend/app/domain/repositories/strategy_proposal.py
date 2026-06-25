@@ -10,6 +10,30 @@ from app.domain.repositories.base import BaseRepository
 class StrategyProposalRepository(BaseRepository[StrategyProposal]):
     model = StrategyProposal
 
+    async def list_by_analysis_run(
+        self, ai_analysis_run_id: int, limit: int = 50
+    ) -> list[StrategyProposal]:
+        """ai_analysis_run_id로 만들어진 제안을 최신순으로 조회한다."""
+        stmt = (
+            select(StrategyProposal)
+            .where(StrategyProposal.ai_analysis_run_id == ai_analysis_run_id)
+            .order_by(StrategyProposal.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def find_pending_for_analysis_run(
+        self, ai_analysis_run_id: int
+    ) -> StrategyProposal | None:
+        """해당 analysis run에 대한 PENDING 제안이 있으면 반환한다(중복 생성 방지)."""
+        stmt = select(StrategyProposal).where(
+            StrategyProposal.ai_analysis_run_id == ai_analysis_run_id,
+            StrategyProposal.status == ProposalStatus.PENDING,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
     async def list_filtered(
         self,
         strategy_id: int | None = None,

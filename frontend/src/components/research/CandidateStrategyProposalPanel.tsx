@@ -8,7 +8,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approvePaperReadiness,
   createCandidateStrategyProposal,
+  createImprovementProposal,
   createPaperSignalAnalysisRun,
+  getImprovementProposals,
   getPaperSignalAnalysisRuns,
   getCandidateStrategyProposals,
   getExperiment,
@@ -113,6 +115,56 @@ function SessionAnalysisInputPreview({ sessionId }: { sessionId: number }) {
   );
 }
 
+// AI 분석 리포트 → PENDING 개선 제안 초안(검토용). 승인/적용/전략·세션 변경 없음.
+function ImprovementProposalControl({ run }: { run: PaperSignalAnalysisRun }) {
+  const queryClient = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const { data: proposals } = useQuery({
+    queryKey: ["improvement-proposals", run.id],
+    queryFn: () => getImprovementProposals(run.id),
+  });
+  const mut = useMutation({
+    // 검토용 PENDING 제안만 생성 — 승인/머티리얼라이즈/전략 변경 없음.
+    mutationFn: () =>
+      createImprovementProposal(run.id, { confirmed: true, confirmed_by: "manual_user", proposal_kind: "strategy" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["improvement-proposals", run.id] }),
+  });
+  const existing = (proposals ?? [])[0];
+
+  return (
+    <div style={{ marginTop: 4, borderTop: "1px solid #e2e8f0", paddingTop: 4 }}>
+      {existing ? (
+        <div className="muted" style={{ fontSize: "0.8em" }}>
+          개선 제안 초안:{" "}
+          <span className={`run-status run-${existing.status === "pending" ? "pending" : "succeeded"}`}>
+            검토 대기
+          </span>{" "}
+          제안 #{existing.id} · 소스 AI run #{run.id} · 상태 {existing.status} — 승인 전까지 아무 것도 적용되지 않음.{" "}
+          <span className="muted">(검토는 ‘AI 전략 제안’ 화면에서)</span>
+        </div>
+      ) : (
+        <>
+          <label style={{ display: "block", fontSize: "0.8em" }}>
+            <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />{" "}
+            검토용 제안만 생성하며 전략/주문/세션 상태는 변경하지 않습니다
+          </label>
+          <button disabled={!confirm || mut.isPending} onClick={() => mut.mutate()} style={{ marginTop: 2 }}>
+            {mut.isPending ? "생성 중…" : "개선 제안 초안 만들기"}
+          </button>
+          <span className="muted" style={{ fontSize: "0.75em", marginLeft: 8 }}>
+            개선 제안 초안 · 검토용 · 자동 반영 아님 · 전략/주문/세션 상태 변경 없음
+          </span>
+          {mut.isError && (
+            <span className="muted" style={{ fontSize: "0.78em", color: "#b91c1c", marginLeft: 8 }}>
+              생성 실패 — 다시 시도하세요.
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // 세션 AI 분석 리포트(V1). 사람 확인 후 fake provider로 리포트 생성 — 전략/세션/주문 변경 없음.
 function SessionAnalysisRuns({ sessionId }: { sessionId: number }) {
   const queryClient = useQueryClient();
@@ -203,6 +255,9 @@ function SessionAnalysisRuns({ sessionId }: { sessionId: number }) {
             </details>
           ) : (
             <div className="muted" style={{ fontSize: "0.8em" }}>리포트 본문 없음</div>
+          )}
+          {latest.status === "succeeded" && latestReport && (
+            <ImprovementProposalControl run={latest} />
           )}
         </div>
       )}

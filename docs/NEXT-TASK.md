@@ -174,9 +174,28 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 - 프론트 type에 already-returned 필드(started/completed_at·truncated·warnings·prompt/completion_tokens·
   finish_reason) 노출. read-only — 새 mutation 없음(기존 gated 생성 버튼만).
 
-**⛔ 명시적으로 이연(deferred)**: **AI 제안 생성**(CandidateStrategyProposal/ScannerRuleProposal),
-전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업(별도 승인 게이트).
-리뷰 UX는 **읽기 전용** — 제안 생성·전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
+**M1 — Paper Signal AI Improvement Proposal (`DONE`)**: 세션 AI 분석 run(succeeded)에서 사람이 명시
+확인하면 **PENDING StrategyProposal 초안**을 만든다. **승인/머티리얼라이즈/버전 생성 없음.**
+
+- 기존 `StrategyProposal` 재사용(D-16, 마이그레이션 없음). 추적: `ai_analysis_run_id` →
+  `AiAnalysisRun.target_id`(=세션 id), `base_version_id`=세션 DRAFT 버전.
+- 서비스 `paper_signal_improvement_proposal_service.py`: confirmed+confirmed_by 게이트, run succeeded +
+  target=paper_signal_session + 본문 있는 응답 + 버전 링크 검증, 같은 run 중복 PENDING 거부(409).
+  **구조화 경로**(리포트가 검증 가능한 JSON 가설이면 `AnalysisProposalService`로 검증된 param 변경 제안),
+  **폴백**(근거 부족이면 현재 버전 파라미터 그대로의 무변경 초안 + "insufficient evidence — no parameter
+  change recommended", source="paper_signal_analysis"). 파라미터를 지어내지 않는다. **PENDING만.**
+- API: `POST/GET /analysis-runs/{id}/improvement-proposals`. 검토(승인/거절)는 기존 `ProposalsSection`에서.
+- 프론트: succeeded 리포트 아래 확인 체크박스("검토용 제안만 생성하며 전략/주문/세션 상태는 변경하지
+  않습니다") + "개선 제안 초안 만들기" → 생성 후 "검토 대기(PENDING) · 제안 #id · 승인 전까지 아무 것도
+  적용되지 않음". approve/apply 버튼 없음.
+- 테스트 `tests/test_paper_signal_improvement_proposal.py` (13): 게이트/404/422(failed·target·content·
+  version)/409 중복/PENDING 생성/구조화·폴백/**approve 미호출·StrategyVersion·Experiment·Signal·Trade·
+  AssignmentLog 미생성·상태 불변**.
+
+**⛔ 명시적으로 이연(deferred)**: 제안 **승인 → DRAFT/TESTING 버전 생성/머티리얼라이즈**(기존
+`proposal_service.approve`는 TESTING=runner-eligible이므로 별도 신중 처리 필요), 전략 버전 승격(ACTIVE),
+실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업(별도 승인 게이트). M1은 **PENDING 초안
+생성까지만** — 전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
 
 ---
 
