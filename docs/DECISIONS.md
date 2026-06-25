@@ -417,3 +417,35 @@ auto_trade=false라 주문은 없음). paper-signal 제안 *승인/머티리얼�
 의도적으로 결정해야 한다(readiness/activation 마일스톤과 동일한 고려).
 
 **이연**: 제안 승인·버전 생성·compare·승격·실거래는 별도 승인 게이트.
+
+---
+
+## D-17. 신호 트랙 challenger는 DRAFT 전용 — 공유 approve(TESTING) 경로를 재사용하지 않는다 (가드레일)
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (가드레일 / 설계 단계, 구현 미승인)
+
+**경위**:  
+M2(Paper Signal Version Comparison) 설계 중, 기존 `ProposalService.approve`가 새 `StrategyVersion`을
+**TESTING**으로 만들고 runner의 `list_active()`가 ACTIVE/**TESTING**을 실행 대상으로 잡는다는 것을
+확인했다. 즉 신호 전용 제안을 기존 approve로 머티리얼라이즈하면 버전이 **런너-대상**이 되어 신호가
+자동 생성된다(배경 실행 효과; D-12와 동일한 결합 위험).
+
+**결정 내용**:
+
+1. **신호 트랙 challenger는 항상 DRAFT로 만든다.** `create_version(status=DRAFT)`(+ auto_trade=false)로
+   생성하고, TESTING/ACTIVE로 올리지 않는다. DRAFT는 `list_active()` 비대상 → 런너가 보지 못한다.
+
+2. **공유 `ProposalService.approve`를 신호 트랙용으로 수정하지 않는다.** approve는 strategy/intelligence
+   트랙과 공유되는 매매-인접 경로다. 신호 challenger는 approve를 **호출하지 않는** 별도 경로로 만든다.
+
+3. **비교(M2.1)는 읽기 전용 우선.** 버전/세션/실험 생성 없이 기존 두 세션의 신호 outcome을 비교한다.
+   challenger 버전 생성(M2.2)은 별도 사람 승인 단계로 분리.
+
+**이유**:  
+- TESTING은 런너-대상 → "준비"와 "실행" 분리 실패. DRAFT 전용이 신호 전용 트랙의 핵심 안전 속성.
+- 공유 approve를 조건부로 분기하면 매매-인접 임계 경로가 복잡해진다(회피).
+
+**구현/상세**: `docs/design/M2-paper-signal-challenger-comparison.md`.
+
+**이연**: M2 구현 자체(읽기 전용 비교·DRAFT challenger 준비)는 각각 별도 사람 승인 후 진행.

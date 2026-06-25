@@ -199,6 +199,24 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 
 ---
 
+## 다음 후보: M2 — Paper Signal Version Comparison / Challenger (설계만 완료, 구현 미승인)
+
+설계 문서: **`docs/design/M2-paper-signal-challenger-comparison.md`** (코드 없음).
+
+핵심 위험: 기존 `ProposalService.approve`는 **TESTING** 버전을 만들고, runner의 `list_active()`가
+ACTIVE/**TESTING**을 잡아 신호를 생성한다(런너-대상). 신호 전용 트랙은 **DRAFT 유지(런너 비대상)**여야 한다.
+
+권장 분할(각 단계 별도 사람 승인 필요):
+- **M2.1 (가장 안전, 먼저)**: 두 PaperSignalSession의 신호 outcome **읽기 전용 비교**(baseline vs
+  challenger). 생성 없음·마이그레이션 없음·런너 노출 없음. `GET /paper-signal-sessions/{a}/compare/{b}`.
+- **M2.2 (그 다음, 별도 승인)**: PENDING StrategyProposal → **DRAFT 전용** challenger 버전 생성
+  (`create_version(status=DRAFT)`, `approve` 미호출·TESTING 아님), 기존 readiness/세션 게이트로 비교.
+
+⛔ `ProposalService.approve` 수정 금지(공유 매매-인접 경로). TESTING challenger 생성 금지. 사람 검토
+없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **무인 세션에서는 M2 구현하지 않음 — 설계까지만.**
+
+---
+
 **C-OPS-3.3 — Run History / Manual Run Result Visibility (`DONE`, us_market 한정)**
 
 > **OPS 트랙** = Research/Operations Stabilization 트랙. 과거 phase-log의 C-3.x ID와 혼동을
