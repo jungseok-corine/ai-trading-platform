@@ -15,7 +15,11 @@ from app.domain.models.enums import MarketCode
 from app.services.candidate_outcome_service import CandidateOutcomeService
 from app.services.candidate_proposal_experiment_service import (
     CandidateProposalExperimentService,
+    ConfirmationRequiredError,
+    InvalidExperimentStateError,
+    NotPreparedError,
     ProposalNotApprovedError,
+    UnexpectedAutoTradeError,
 )
 from app.services.candidate_proposal_experiment_service import (
     ProposalNotFoundError as ExperimentProposalNotFoundError,
@@ -340,6 +344,61 @@ async def prepare_paper_experiment(
             status_code=422, detail="proposal must be approved before preparing an experiment"
         ) from e
     return PreparedExperimentRead(**result.__dict__)
+
+
+class ApprovePaperReadinessRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+class ReadinessResultRead(BaseModel):
+    proposal_id: int
+    experiment_id: int
+    experiment_status: str  # 항상 draft (변경 안 함)
+    strategy_version_ids: list[int]
+    strategy_version_statuses: list[str]  # 모두 draft (변경 안 함)
+    auto_trade_enabled_values: list[bool]  # 모두 false
+    ready: bool
+    already_ready: bool
+    ready_at: str | None
+    ready_by: str | None
+    message: str
+
+
+@router.post(
+    "/candidate-strategy-proposals/{proposal_id}/approve-paper-readiness",
+    response_model=ReadinessResultRead,
+)
+async def approve_paper_readiness(
+    proposal_id: int,
+    payload: ApprovePaperReadinessRequest,
+    service: CandidateProposalExperimentService = Depends(get_proposal_experiment_service),
+) -> ReadinessResultRead:
+    """준비된 DRAFT 실험을 'paper 테스트 준비됨'으로 **승인 기록만** 한다. 상태 전환 없음.
+
+    confirmed=true + confirmed_by 필수. StrategyVersion/Experiment는 DRAFT 그대로 유지되어
+    runner가 절대 잡지 않는다(신호 생성 없음). 주문/자동매매/브로커 호출 없음.
+    DRAFT 준비 실험만 승인 가능, 이미 승인됐으면 idempotent.
+    """
+    try:
+        result = await service.approve_paper_testing_readiness(
+            proposal_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except ExperimentProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except ConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ProposalNotApprovedError as e:
+        raise HTTPException(status_code=422, detail="proposal must be approved") from e
+    except NotPreparedError as e:
+        raise HTTPException(
+            status_code=422, detail="prepare a paper experiment before approving readiness"
+        ) from e
+    except InvalidExperimentStateError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except UnexpectedAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return ReadinessResultRead(**result.__dict__)
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

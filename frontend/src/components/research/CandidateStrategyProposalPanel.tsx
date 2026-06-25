@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  approvePaperReadiness,
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
   getExperiment,
@@ -81,22 +82,34 @@ function PreparedExperimentView({
   experimentId: number;
   proposal: CandidateStrategyProposal;
 }) {
+  const queryClient = useQueryClient();
   const { formatDateTime } = useSettings();
+  const [confirm, setConfirm] = useState(false);
   const { data: exp } = useQuery({
     queryKey: ["prepared-experiment", experimentId],
     queryFn: () => getExperiment(experimentId),
   });
-  const status = exp?.status ?? "draft";
-  const notStarted = exp ? exp.started_at === null : true;
+  // 준비 승인 메타는 제안의 suggested_parameters에 남는다(상태 전환 없음).
+  const readyAt =
+    (proposal.suggested_parameters?.["_paper_testing_ready_at"] as string | undefined) ?? null;
+
+  const approveMut = useMutation({
+    // 준비됨 승인만 기록 — 상태 전환/실행/자동매매/주문/신호 기록 시작 없음.
+    mutationFn: () =>
+      approvePaperReadiness(proposal.id, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["candidate-proposals", proposal.candidate_event_id],
+      }),
+  });
+  const isReady = readyAt !== null || approveMut.isSuccess;
 
   return (
     <div className="prepared-exp">
       <div>
         <strong>Paper 실험 준비됨</strong>{" "}
-        <span className={`proposal-status status-${status === "draft" ? "draft" : "pending"}`}>
-          {status === "draft" ? "DRAFT 상태" : status}
-        </span>
-        {notStarted && <span className="muted"> · 실행 전</span>}
+        <span className="proposal-status status-draft">DRAFT 유지</span>
+        <span className="muted"> · 아직 실행 전</span>
       </div>
       <div className="muted">
         실험 #{experimentId} · 전략 <code>{proposal.suggested_strategy_type}</code> ·{" "}
@@ -106,8 +119,40 @@ function PreparedExperimentView({
       {proposal.prepared_at && (
         <div className="muted">준비 시각: {formatDateTime(proposal.prepared_at)}</div>
       )}
-      <div className="muted">
-        자동매매 아님 · 주문 없음 · 검토용 (실행/비교는 다음 단계에서 사람이 별도로 진행)
+
+      {/* 준비 승인 게이트(상태 전환 없음). 이미 승인됐으면 승인 결과만 표시. */}
+      {isReady ? (
+        <div className="muted" style={{ fontSize: "0.82em", marginTop: 4 }}>
+          ✓ 준비 승인됨 — 아직 실행 전 · DRAFT 유지 · 신호 기록 시작 아님 · 자동매매 아님 · 주문 없음
+          {readyAt && ` (${formatDateTime(readyAt)})`}
+        </div>
+      ) : (
+        <div style={{ marginTop: 6 }}>
+          <label style={{ display: "block", fontSize: "0.82em" }}>
+            <input
+              type="checkbox"
+              checked={confirm}
+              onChange={(e) => setConfirm(e.target.checked)}
+            />{" "}
+            자동매매 없이 paper 테스트 준비만 승인합니다 (DRAFT 유지 · 신호 기록 시작 아님)
+          </label>
+          <button
+            disabled={!confirm || approveMut.isPending}
+            onClick={() => approveMut.mutate()}
+            style={{ marginTop: 4 }}
+          >
+            {approveMut.isPending ? "승인 중…" : "Paper 테스트 준비 승인"}
+          </button>
+          {approveMut.isError && (
+            <span className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginLeft: 8 }}>
+              승인 실패 — 다시 시도하세요.
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="muted" style={{ marginTop: 4 }}>
+        자동매매 아님 · 주문 없음 · 검토용 (실제 신호 기록 시작·전략 버전 승격·실전은 다음 단계에서 별도로 진행)
       </div>
     </div>
   );

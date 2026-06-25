@@ -64,9 +64,30 @@ Experiment도 DRAFT(RUNNING 아님) → 실행/오토파일럿 대상 아님. �
 `started_at===null`이면 "실행 전" + 전략 타입/종목/variant 수 + 준비 시각 + "자동매매 아님 · 주문 없음 ·
 검토용". **실행·시작·활성화·승격 버튼 없음(읽기 전용).** backend 변경 없음(기존 GET 재사용).
 
-**⛔ 명시적으로 이연(deferred)**: 준비된 DRAFT 실험을 **실제로 실행/비교(run/compare)**, 전략 버전
-ACTIVE 전환, 실전 승격은 다음 작업. 이 작업까지 ACTIVE 전환·auto_trade=true·실주문·실험 실행 없음.
-준비(prepare)·검토(review)는 **실행이 아니다**.
+**Paper Experiment Readiness Gate (`DONE`, readiness-only)**: 준비된 DRAFT 실험을 사람이 **명시 확인**
+(confirmed=true + confirmed_by)으로 "paper 테스트 준비됨"이라고 **승인 기록만** 한다. **어떤 상태도
+바꾸지 않는다(non-runnable 유지) — 실행/자동매매/주문/실거래가 아니다.**
+
+- **안전 분석(코드 확인)**: runner(`strategy_runner_service`)는 `list_active()`=ACTIVE/TESTING만
+  실행한다. 즉 버전을 TESTING으로 올리면 default 활성인 `strategy_scheduler`가 잡아 매 tick
+  `signal_logs`를 *계속 생성*한다(주문은 없지만 실질적 백그라운드 실행 효과). 그래서 이 단계는
+  **버전을 TESTING으로 올리지 않는다.** 준비 승인은 상태를 바꾸지 않으므로 runner가 절대 잡지
+  않는다(신호 기록 시작 없음).
+- 서비스 `approve_paper_testing_readiness(proposal_id, confirmed, confirmed_by)`: confirmed/ confirmed_by
+  필수, proposal approved + 준비됨 + 실험 DRAFT + 모든 버전 DRAFT(+자동매매 토글 off) 검증 후,
+  승인 사실만 제안의 `suggested_parameters._paper_testing_ready_{at,by}`에 기록(마이그레이션 없음).
+  **StrategyVersion/Experiment 상태·started_at 변경 없음.** 이미 승인됐으면 idempotent.
+- API: `POST /candidate-strategy-proposals/{id}/approve-paper-readiness`.
+- 프론트: DRAFT 준비 실험에 확인 체크박스("자동매매 없이 paper 테스트 준비만 승인합니다 (DRAFT 유지 ·
+  신호 기록 시작 아님)") + "Paper 테스트 준비 승인" 버튼 → 성공 시 "준비 승인됨 — 아직 실행 전 · DRAFT
+  유지 · 신호 기록 시작 아님 · 자동매매 아님 · 주문 없음". 배지는 "DRAFT 유지".
+- 테스트 `tests/test_candidate_paper_readiness.py` (10): confirmed/ confirmed_by 게이트,
+  pending/rejected/미준비 거부, **상태 불변(DRAFT 유지·started_at null)**, signal_logs/Trade/
+  AssignmentLog 미생성, **runner 대상 0(ACTIVE/TESTING 없음)**, idempotent.
+
+**⛔ 명시적으로 이연(deferred)**: 실제 **paper 신호 기록 시작(runner 대상화)**, 전략 버전 승격, 실험
+결과 **비교(compare)** 자동화, 실전 승격은 다음 작업("paper signal logging start gate" 등). 준비·검토·
+준비승인은 모두 **상태를 바꾸지 않으며** 실거래가 아니다. 자동매매·실주문·버전 승격 없음(이 작업까지).
 
 ---
 

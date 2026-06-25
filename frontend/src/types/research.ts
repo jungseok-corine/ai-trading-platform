@@ -64,6 +64,20 @@ export interface CandidateStrategyProposal {
   created_at: string;
 }
 
+export interface PaperReadinessApproval {
+  proposal_id: number;
+  experiment_id: number;
+  experiment_status: string; // 항상 draft (변경 안 함)
+  strategy_version_ids: number[];
+  strategy_version_statuses: string[]; // 모두 draft (변경 안 함)
+  auto_trade_enabled_values: boolean[]; // 모두 false
+  ready: boolean;
+  already_ready: boolean;
+  ready_at: string | null;
+  ready_by: string | null;
+  message: string;
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

@@ -15,6 +15,7 @@ import type {
   LiveReadinessReport,
   MarketCode,
   NewsEvent,
+  PaperReadinessApproval,
   PipelineRun,
   PipelineSummary,
   PreparedExperiment,
@@ -142,6 +143,19 @@ export async function getCandidateStrategyProposals(
 ): Promise<CandidateStrategyProposal[]> {
   const { data } = await apiClient.get<CandidateStrategyProposal[]>(
     `/candidates/${candidateEventId}/strategy-proposals`,
+  );
+  return data;
+}
+
+// 준비된 DRAFT 실험을 'paper 테스트 준비됨'으로 승인 기록만 한다. 상태 전환 없음.
+// StrategyVersion/Experiment는 DRAFT 유지 → runner가 잡지 않음(신호 기록 시작 아님). 주문/자동매매 없음.
+export async function approvePaperReadiness(
+  proposalId: number,
+  body: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperReadinessApproval> {
+  const { data } = await apiClient.post<PaperReadinessApproval>(
+    `/candidate-strategy-proposals/${proposalId}/approve-paper-readiness`,
+    body,
   );
   return data;
 }
