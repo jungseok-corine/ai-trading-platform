@@ -56,6 +56,13 @@ class CandidateStrategyProposal(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_by: Mapped[str | None] = mapped_column(String(100))
     review_note: Mapped[str | None] = mapped_column(Text)
+    # APPROVED 제안에서 사람 명시 액션으로 준비된 paper 실험(DRAFT) 연결 + 시각.
+    # 준비는 실행이 아니다 — Experiment/StrategyVersion 모두 DRAFT, auto_trade=False.
+    # (SET NULL: 실험이 삭제돼도 제안 기록은 남긴다)
+    experiment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("experiments.id", ondelete="SET NULL")
+    )
+    prepared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

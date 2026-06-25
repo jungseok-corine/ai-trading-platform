@@ -13,6 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
 from app.services.candidate_outcome_service import CandidateOutcomeService
+from app.services.candidate_proposal_experiment_service import (
+    CandidateProposalExperimentService,
+    ProposalNotApprovedError,
+)
+from app.services.candidate_proposal_experiment_service import (
+    ProposalNotFoundError as ExperimentProposalNotFoundError,
+)
 from app.services.candidate_service import CandidateService
 from app.services.candidate_strategy_proposal_service import (
     CandidateNotFoundError,
@@ -43,6 +50,12 @@ def get_proposal_service(
     session: AsyncSession = Depends(get_db),
 ) -> CandidateStrategyProposalService:
     return CandidateStrategyProposalService(session)
+
+
+def get_proposal_experiment_service(
+    session: AsyncSession = Depends(get_db),
+) -> CandidateProposalExperimentService:
+    return CandidateProposalExperimentService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -205,6 +218,8 @@ class CandidateStrategyProposalRead(BaseModel):
     reviewed_at: datetime | None
     reviewed_by: str | None
     review_note: str | None
+    experiment_id: int | None
+    prepared_at: datetime | None
     created_at: datetime
 
 
@@ -285,6 +300,46 @@ async def review_candidate_strategy_proposal(
             status_code=422, detail="status must be 'approved' or 'rejected'"
         ) from e
     return CandidateStrategyProposalRead.model_validate(proposal)
+
+
+class PreparedExperimentRead(BaseModel):
+    proposal_id: int
+    candidate_event_id: int
+    symbol_code: str
+    suggested_strategy_type: str
+    strategy_id: int | None
+    strategy_version_id: int | None
+    strategy_version_status: str  # 항상 'draft' (ACTIVE 아님)
+    experiment_id: int
+    experiment_status: str  # 항상 'draft' (RUNNING 아님)
+    auto_trade_enabled: bool  # 항상 False
+    prepared_at: str | None
+    already_prepared: bool
+
+
+@router.post(
+    "/candidate-strategy-proposals/{proposal_id}/prepare-paper-experiment",
+    response_model=PreparedExperimentRead,
+    status_code=201,
+)
+async def prepare_paper_experiment(
+    proposal_id: int,
+    service: CandidateProposalExperimentService = Depends(get_proposal_experiment_service),
+) -> PreparedExperimentRead:
+    """APPROVED 제안에서 DRAFT paper 실험 골격을 준비한다(실행 아님).
+
+    실험을 돌리지 않는다. StrategyVersion/Experiment 모두 DRAFT, auto_trade=False.
+    PENDING/REJECTED 제안은 422. 이미 준비된 제안은 기존 결과(idempotent).
+    """
+    try:
+        result = await service.prepare(proposal_id)
+    except ExperimentProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except ProposalNotApprovedError as e:
+        raise HTTPException(
+            status_code=422, detail="proposal must be approved before preparing an experiment"
+        ) from e
+    return PreparedExperimentRead(**result.__dict__)
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

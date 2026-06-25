@@ -17,6 +17,7 @@ import type {
   NewsEvent,
   PipelineRun,
   PipelineSummary,
+  PreparedExperiment,
   PromotionCriteria,
   PromotionEvaluation,
   ProposalDetail,
@@ -153,6 +154,16 @@ export async function reviewCandidateStrategyProposal(
   const { data } = await apiClient.patch<CandidateStrategyProposal>(
     `/candidate-strategy-proposals/${proposalId}/review`,
     body,
+  );
+  return data;
+}
+
+// APPROVED 제안에서 DRAFT paper 실험 골격을 준비한다(실행 아님 — auto_trade=false, status=draft).
+export async function preparePaperExperiment(
+  proposalId: number,
+): Promise<PreparedExperiment> {
+  const { data } = await apiClient.post<PreparedExperiment>(
+    `/candidate-strategy-proposals/${proposalId}/prepare-paper-experiment`,
   );
   return data;
 }

@@ -59,7 +59,24 @@ export interface CandidateStrategyProposal {
   reviewed_at: string | null;
   reviewed_by: string | null;
   review_note: string | null;
+  experiment_id: number | null; // 준비된 paper 실험(DRAFT) 연결. null이면 미준비.
+  prepared_at: string | null;
   created_at: string;
+}
+
+export interface PreparedExperiment {
+  proposal_id: number;
+  candidate_event_id: number;
+  symbol_code: string;
+  suggested_strategy_type: string;
+  strategy_id: number | null;
+  strategy_version_id: number | null;
+  strategy_version_status: string; // 항상 draft
+  experiment_id: number;
+  experiment_status: string; // 항상 draft
+  auto_trade_enabled: boolean; // 항상 false
+  prepared_at: string | null;
+  already_prepared: boolean;
 }
 
 export interface ScanResponse {

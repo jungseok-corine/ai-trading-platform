@@ -40,8 +40,27 @@
 를 표시하고 목록을 refetch한다. backend 변경 없음(기존 PATCH 엔드포인트 사용). 버튼 라벨은
 "제안 승인/거절"만 사용하며 실행을 암시하는 라벨은 쓰지 않는다.
 
-**⛔ 명시적으로 이연(deferred)**: 제안 **승인 → paper 실험/전략 버전 생성/실험 연결**은 다음 작업.
-승인/거절은 **status만** 바꾼다. 이 작업까지 ACTIVE 전환·auto_trade·실주문·실험 생성 없음.
+**Paper Experiment Preparation (`DONE`)**: APPROVED 제안에서 사람이 명시적으로 **"Paper 실험 준비"**
+하면 DRAFT paper 실험 골격을 만든다. **준비는 실행이 아니다.**
+
+- 마이그레이션 `l1m2n3o4p5q6`: `candidate_strategy_proposals`에 `experiment_id`(FK experiments SET NULL)
+  + `prepared_at` 추가(둘 다 nullable, additive).
+- 서비스 `candidate_proposal_experiment_service.py` `prepare()`: APPROVED만 허용(pending/rejected→422),
+  Strategy(paper 전용) + StrategyVersion(**DRAFT**, `auto_trade_enabled=False` 강제) +
+  Experiment(**DRAFT**, started_at=None) + Variant(CHALLENGER) 생성, 제안에 experiment_id/prepared_at
+  연결. 이미 준비됐으면 기존 반환(idempotent).
+- API: `POST /candidate-strategy-proposals/{id}/prepare-paper-experiment`.
+- 프론트: APPROVED 행에만 "Paper 실험 준비" 버튼 → 성공 시 "Paper 실험 준비됨 — 실행/자동매매 아님 (DRAFT)".
+- 테스트 `tests/test_candidate_proposal_experiment.py` (8): pending/rejected 거부, DRAFT 실험/버전,
+  auto_trade=False, idempotent, **runner의 list_active(ACTIVE/TESTING)에 안 잡힘**, StrategyAssignmentLog/
+  Trade 미생성.
+
+**안전 근거**: runner는 `list_active()`(ACTIVE/TESTING)만 실행 → DRAFT 버전은 절대 안 돌아간다.
+Experiment도 DRAFT(RUNNING 아님) → 실행/오토파일럿 대상 아님. 주문/브로커/실계좌/AssignmentService 없음.
+
+**⛔ 명시적으로 이연(deferred)**: 준비된 DRAFT 실험을 **실제로 실행/비교(run/compare)**, 전략 버전
+ACTIVE 전환, 실전 승격은 다음 작업. 이 작업까지 ACTIVE 전환·auto_trade=true·실주문·실험 실행 없음.
+준비(prepare)는 **실행이 아니다**.
 
 ---
 

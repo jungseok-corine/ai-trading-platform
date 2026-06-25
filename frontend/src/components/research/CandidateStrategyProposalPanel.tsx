@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
+  preparePaperExperiment,
   reviewCandidateStrategyProposal,
 } from "../../api/research";
 import type { CandidateEvent, CandidateStrategyProposal } from "../../types/research";
@@ -90,7 +91,14 @@ function SavedProposalRow({
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["candidate-proposals", candidateId] }),
   });
+  const prepareMut = useMutation({
+    // DRAFT paper 실험 골격만 준비 — 실행/자동매매/주문 없음.
+    mutationFn: () => preparePaperExperiment(proposal.id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["candidate-proposals", candidateId] }),
+  });
   const isPending = proposal.status === "pending";
+  const isApproved = proposal.status === "approved";
 
   return (
     <li className="proposal-review-row">
@@ -121,6 +129,31 @@ function SavedProposalRow({
         <div className="muted" style={{ fontSize: "0.8em" }}>
           검토자: {proposal.reviewed_by ?? "-"}
           {proposal.review_note ? ` · 메모: ${proposal.review_note}` : ""}
+        </div>
+      )}
+
+      {/* APPROVED 제안만: DRAFT paper 실험 준비(실행 아님). PENDING/REJECTED는 버튼 없음. */}
+      {isApproved && (
+        <div className="form-row" style={{ marginTop: 4, alignItems: "center", gap: 6 }}>
+          {proposal.experiment_id ? (
+            <span className="muted" style={{ fontSize: "0.8em" }}>
+              Paper 실험 준비됨 (DRAFT #{proposal.experiment_id}) — 실행/자동매매 아님
+            </span>
+          ) : (
+            <button disabled={prepareMut.isPending} onClick={() => prepareMut.mutate()}>
+              {prepareMut.isPending ? "준비 중…" : "Paper 실험 준비"}
+            </button>
+          )}
+          {prepareMut.isSuccess && (
+            <span className="muted" style={{ fontSize: "0.8em" }}>
+              Paper 실험 준비됨 — 실행/자동매매 아님 (DRAFT)
+            </span>
+          )}
+          {prepareMut.isError && (
+            <span className="muted" style={{ fontSize: "0.8em", color: "#b91c1c" }}>
+              준비 실패 — 다시 시도하세요.
+            </span>
+          )}
         </div>
       )}
 
