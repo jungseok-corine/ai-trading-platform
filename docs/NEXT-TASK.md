@@ -14,9 +14,30 @@
 
 | 필드 | 값 |
 |------|----|
-| **마지막 완료 작업** | 오버나잇 배치(미푸시): Operations Digest 정확도/UI + scheduler_runs 일관성 + 읽기전용 Action Inbox v1 |
-| **현재 상태** | 진행 중인 구현 작업 없음 (오버나잇 커밋 4건 리뷰 대기, 미푸시) |
-| **다음에 필요한 것** | 사람이 오버나잇 커밋 리뷰 후 push 결정 + 다음 방향 선택 |
+| **마지막 완료 작업** | (분석) Manual Scanner Run → Candidate Event 코어 플로우 점검 — **이미 완성/연결됨**. Action Inbox v1/v2(푸시 완료). |
+| **현재 상태** | 진행 중인 구현 작업 없음 |
+| **다음에 필요한 것** | 코어 플로우의 *구체적* 다음 deepening을 사람이 선택 (아래) |
+
+### Manual Scanner Run → Candidate Event 플로우 점검 결과 (구현 불필요)
+
+이 플로우는 **이미 end-to-end로 구현·연결·테스트되어 있다**. 새로 만들 필요 없음(중복 금지).
+
+| 단계 | 존재하는 것 |
+|------|------------|
+| 스키마 | `scanner_rules`, `scanner_rule_versions`, `candidate_events`(+`facts`/`matched_conditions`/`score`/`triggered_at`), `scanner_rule_proposals` |
+| 수동 스캔 | `POST /candidates`(symbol_facts 직접) · `POST /scanner-rules/{rule}/versions/{ver}/scan-market`(DB 시세, `_semis_symbols()`로 bounded) → `CandidateService.scan()`가 `candidate_events` 영속 |
+| 후보 조회 | `GET /candidates`(+facts) · `GET /candidates/analysis`(forward 수익률) |
+| 프론트 | `ScannersSection`(룰 CRUD + 시장 스캔 버튼) · `CandidatesSection`(ID/종목/점수/매칭조건/**facts**/발견시각 + 성과분석 + 다음단계 '전략 배정') |
+| 테스트 | `test_c2_31_symbol_facts::test_scan_market_computes_facts_and_records_candidate`, `test_c2_24_candidate_events`, `test_c2_23_scanner_rules`, `test_c4_universe_scan` 등 |
+
+> 추가로, 코어 루프 전체(스캐너→후보→배정→실험→AI제안→승인→실전 승격 검토)가 이미 구현되어 있음
+> (C-2.2x~C-2.39). 즉 "최소 코어 스텝"으로 새로 만들 것이 없다.
+
+**구체적 다음 deepening 후보(사람 선택 필요 — 임의 착수 금지)**:
+1. 스캔 대상 유니버스 확장(현재 `_semis_symbols` 한정). ⚠️ 시세/외부 호출량↑ → 명시적 한도·승인 필요.
+2. 후보 이벤트를 Action Inbox 소스로 추가(읽기전용) + CandidatesSection으로 네비게이션.
+3. 후보 outcome 보드 강화(조건/시간대별 forward 수익률 시각화 — 기존 analysis 확장).
+4. 후보→실험 연결 깊이(수동 배정 결과를 실험으로 묶는 UX). 단, 자동 배정/자동매매 금지.
 
 ### 오버나잇 배치 결과 (미푸시, 리뷰 대기)
 
