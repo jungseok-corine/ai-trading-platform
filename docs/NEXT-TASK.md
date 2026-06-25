@@ -142,9 +142,29 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 - 테스트 `tests/test_paper_signal_analysis_input.py` (9): 404/422/세션메타/추적/outcome/상한/
   **DB 무변경(AiAnalysisRun·AiModelResponse·Trade·SignalLog 미생성, 상태 불변)**.
 
-**⛔ 명시적으로 이연(deferred)**: **AI provider 호출**(OpenAI/Claude/Gemini), AiAnalysisRun 생성,
-AI 제안 생성, 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업.
-이 작업은 **분석 입력 패키징(읽기 전용)**까지만 — 전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
+**Paper Signal Session AI Analysis Run (V1, `DONE`, 리포트 전용)**: 사람이 명시 확인하면 세션
+분석 입력으로 AI 분석 **리포트**를 생성·저장한다. **AI 제안 생성 없음, 전략/세션/실험/주문 변경 없음.**
+
+- 기존 `AiAnalysisRun`/`AiModelResponse` 재사용(D-15). 마이그레이션 `o1p2q3r4s5t6`(additive enum):
+  `analysis_target_type += paper_signal_session`, `analysis_run_type += paper_signal_session_analysis`,
+  index `ix_ai_analysis_runs_target(target_type,target_id)`. enum 추가는 autocommit_block 사용,
+  downgrade는 index만 제거(enum 값은 PG 관례상 유지).
+- 서비스 `paper_signal_analysis_run_service.py`: confirmed+confirmed_by+horizon(5/15/30/60)+세션 검증 →
+  `PaperSignalAnalysisInput` → bounded markdown prompt(`paper_signal_analysis_prompt_service.py`,
+  20k 상한 + 실거래/주문/제안자동생성 금지 CRITICAL INSTRUCTIONS) → **provider factory**(기본 fake) 호출 →
+  `AiAnalysisRun(target_type=paper_signal_session, target_id=session_id, strategy_version_id 추적)` +
+  `AiModelResponse` 저장. provider 실패 시 FAILED run + error response.
+- API: `POST/GET /paper-signal-sessions/{id}/analysis-runs`(+ 기존 `GET /analysis-runs/{id}` 재사용).
+- 프론트: outcome 요약 아래 "AI 분석 리포트 생성"(확인 체크박스 "AI 분석만 생성하며 전략/주문/세션
+  상태는 변경하지 않습니다") + 이전 run 목록 + 최근 리포트. 라벨: "분석 리포트 · 제안 생성 아님 ·
+  자동매매 아님".
+- 테스트 `tests/test_paper_signal_analysis_run.py` (10): 게이트/404/422/fake run+response/타깃 저장/
+  payload·prompt bounded/목록/provider 실패→FAILED/**제안·전략·실험·신호·거래·배정 미생성·상태 불변**.
+
+**⛔ 명시적으로 이연(deferred)**: **AI 제안 생성**(CandidateStrategyProposal/ScannerRuleProposal),
+전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업(별도 승인 게이트).
+이 작업은 **분석 리포트 생성까지만** — 기본 provider는 fake(오프라인), 실 provider는 명시+API 키 필요.
+전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
 
 ---
 

@@ -32,8 +32,20 @@ from app.services.candidate_strategy_proposal_service import (
     InvalidStrategyTypeError,
     ProposalNotFoundError,
 )
+from app.services.ai_analysis.factory import (
+    ProviderNotImplementedError,
+    UnknownProviderError,
+)
+from app.services.ai_analysis.run_schemas import AnalysisRunRead
 from app.services.paper_signal_analysis_input_service import (
     PaperSignalAnalysisInputService,
+)
+from app.services.paper_signal_analysis_run_service import (
+    ConfirmationRequiredError as AnalysisConfirmationRequiredError,
+)
+from app.services.paper_signal_analysis_run_service import (
+    InvalidModeError,
+    PaperSignalAnalysisRunService,
 )
 from app.services.paper_signal_outcome_service import (
     InvalidHorizonError,
@@ -111,6 +123,12 @@ def get_paper_signal_analysis_input_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalAnalysisInputService:
     return PaperSignalAnalysisInputService(session)
+
+
+def get_paper_signal_analysis_run_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalAnalysisRunService:
+    return PaperSignalAnalysisRunService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -589,6 +607,63 @@ async def get_paper_signal_session_analysis_input(
     except InvalidHorizonError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return payload.to_dict()
+
+
+class PaperSignalAnalysisRunRequest(BaseModel):
+    horizon_minutes: int = 30
+    provider: str = "fake"  # 기본 fake(오프라인). 실 provider는 명시 + API 키 필요.
+    mode: str = "single"
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+@router.post(
+    "/paper-signal-sessions/{session_id}/analysis-runs",
+    response_model=AnalysisRunRead,
+    status_code=201,
+)
+async def create_paper_signal_analysis_run(
+    session_id: int,
+    payload: PaperSignalAnalysisRunRequest,
+    service: PaperSignalAnalysisRunService = Depends(get_paper_signal_analysis_run_service),
+) -> AnalysisRunRead:
+    """세션 AI 분석 리포트를 생성한다(V1: 리포트 전용). 전략/세션/실험/주문 변경 없음.
+
+    confirmed=true + confirmed_by 필수. provider 기본 fake. provider 실패 시 FAILED run 기록.
+    """
+    try:
+        run = await service.create_run(
+            session_id,
+            horizon_minutes=payload.horizon_minutes,
+            provider=payload.provider,
+            mode=payload.mode,
+            confirmed=payload.confirmed,
+            confirmed_by=payload.confirmed_by,
+        )
+    except OutcomeSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    except AnalysisConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except InvalidModeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except InvalidHorizonError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except (UnknownProviderError, ProviderNotImplementedError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return AnalysisRunRead.model_validate(run)
+
+
+@router.get(
+    "/paper-signal-sessions/{session_id}/analysis-runs",
+    response_model=list[AnalysisRunRead],
+)
+async def list_paper_signal_analysis_runs(
+    session_id: int,
+    limit: int = Query(default=20, ge=1, le=100),
+    service: PaperSignalAnalysisRunService = Depends(get_paper_signal_analysis_run_service),
+) -> list[AnalysisRunRead]:
+    runs = await service.list_runs_for_session(session_id, limit=limit)
+    return [AnalysisRunRead.model_validate(r) for r in runs]
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

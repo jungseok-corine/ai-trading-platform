@@ -98,6 +98,32 @@ export interface PaperSignalSession {
   created_at: string;
 }
 
+export interface PaperSignalAnalysisRunResponse {
+  id: number;
+  provider: string;
+  model: string;
+  role: string;
+  content: string | null;
+  total_tokens: number | null;
+  latency_ms: number | null;
+  error_message: string | null;
+}
+
+export interface PaperSignalAnalysisRun {
+  id: number;
+  analysis_type: string;
+  target_type: string;
+  target_id: number;
+  strategy_version_id: number | null;
+  provider: string;
+  model: string;
+  status: string; // pending | running | succeeded | failed
+  prompt_length: number | null;
+  error_message: string | null;
+  created_at: string;
+  responses: PaperSignalAnalysisRunResponse[];
+}
+
 export interface PaperSignalOutcomeRow {
   signal_id: number;
   created_at: string | null;

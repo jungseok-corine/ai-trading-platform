@@ -68,10 +68,12 @@ class AnalysisRunStatus(str, enum.Enum):
 
 class AnalysisRunType(str, enum.Enum):
     STRATEGY_PERFORMANCE = "strategy_performance"
+    PAPER_SIGNAL_SESSION_ANALYSIS = "paper_signal_session_analysis"
 
 
 class AnalysisTargetType(str, enum.Enum):
     STRATEGY_VERSION = "strategy_version"
+    PAPER_SIGNAL_SESSION = "paper_signal_session"
 
 
 class AnalysisRunMode(str, enum.Enum):

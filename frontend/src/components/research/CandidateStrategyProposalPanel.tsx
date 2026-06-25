@@ -8,6 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approvePaperReadiness,
   createCandidateStrategyProposal,
+  createPaperSignalAnalysisRun,
+  getPaperSignalAnalysisRuns,
   getCandidateStrategyProposals,
   getExperiment,
   getPaperSignalSessionAnalysisInput,
@@ -107,6 +109,73 @@ function SessionAnalysisInputPreview({ sessionId }: { sessionId: number }) {
   );
 }
 
+// 세션 AI 분석 리포트(V1). 사람 확인 후 fake provider로 리포트 생성 — 전략/세션/주문 변경 없음.
+function SessionAnalysisRuns({ sessionId }: { sessionId: number }) {
+  const queryClient = useQueryClient();
+  const { formatDateTime } = useSettings();
+  const [confirm, setConfirm] = useState(false);
+  const { data: runs } = useQuery({
+    queryKey: ["paper-signal-analysis-runs", sessionId],
+    queryFn: () => getPaperSignalAnalysisRuns(sessionId),
+  });
+  const genMut = useMutation({
+    // 분석 리포트만 생성 — 제안·전략·자동매매에 영향 없음.
+    mutationFn: () =>
+      createPaperSignalAnalysisRun(sessionId, {
+        confirmed: true,
+        confirmed_by: "manual_user",
+        provider: "fake",
+        horizon_minutes: 30,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["paper-signal-analysis-runs", sessionId] }),
+  });
+  const latest = (runs ?? [])[0];
+  const latestReport = latest?.responses?.find((r) => r.content)?.content ?? null;
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <label style={{ display: "block", fontSize: "0.8em" }}>
+        <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />{" "}
+        AI 분석만 생성하며 전략/주문/세션 상태는 변경하지 않습니다
+      </label>
+      <button
+        disabled={!confirm || genMut.isPending}
+        onClick={() => genMut.mutate()}
+        style={{ marginTop: 2 }}
+      >
+        {genMut.isPending ? "생성 중…" : "AI 분석 리포트 생성"}
+      </button>
+      <span className="muted" style={{ fontSize: "0.75em", marginLeft: 8 }}>
+        분석 리포트 · 제안 생성 아님 · 자동매매 아님
+      </span>
+      {genMut.isError && (
+        <span className="muted" style={{ fontSize: "0.78em", color: "#b91c1c", marginLeft: 8 }}>
+          생성 실패 — 다시 시도하세요.
+        </span>
+      )}
+
+      {runs && runs.length > 0 && (
+        <div className="muted" style={{ fontSize: "0.78em", marginTop: 4 }}>
+          이전 분석 {runs.length}건:{" "}
+          {runs
+            .slice(0, 5)
+            .map((r) => `#${r.id} ${r.provider}/${r.model}(${r.status}, ${formatDateTime(r.created_at)})`)
+            .join(" · ")}
+        </div>
+      )}
+      {latestReport && (
+        <details style={{ marginTop: 2 }}>
+          <summary className="link-button" style={{ fontSize: "0.8em" }}>최근 분석 리포트 보기</summary>
+          <pre className="parameters-cell" style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}>
+            {latestReport}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 // 세션 outcome 요약(읽기 전용). SignalLog + market_data forward 수익률 — 주문/실행 아님.
 function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
   const { data } = useQuery({
@@ -126,6 +195,7 @@ function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
         최저 {fmt(data.worst_return_pct)}% <span style={{ fontSize: "0.92em" }}>(30분 forward)</span>
       </div>
       <SessionAnalysisInputPreview sessionId={sessionId} />
+      <SessionAnalysisRuns sessionId={sessionId} />
     </>
   );
 }

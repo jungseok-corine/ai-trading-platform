@@ -40,6 +40,26 @@ class AiAnalysisRunRepository(BaseRepository[AiAnalysisRun]):
         )
         return list(result.scalars().all())
 
+    async def list_by_target(
+        self,
+        target_type,
+        target_id: int,
+        limit: int = 20,
+    ) -> list[AiAnalysisRun]:
+        """(target_type, target_id) 기준 run 목록을 최신순(id desc)으로 반환한다."""
+        result = await self.session.execute(
+            select(AiAnalysisRun)
+            .where(
+                AiAnalysisRun.target_type == target_type,
+                AiAnalysisRun.target_id == target_id,
+            )
+            .options(selectinload(AiAnalysisRun.responses))
+            .execution_options(populate_existing=True)
+            .order_by(AiAnalysisRun.id.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
 
 class AiModelResponseRepository(BaseRepository[AiModelResponse]):
     model = AiModelResponse

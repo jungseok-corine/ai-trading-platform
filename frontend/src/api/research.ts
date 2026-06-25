@@ -16,6 +16,7 @@ import type {
   MarketCode,
   NewsEvent,
   PaperReadinessApproval,
+  PaperSignalAnalysisRun,
   PaperSignalOutcomeBoard,
   PaperSignalSession,
   PipelineRun,
@@ -201,6 +202,28 @@ export async function stopPaperSignalSession(
 ): Promise<PaperSignalSession> {
   const { data } = await apiClient.post<PaperSignalSession>(
     `/paper-signal-sessions/${sessionId}/stop`,
+    body,
+  );
+  return data;
+}
+
+// 세션 AI 분석 리포트 run 목록(최신순).
+export async function getPaperSignalAnalysisRuns(
+  sessionId: number,
+): Promise<PaperSignalAnalysisRun[]> {
+  const { data } = await apiClient.get<PaperSignalAnalysisRun[]>(
+    `/paper-signal-sessions/${sessionId}/analysis-runs`,
+  );
+  return data;
+}
+
+// 세션 AI 분석 리포트 생성(V1: 리포트 전용 — 전략/세션/주문 변경 없음). 사람 확인 필수.
+export async function createPaperSignalAnalysisRun(
+  sessionId: number,
+  body: { confirmed: boolean; confirmed_by: string; provider?: string; horizon_minutes?: number },
+): Promise<PaperSignalAnalysisRun> {
+  const { data } = await apiClient.post<PaperSignalAnalysisRun>(
+    `/paper-signal-sessions/${sessionId}/analysis-runs`,
     body,
   );
   return data;

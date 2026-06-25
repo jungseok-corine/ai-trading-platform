@@ -345,3 +345,36 @@ recent_signals는 상한(10)으로 bounded.
 - 기존 read-only·no-AI 패턴은 그대로 따라 일관성 유지.
 
 **이연**: 실제 AI provider 호출, AiAnalysisRun 생성, AI 제안 생성은 별도 후속 작업(승인 게이트 필요).
+
+---
+
+## D-15. PaperSignalSession AI 분석 run은 기존 AiAnalysisRun을 재사용한다(전용 테이블 X), V1은 markdown 리포트
+
+**날짜**: 2026-06-26  
+**상태**: 확정
+
+**경위**:  
+세션 분석 입력 다음 단계로 "AI 분석 리포트 생성"이 필요했다. 기존 `AiAnalysisRun`/`AiModelResponse`는
+`target_type`(enum)+`target_id`(FK 없는 Integer)로 일반화돼 있어 strategy_version 외 대상도 담을 수 있다.
+
+**결정 내용**:
+
+1. **기존 `AiAnalysisRun` 재사용.** `target_type='paper_signal_session'`, `target_id=session_id`,
+   `strategy_version_id`는 세션 연결 버전(추적용). 분석 입력은 `input_payload`(JSONB)에 보존.
+   enum 두 값(`analysis_target_type`/`analysis_run_type`)만 additive로 추가(`o1p2q3r4s5t6`).
+
+2. **전용 테이블을 만들지 않는다.** 새 테이블은 run/response 스키마와 기존 run 조회 UI/repo를 중복시킨다.
+   `target_id`가 FK가 아니라 세션 id를 그대로 담을 수 있어 모델 변경도 불필요(인덱스만 추가).
+
+3. **V1 출력은 markdown 리포트.** 모델 출력은 free-text `content`에 저장하고, 구조화 입력은
+   `input_payload`에 둔다. JSON 스키마 강제 출력은 brittle하므로 보류(향후 제안 생성 단계에서 도입 가능).
+
+4. **provider 기본은 fake(오프라인).** 실 provider(openai/anthropic)는 명시 요청 + API 키가 있을 때만
+   factory를 통해 동작. 테스트는 fake/stub만 사용. 기본값에 실 provider를 넣지 않는다.
+
+**이유**:  
+- `target_id` FK 부재 + JSONB input_payload 덕에 모델이 이미 범용 → 재사용이 가장 작고 정직한 길.
+- 기존 run 조회 API(`GET /analysis-runs/{id}`)·read 스키마를 그대로 재사용.
+- enum downgrade는 PG가 값 제거를 지원하지 않아 index만 되돌린다(값은 미사용 시 무해).
+
+**이연**: AI 제안 생성(CandidateStrategyProposal/ScannerRuleProposal), 전략 승격, 실거래는 별도 승인 게이트.
