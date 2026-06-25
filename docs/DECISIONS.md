@@ -320,3 +320,28 @@ SignalLog에는 `strategy_version_id`만 있고 세션 id가 없었다. 후보:
 - 세션 outcome 보드는 `paper_signal_session_id`로 정확히 필터링한다.
 - outcome 계산은 기존 `SignalOutcomeService`(market_data forward 수익률)를 읽기 전용으로 재사용한다.
 - 주문/체결/상태 전환과 무관하다.
+
+---
+
+## D-14. Paper Signal Session AI 분석 입력은 세션 중심 전용 서비스로 만든다(전략 입력 재사용 X)
+
+**날짜**: 2026-06-26  
+**상태**: 확정
+
+**경위**:  
+세션 성과를 AI에 넘길 분석 입력(payload)이 필요했다. 기존 `StrategyAnalysisInputService`(C-2.0)는
+strategy_version 중심이고 성과를 **trades** 기반(`StrategyPerformanceService`)으로 계산한다. Paper Signal
+Session은 **신호 전용(주문/거래 없음)**이고 후보→제안→준비→세션의 추적 정보가 핵심이라 형태가 다르다.
+
+**결정 내용**:  
+전용 `PaperSignalAnalysisInputService`를 만든다. 기존 read-only 패턴(payload + generated_at +
+limitations, **AI 호출/DB 쓰기 없음**)을 따르되, outcome 요약은 `PaperSignalOutcomeService`를 재사용하고,
+session/candidate_proposal/experiment_version/outcome_summary/safety 5개 섹션으로 세션 중심 구성한다.
+recent_signals는 상한(10)으로 bounded.
+
+**이유**:  
+- 전략 입력은 trades 기반이라 신호 전용 세션에 안 맞는다(거래 0 → 의미 없는 성과).
+- 세션 입력은 "왜 이 후보/제안인가 + 신호가 실제로 어땠나 + 안전 상태"가 핵심 — 추적 중심.
+- 기존 read-only·no-AI 패턴은 그대로 따라 일관성 유지.
+
+**이연**: 실제 AI provider 호출, AiAnalysisRun 생성, AI 제안 생성은 별도 후속 작업(승인 게이트 필요).

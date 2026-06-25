@@ -32,6 +32,9 @@ from app.services.candidate_strategy_proposal_service import (
     InvalidStrategyTypeError,
     ProposalNotFoundError,
 )
+from app.services.paper_signal_analysis_input_service import (
+    PaperSignalAnalysisInputService,
+)
 from app.services.paper_signal_outcome_service import (
     InvalidHorizonError,
     PaperSignalOutcomeService,
@@ -102,6 +105,12 @@ def get_paper_signal_outcome_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalOutcomeService:
     return PaperSignalOutcomeService(session)
+
+
+def get_paper_signal_analysis_input_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalAnalysisInputService:
+    return PaperSignalAnalysisInputService(session)
 
 
 class CandidateAnalysisRead(BaseModel):
@@ -564,6 +573,22 @@ async def get_paper_signal_session_outcomes(
     except InvalidHorizonError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return board.to_dict()
+
+
+@router.get("/paper-signal-sessions/{session_id}/analysis-input")
+async def get_paper_signal_session_analysis_input(
+    session_id: int,
+    horizon_minutes: int = Query(default=30),
+    service: PaperSignalAnalysisInputService = Depends(get_paper_signal_analysis_input_service),
+) -> dict:
+    """세션의 AI 분석 입력(payload)을 만든다 (읽기 전용 — AI 호출/제안 생성 없음, DB 쓰기 없음)."""
+    try:
+        payload = await service.build_input(session_id, horizon_minutes=horizon_minutes)
+    except OutcomeSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    except InvalidHorizonError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return payload.to_dict()
 
 
 @router.get("/candidates", response_model=list[CandidateRead])

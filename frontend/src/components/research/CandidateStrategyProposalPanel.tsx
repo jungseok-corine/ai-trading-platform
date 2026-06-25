@@ -10,6 +10,7 @@ import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
   getExperiment,
+  getPaperSignalSessionAnalysisInput,
   getPaperSignalSessionOutcomes,
   getPaperSignalSessions,
   preparePaperExperiment,
@@ -77,6 +78,35 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "거절됨 (REJECTED)",
 };
 
+// 세션 AI 분석 입력 미리보기(읽기 전용). AI 호출/제안 생성 없음 — payload만 본다.
+function SessionAnalysisInputPreview({ sessionId }: { sessionId: number }) {
+  const [show, setShow] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["paper-signal-analysis-input", sessionId],
+    queryFn: () => getPaperSignalSessionAnalysisInput(sessionId, 30),
+    enabled: show,
+  });
+  return (
+    <div style={{ marginTop: 2 }}>
+      <button className="link-button" onClick={() => setShow((v) => !v)}>
+        {show ? "AI 분석 입력 닫기" : "AI 분석 입력 보기"}
+      </button>
+      {show && (
+        <>
+          <div className="muted" style={{ fontSize: "0.75em" }}>
+            읽기 전용 payload — AI 호출/제안 생성 없음
+          </div>
+          {data && (
+            <pre className="parameters-cell" style={{ maxHeight: 220, overflow: "auto" }}>
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // 세션 outcome 요약(읽기 전용). SignalLog + market_data forward 수익률 — 주문/실행 아님.
 function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
   const { data } = useQuery({
@@ -89,11 +119,14 @@ function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
   }
   const fmt = (v: number | null) => (v == null ? "-" : v);
   return (
-    <div className="muted" style={{ fontSize: "0.8em" }}>
-      신호 {data.signal_count}건 · 분석 {data.analyzed_count} · 대기 {data.pending_count} · 승률{" "}
-      {fmt(data.win_rate)}% · 평균 {fmt(data.avg_return_pct)}% · 최고 {fmt(data.best_return_pct)}% ·
-      최저 {fmt(data.worst_return_pct)}% <span style={{ fontSize: "0.92em" }}>(30분 forward)</span>
-    </div>
+    <>
+      <div className="muted" style={{ fontSize: "0.8em" }}>
+        신호 {data.signal_count}건 · 분석 {data.analyzed_count} · 대기 {data.pending_count} · 승률{" "}
+        {fmt(data.win_rate)}% · 평균 {fmt(data.avg_return_pct)}% · 최고 {fmt(data.best_return_pct)}% ·
+        최저 {fmt(data.worst_return_pct)}% <span style={{ fontSize: "0.92em" }}>(30분 forward)</span>
+      </div>
+      <SessionAnalysisInputPreview sessionId={sessionId} />
+    </>
   );
 }
 

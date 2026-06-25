@@ -206,6 +206,18 @@ export async function stopPaperSignalSession(
   return data;
 }
 
+// 세션의 AI 분석 입력(payload) — 읽기 전용. AI 호출/제안 생성 없음, DB 쓰기 없음.
+export async function getPaperSignalSessionAnalysisInput(
+  sessionId: number,
+  horizonMinutes = 30,
+): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.get<Record<string, unknown>>(
+    `/paper-signal-sessions/${sessionId}/analysis-input`,
+    { params: { horizon_minutes: horizonMinutes } },
+  );
+  return data;
+}
+
 // 세션이 만든 SignalLog의 forward 수익률 집계(읽기 전용 — 주문/실행 아님).
 export async function getPaperSignalSessionOutcomes(
   sessionId: number,

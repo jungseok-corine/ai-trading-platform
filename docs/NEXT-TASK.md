@@ -127,8 +127,24 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 - 테스트 `tests/test_paper_signal_outcomes.py` (8): empty/pending/analyzed/세션필터/읽기전용
   (Trade·AssignmentLog 미생성)/invalid horizon/404/API.
 
-**⛔ 명시적으로 이연(deferred)**: 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 결과 **비교(compare)**
-자동화, AI 성과 비교/제안 연결, 실전 승격은 다음 작업. outcome 보드는 **읽기 전용**이며 주문이 아니다.
+**Paper Signal Session AI Analysis Input (`DONE`, read-only 패키징)**: 세션 기준으로 LLM에 바로 넘길
+수 있는 structured 분석 입력(payload)을 만든다. **AI 호출 없음, 제안 생성 없음, DB 쓰기 없음.**
+
+- 서비스 `paper_signal_analysis_input_service.py`: 세션 + 연결된 candidate_strategy_proposal +
+  candidate_event + experiment + strategy_version를 모아 결정론적 payload 구성. outcome 요약은
+  기존 `PaperSignalOutcomeService` 재사용. recent_signals 등 bounded(상한 10).
+- payload 섹션: session(메타) / candidate_proposal(후보·제안 추적: score·matched·facts·rationale·
+  confidence·readiness·prepared_experiment) / experiment_version(상태·auto_trade=false·signal_only·
+  trades_count=0) / outcome_summary(horizon·win_rate·avg/best/worst·by_action·recent_signals) /
+  safety(real_trading=false·auto_trade=false·job disabled·trades=0) / limitations.
+- API: `GET /paper-signal-sessions/{id}/analysis-input?horizon_minutes=30` (404/422), 읽기 전용 JSON.
+- 프론트: outcome 요약 아래 "AI 분석 입력 보기"(접힘 JSON 미리보기, 읽기 전용 — "AI 호출/제안 생성 없음").
+- 테스트 `tests/test_paper_signal_analysis_input.py` (9): 404/422/세션메타/추적/outcome/상한/
+  **DB 무변경(AiAnalysisRun·AiModelResponse·Trade·SignalLog 미생성, 상태 불변)**.
+
+**⛔ 명시적으로 이연(deferred)**: **AI provider 호출**(OpenAI/Claude/Gemini), AiAnalysisRun 생성,
+AI 제안 생성, 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업.
+이 작업은 **분석 입력 패키징(읽기 전용)**까지만 — 전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
 
 ---
 
