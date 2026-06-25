@@ -21,7 +21,11 @@ import {
   stopPaperSignalSession,
 } from "../../api/research";
 import { useSettings } from "../../i18n/SettingsContext";
-import type { CandidateEvent, CandidateStrategyProposal } from "../../types/research";
+import type {
+  CandidateEvent,
+  CandidateStrategyProposal,
+  PaperSignalAnalysisRun,
+} from "../../types/research";
 
 // 스캐너 매칭 조건(matched_conditions) → 검토해볼 만한 전략 템플릿 가이드.
 // 이는 권위 있는 배정 알고리즘이 아니라, 후보 facts 기반의 *검토 힌트*다(읽기 전용).
@@ -130,14 +134,31 @@ function SessionAnalysisRuns({ sessionId }: { sessionId: number }) {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["paper-signal-analysis-runs", sessionId] }),
   });
-  const latest = (runs ?? [])[0];
-  const latestReport = latest?.responses?.find((r) => r.content)?.content ?? null;
+  const all = runs ?? [];
+  const latest = all[0];
+  const latestPrimary = latest?.responses?.find((r) => r.content) ?? latest?.responses?.[0];
+  const latestReport = latestPrimary?.content ?? null;
+
+  // 실행 메타(지연/토큰/프롬프트 길이)를 한 줄 요약으로.
+  const runMeta = (r: PaperSignalAnalysisRun) => {
+    const resp = r.responses?.find((x) => x.content) ?? r.responses?.[0];
+    const parts: string[] = [`${r.provider}/${r.model}`, formatDateTime(r.created_at)];
+    if (resp?.latency_ms != null) parts.push(`${resp.latency_ms}ms`);
+    if (resp?.total_tokens != null) parts.push(`${resp.total_tokens} tok`);
+    if (r.prompt_length != null) parts.push(`prompt ${r.prompt_length}자`);
+    return parts.join(" · ");
+  };
 
   return (
     <div style={{ marginTop: 4 }}>
-      <label style={{ display: "block", fontSize: "0.8em" }}>
+      <strong style={{ fontSize: "0.84em" }}>AI 분석 리포트</strong>{" "}
+      <span className="muted" style={{ fontSize: "0.75em" }}>
+        제안 생성 아님 · 자동매매 아님 · 전략 변경 없음
+      </span>
+
+      <label style={{ display: "block", fontSize: "0.8em", marginTop: 2 }}>
         <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />{" "}
-        AI 분석만 생성하며 전략/주문/세션 상태는 변경하지 않습니다
+        AI 분석만 생성하며 전략/주문/세션 상태를 변경하지 않습니다
       </label>
       <button
         disabled={!confirm || genMut.isPending}
@@ -146,30 +167,63 @@ function SessionAnalysisRuns({ sessionId }: { sessionId: number }) {
       >
         {genMut.isPending ? "생성 중…" : "AI 분석 리포트 생성"}
       </button>
-      <span className="muted" style={{ fontSize: "0.75em", marginLeft: 8 }}>
-        분석 리포트 · 제안 생성 아님 · 자동매매 아님
-      </span>
       {genMut.isError && (
         <span className="muted" style={{ fontSize: "0.78em", color: "#b91c1c", marginLeft: 8 }}>
           생성 실패 — 다시 시도하세요.
         </span>
       )}
 
-      {runs && runs.length > 0 && (
-        <div className="muted" style={{ fontSize: "0.78em", marginTop: 4 }}>
-          이전 분석 {runs.length}건:{" "}
-          {runs
-            .slice(0, 5)
-            .map((r) => `#${r.id} ${r.provider}/${r.model}(${r.status}, ${formatDateTime(r.created_at)})`)
-            .join(" · ")}
+      {all.length === 0 && (
+        <div className="muted" style={{ fontSize: "0.8em", marginTop: 4 }}>
+          아직 생성된 분석 리포트가 없습니다
         </div>
       )}
-      {latestReport && (
-        <details style={{ marginTop: 2 }}>
-          <summary className="link-button" style={{ fontSize: "0.8em" }}>최근 분석 리포트 보기</summary>
-          <pre className="parameters-cell" style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}>
-            {latestReport}
-          </pre>
+
+      {/* 최근 리포트 패널: 성공이면 본문, 실패면 에러, 실행 중이면 안내 */}
+      {latest && (
+        <div className="ai-run-latest">
+          <div>
+            <strong style={{ fontSize: "0.82em" }}>최근 리포트 #{latest.id}</strong>{" "}
+            <span className={`run-status run-${latest.status}`}>{latest.status}</span>
+            {latest.truncated && <span className="muted" style={{ fontSize: "0.75em" }}> · prompt 일부 잘림</span>}
+          </div>
+          <div className="muted" style={{ fontSize: "0.78em" }}>{runMeta(latest)}</div>
+          {latest.status === "failed" ? (
+            <div style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 2 }}>
+              실패: {latest.error_message ?? latestPrimary?.error_message ?? "알 수 없는 오류"}
+            </div>
+          ) : latest.status === "running" || latest.status === "pending" ? (
+            <div className="muted" style={{ fontSize: "0.8em" }}>실행 중…</div>
+          ) : latestReport ? (
+            <details style={{ marginTop: 2 }} open>
+              <summary className="link-button" style={{ fontSize: "0.8em" }}>리포트 보기/접기</summary>
+              <pre className="parameters-cell" style={{ maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap" }}>
+                {latestReport}
+              </pre>
+            </details>
+          ) : (
+            <div className="muted" style={{ fontSize: "0.8em" }}>리포트 본문 없음</div>
+          )}
+        </div>
+      )}
+
+      {/* 이전 분석 run 목록 */}
+      {all.length > 1 && (
+        <details style={{ marginTop: 4 }}>
+          <summary className="link-button" style={{ fontSize: "0.8em" }}>
+            이전 분석 {all.length - 1}건 보기
+          </summary>
+          <ul className="ai-run-list">
+            {all.slice(1).map((r) => (
+              <li key={r.id}>
+                <span>#{r.id}</span> <span className={`run-status run-${r.status}`}>{r.status}</span>{" "}
+                <span className="muted">{runMeta(r)}</span>
+                {r.status === "failed" && r.error_message && (
+                  <span style={{ color: "#b91c1c" }}> · {r.error_message}</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </details>
       )}
     </div>

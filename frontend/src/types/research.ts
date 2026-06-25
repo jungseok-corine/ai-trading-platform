@@ -104,8 +104,11 @@ export interface PaperSignalAnalysisRunResponse {
   model: string;
   role: string;
   content: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
   total_tokens: number | null;
   latency_ms: number | null;
+  finish_reason: string | null;
   error_message: string | null;
 }
 
@@ -119,7 +122,11 @@ export interface PaperSignalAnalysisRun {
   model: string;
   status: string; // pending | running | succeeded | failed
   prompt_length: number | null;
+  truncated: boolean;
+  warnings: string[] | null;
   error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
   responses: PaperSignalAnalysisRunResponse[];
 }

@@ -161,10 +161,22 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 - 테스트 `tests/test_paper_signal_analysis_run.py` (10): 게이트/404/422/fake run+response/타깃 저장/
   payload·prompt bounded/목록/provider 실패→FAILED/**제안·전략·실험·신호·거래·배정 미생성·상태 불변**.
 
+**AI Analysis Report Review UX (frontend-only, `DONE`)**: 세션 AI 분석 run을 사람이 검토하기 쉽게
+표시한다. 기존 API(`GET /paper-signal-sessions/{id}/analysis-runs`, `GET /analysis-runs/{id}`)가 이미
+충분한 필드를 주므로 **backend 변경 없음**.
+
+- 최근 리포트 패널: 상태 배지(succeeded/failed/running) + 메타(provider/model·생성시각·latency·tokens·
+  prompt 길이·잘림 여부). **성공이면 본문, 실패면 error_message(빨강), 실행 중이면 안내** — 실패 run도
+  명확히 표시(이전엔 본문 없으면 사라졌음).
+- 이전 분석 run 목록(접힘): run별 상태 배지 + 메타 + 실패 시 에러.
+- 확인 게이트("AI 분석만 생성하며 전략/주문/세션 상태를 변경하지 않습니다")·"AI 분석 리포트 생성" 버튼
+  유지. 라벨: "AI 분석 리포트 · 제안 생성 아님 · 자동매매 아님 · 전략 변경 없음".
+- 프론트 type에 already-returned 필드(started/completed_at·truncated·warnings·prompt/completion_tokens·
+  finish_reason) 노출. read-only — 새 mutation 없음(기존 gated 생성 버튼만).
+
 **⛔ 명시적으로 이연(deferred)**: **AI 제안 생성**(CandidateStrategyProposal/ScannerRuleProposal),
 전략 버전 승격(ACTIVE), 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업(별도 승인 게이트).
-이 작업은 **분석 리포트 생성까지만** — 기본 provider는 fake(오프라인), 실 provider는 명시+API 키 필요.
-전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
+리뷰 UX는 **읽기 전용** — 제안 생성·전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
 
 ---
 
