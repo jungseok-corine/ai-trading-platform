@@ -60,6 +60,36 @@ async def test_digest_softens_paper_auto_trade_copy(db_session: AsyncSession) ->
     assert d["severity"] == "alert"
 
 
+async def test_digest_keeps_strong_copy_when_real_trading_on(db_session: AsyncSession, monkeypatch) -> None:
+    """실거래 ON이면 강한 '안전 불변식' 문구를 유지한다(softening 안 함, 심각도 alert).
+
+    KIS_REAL_TRADING_ENABLED은 바꾸지 않고, overview 결과만 mock해 real_trading_enabled=True 경로를 검증.
+    """
+    from app.services.operations_overview_service import OperationsOverviewService
+
+    async def _fake_overview(self, days: int = 30) -> dict:
+        return {
+            "safety": {
+                "invariants_ok": False,
+                "warnings": ["KIS_REAL_TRADING_ENABLED=true — 실거래가 켜져 있습니다."],
+                "real_trading_enabled": True,
+                "auto_trade_versions": 0,
+            },
+            "cost": {"budget_status": "ok", "budget_used_pct": 0},
+            "research": {"disclosure_alerts": 0, "pending_total": 0, "promotion_ready": 0},
+            "retrospective": {"worse": 0, "improved": 0},
+            "trading": {"closed_trades": 0, "total_pnl": 0, "risk_rejected": 0, "risk_rejection_rate": None},
+        }
+
+    monkeypatch.setattr(OperationsOverviewService, "overview", _fake_overview)
+    d = await OperationsDigestService(db_session).build()
+    texts = [a["text"] for a in d["alerts"]]
+    # 실거래 ON → 강한 '안전 불변식:' 문구 유지, paper/test 부드러운 문구는 사용 안 함.
+    assert any(t.startswith("안전 불변식:") for t in texts), texts
+    assert not any("운영 안내: 테스트 자동매매" in t for t in texts), texts
+    assert d["severity"] == "alert"
+
+
 # --- 알림 채널 -------------------------------------------------------------
 def test_factory_defaults_to_none() -> None:
     assert isinstance(get_notification_channel(None), NoneChannel)
