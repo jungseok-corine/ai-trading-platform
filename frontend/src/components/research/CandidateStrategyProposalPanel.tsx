@@ -8,9 +8,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createCandidateStrategyProposal,
   getCandidateStrategyProposals,
+  getExperiment,
   preparePaperExperiment,
   reviewCandidateStrategyProposal,
 } from "../../api/research";
+import { useSettings } from "../../i18n/SettingsContext";
 import type { CandidateEvent, CandidateStrategyProposal } from "../../types/research";
 
 // 스캐너 매칭 조건(matched_conditions) → 검토해볼 만한 전략 템플릿 가이드.
@@ -69,6 +71,47 @@ const STATUS_LABEL: Record<string, string> = {
   approved: "승인됨 (APPROVED)",
   rejected: "거절됨 (REJECTED)",
 };
+
+// 준비된 DRAFT paper 실험을 읽기 전용으로 보여준다(검토용). 실행/시작/활성 버튼 없음.
+// 실제 실험 상태는 GET /experiments/{id}로 읽어 그대로 표시한다(상태 변경 안 함).
+function PreparedExperimentView({
+  experimentId,
+  proposal,
+}: {
+  experimentId: number;
+  proposal: CandidateStrategyProposal;
+}) {
+  const { formatDateTime } = useSettings();
+  const { data: exp } = useQuery({
+    queryKey: ["prepared-experiment", experimentId],
+    queryFn: () => getExperiment(experimentId),
+  });
+  const status = exp?.status ?? "draft";
+  const notStarted = exp ? exp.started_at === null : true;
+
+  return (
+    <div className="prepared-exp">
+      <div>
+        <strong>Paper 실험 준비됨</strong>{" "}
+        <span className={`proposal-status status-${status === "draft" ? "draft" : "pending"}`}>
+          {status === "draft" ? "DRAFT 상태" : status}
+        </span>
+        {notStarted && <span className="muted"> · 실행 전</span>}
+      </div>
+      <div className="muted">
+        실험 #{experimentId} · 전략 <code>{proposal.suggested_strategy_type}</code> ·{" "}
+        {proposal.symbol_code}
+        {exp ? ` · variant ${exp.variants.length}개` : ""}
+      </div>
+      {proposal.prepared_at && (
+        <div className="muted">준비 시각: {formatDateTime(proposal.prepared_at)}</div>
+      )}
+      <div className="muted">
+        자동매매 아님 · 주문 없음 · 검토용 (실행/비교는 다음 단계에서 사람이 별도로 진행)
+      </div>
+    </div>
+  );
+}
 
 // 저장된 제안 한 건. PENDING이면 승인/거절(상태만) 버튼을 보여준다. 어떤 실행도 하지 않는다.
 function SavedProposalRow({
@@ -132,30 +175,27 @@ function SavedProposalRow({
         </div>
       )}
 
-      {/* APPROVED 제안만: DRAFT paper 실험 준비(실행 아님). PENDING/REJECTED는 버튼 없음. */}
-      {isApproved && (
-        <div className="form-row" style={{ marginTop: 4, alignItems: "center", gap: 6 }}>
-          {proposal.experiment_id ? (
-            <span className="muted" style={{ fontSize: "0.8em" }}>
-              Paper 실험 준비됨 (DRAFT #{proposal.experiment_id}) — 실행/자동매매 아님
-            </span>
-          ) : (
+      {/* APPROVED 제안만: 준비됐으면 읽기 전용 실험 카드, 아니면 준비 버튼. PENDING/REJECTED는 없음. */}
+      {isApproved &&
+        (proposal.experiment_id ? (
+          <PreparedExperimentView experimentId={proposal.experiment_id} proposal={proposal} />
+        ) : (
+          <div className="form-row" style={{ marginTop: 4, alignItems: "center", gap: 6 }}>
             <button disabled={prepareMut.isPending} onClick={() => prepareMut.mutate()}>
               {prepareMut.isPending ? "준비 중…" : "Paper 실험 준비"}
             </button>
-          )}
-          {prepareMut.isSuccess && (
-            <span className="muted" style={{ fontSize: "0.8em" }}>
-              Paper 실험 준비됨 — 실행/자동매매 아님 (DRAFT)
-            </span>
-          )}
-          {prepareMut.isError && (
-            <span className="muted" style={{ fontSize: "0.8em", color: "#b91c1c" }}>
-              준비 실패 — 다시 시도하세요.
-            </span>
-          )}
-        </div>
-      )}
+            {prepareMut.isSuccess && (
+              <span className="muted" style={{ fontSize: "0.8em" }}>
+                Paper 실험 준비됨 — 실행/자동매매 아님 (DRAFT)
+              </span>
+            )}
+            {prepareMut.isError && (
+              <span className="muted" style={{ fontSize: "0.8em", color: "#b91c1c" }}>
+                준비 실패 — 다시 시도하세요.
+              </span>
+            )}
+          </div>
+        ))}
 
       {reviewMut.isSuccess && (
         <div className="muted" style={{ fontSize: "0.8em", marginTop: 2 }}>

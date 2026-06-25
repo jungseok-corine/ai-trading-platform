@@ -562,6 +562,20 @@ tr.selected {
   background: #fee2e2;
 }
 
+.proposal-status.status-draft {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.prepared-exp {
+  margin-top: 4px;
+  padding: 6px 8px;
+  font-size: 0.8em;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+}
+
 /* 후보 성과 보드 (CandidatesSection) — 읽기 전용 요약 지표 */
 .outcome-board {
   margin-bottom: 12px;

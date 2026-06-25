@@ -58,9 +58,15 @@
 **안전 근거**: runner는 `list_active()`(ACTIVE/TESTING)만 실행 → DRAFT 버전은 절대 안 돌아간다.
 Experiment도 DRAFT(RUNNING 아님) → 실행/오토파일럿 대상 아님. 주문/브로커/실계좌/AssignmentService 없음.
 
+**Prepared Paper Experiment Review UI (frontend-only, `DONE`)**: 준비된 제안 행에서 **읽기 전용**으로
+실험을 검토한다. `CandidateStrategyProposalPanel`의 `PreparedExperimentView`가 기존
+`GET /experiments/{id}`로 실제 상태를 읽어 표시: "Paper 실험 준비됨" + 실험 #id + **DRAFT 상태** 배지 +
+`started_at===null`이면 "실행 전" + 전략 타입/종목/variant 수 + 준비 시각 + "자동매매 아님 · 주문 없음 ·
+검토용". **실행·시작·활성화·승격 버튼 없음(읽기 전용).** backend 변경 없음(기존 GET 재사용).
+
 **⛔ 명시적으로 이연(deferred)**: 준비된 DRAFT 실험을 **실제로 실행/비교(run/compare)**, 전략 버전
 ACTIVE 전환, 실전 승격은 다음 작업. 이 작업까지 ACTIVE 전환·auto_trade=true·실주문·실험 실행 없음.
-준비(prepare)는 **실행이 아니다**.
+준비(prepare)·검토(review)는 **실행이 아니다**.
 
 ---
 
