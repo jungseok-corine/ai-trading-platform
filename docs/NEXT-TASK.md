@@ -352,6 +352,24 @@ run_due_sessions 미호출 · 주문/거래 없음 · status만 변경.**
   baseline 불변·runner 플래그 불변**/API. 전체 1581 passed.
 - **다음(별도 단계, 미착수)**: M2.1 비교 UI 연결(active challenger vs baseline). runner 잡 활성은 사람 별도 결정.
 
+**M2.6 — Baseline ↔ Active Challenger Comparison Wiring (`DONE`, frontend-only)**: challenger 세션
+(prepared/active)을 그 baseline 세션과 **읽기 전용**으로 비교하는 UI를 기존 M2.1 compare API로 연결한다.
+**백엔드 변경 없음 · 마이그레이션 없음 · 세션/버전/제안 무변경 · runner 미실행 · SignalLog/주문/거래 없음.**
+
+- 데이터 출처: Phase 2 prepare 응답(`baseline_session_id`+challenger `session_id`)과 Phase 3 activate 응답
+  (`status`·`runner_currently_enabled`)이 이미 필요한 id를 준다 → **백엔드 헬퍼 불필요**(M2.1
+  `GET /paper-signal-sessions/{baseline}/compare/{challenger}` 그대로 재사용).
+- 프론트(`StrategyProposalReportCard`): prepared 세션 성공 블록 안에 `ChallengerComparison`(읽기 전용) 추가 —
+  기준/challenger 세션 id + challenger status + horizon(5/15/30/60) + "신호 성과 비교 보기" → M2.1 호출 →
+  지표/델타 표 + warnings. 상태별 안내: prepared면 "아직 active가 아니므로 신호 기록 대상이 아닙니다.",
+  active+runner off면 "active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.", 분석 0이면
+  "아직 비교할 신호 결과가 부족합니다…". `ChallengerSessionActivate`는 `onActivated` 콜백으로 활성화 status·
+  runner 플래그를 비교 UI에 전달. 라벨: "읽기 전용 · 주문 없음 · 거래 없음 · 자동매매 아님 · runner 별도".
+  runner/잡 활성·매매·주문 컨트롤 없음.
+- 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — 기존 M2.1/Phase2/Phase3 테스트 39 sanity passed.
+- **다음(별도 단계, 미착수)**: runner 잡 활성(사람 별도 결정) 후 실제 신호 누적 → 비교가 의미 있어짐. 활성화 ≠
+  runner 활성 ≠ 신호 생성 분리 유지(D-21).
+
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
 CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).** 스키마 변경은 사람만 승인(D-20).

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   activateChallengerSession,
+  comparePaperSignalSessions,
   getProposal,
   getStrategyTransitionPlan,
   prepareChallengerSession,
@@ -12,6 +13,7 @@ import {
 import type {
   ChallengerSessionActivation,
   ChallengerSessionPreparation,
+  PaperSignalComparison,
   ProposalStatus,
   SignalChallengerPreparation,
 } from "../../types/research";
@@ -19,14 +21,146 @@ import TransitionPlanView from "./TransitionPlanView";
 import { RawJsonDetails, WillHappenBlock, WillNotHappenBlock } from "./approvalBlocks";
 import { STRATEGY_WILL_HAPPEN, STRATEGY_WILL_NOT_HAPPEN } from "./safetyCopy";
 
+// M2.6 — Baseline ↔ Challenger 신호 성과 비교(읽기 전용). 기존 M2.1 compare API 재사용.
+// 세션/버전/제안 무변경 · runner 미실행 · 주문/거래 없음.
+function cmpFmt(v: number | null): string {
+  return v == null ? "-" : String(v);
+}
+
+function cmpDelta(v: number | null): string {
+  if (v == null) return "-";
+  return v > 0 ? `+${v}` : String(v);
+}
+
+function ChallengerComparison({
+  baselineSessionId,
+  challengerSessionId,
+  challengerStatus,
+  runnerEnabled,
+}: {
+  baselineSessionId: number;
+  challengerSessionId: number;
+  challengerStatus: string;
+  runnerEnabled?: boolean;
+}) {
+  const [horizon, setHorizon] = useState(30);
+  const [result, setResult] = useState<PaperSignalComparison | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      comparePaperSignalSessions(baselineSessionId, challengerSessionId, horizon),
+    onSuccess: (data) => setResult(data),
+  });
+
+  const rows: { label: string; b: number | null; c: number | null; d: number | null }[] = result
+    ? [
+        { label: "신호 수", b: result.baseline.signal_count, c: result.challenger.signal_count, d: result.deltas.signal_count_delta },
+        { label: "분석", b: result.baseline.analyzed_count, c: result.challenger.analyzed_count, d: result.deltas.analyzed_count_delta },
+        { label: "승률 %", b: result.baseline.win_rate, c: result.challenger.win_rate, d: result.deltas.win_rate_delta },
+        { label: "평균 %", b: result.baseline.avg_return_pct, c: result.challenger.avg_return_pct, d: result.deltas.avg_return_pct_delta },
+        { label: "최고 %", b: result.baseline.best_return_pct, c: result.challenger.best_return_pct, d: result.deltas.best_return_pct_delta },
+        { label: "최저 %", b: result.baseline.worst_return_pct, c: result.challenger.worst_return_pct, d: result.deltas.worst_return_pct_delta },
+      ]
+    : [];
+  const noSignals =
+    result != null &&
+    (result.baseline.analyzed_count ?? 0) === 0 &&
+    (result.challenger.analyzed_count ?? 0) === 0;
+
+  return (
+    <div className="signal-compare" style={{ marginTop: 6 }}>
+      <div className="muted" style={{ fontSize: "0.8em" }}>
+        Baseline ↔ Challenger 비교 (읽기 전용 · 주문 없음 · 거래 없음 · 자동매매 아님 · runner 별도)
+      </div>
+      <div className="muted" style={{ fontSize: "0.8em" }}>
+        기준 세션 #{baselineSessionId} ↔ challenger 세션 #{challengerSessionId} · challenger status:{" "}
+        {challengerStatus}
+      </div>
+      {challengerStatus === "prepared" && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+          아직 active가 아니므로 신호 기록 대상이 아닙니다.
+        </div>
+      )}
+      {challengerStatus === "active" && runnerEnabled === false && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+          active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
+          {[5, 15, 30, 60].map((h) => (
+            <option key={h} value={h}>
+              {h}분
+            </option>
+          ))}
+        </select>
+        <button disabled={mut.isPending} onClick={() => mut.mutate()}>
+          {mut.isPending ? "비교 중…" : "신호 성과 비교 보기"}
+        </button>
+      </div>
+      {mut.isError && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          비교 실패 — 세션 id/horizon을 확인하세요.
+        </div>
+      )}
+      {result && (
+        <div style={{ marginTop: 6 }}>
+          {noSignals && (
+            <div className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+              아직 비교할 신호 결과가 부족합니다. runner 실행 후 결과가 쌓이면 비교가 의미 있어집니다.
+            </div>
+          )}
+          {result.warnings.map((w) => (
+            <div key={w} className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+              ⚠ {w}
+            </div>
+          ))}
+          <table className="signal-compare-table" style={{ fontSize: "0.8em", marginTop: 4 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>지표</th>
+                <th>기준 #{result.baseline_session_id}</th>
+                <th>challenger #{result.challenger_session_id}</th>
+                <th>Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.label}>
+                  <td style={{ textAlign: "left" }}>{r.label}</td>
+                  <td style={{ textAlign: "right" }}>{cmpFmt(r.b)}</td>
+                  <td style={{ textAlign: "right" }}>{cmpFmt(r.c)}</td>
+                  <td style={{ textAlign: "right" }}>{cmpDelta(r.d)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
+            {result.horizon_minutes}분 forward · 종목 {result.symbol_match ? "동일" : "상이"} · Δ =
+            challenger − 기준. 추천/유의성 판단 아님.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // M2.5 Phase 3 — prepared 세션을 active로 전환(런너 대상 자격만). 신호 즉시 생성·주문·거래 없음.
-function ChallengerSessionActivate({ sessionId }: { sessionId: number }) {
+function ChallengerSessionActivate({
+  sessionId,
+  onActivated,
+}: {
+  sessionId: number;
+  onActivated?: (a: ChallengerSessionActivation) => void;
+}) {
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<ChallengerSessionActivation | null>(null);
   const mut = useMutation({
     mutationFn: () =>
       activateChallengerSession(sessionId, { confirmed: true, confirmed_by: "manual_user" }),
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      onActivated?.(data);
+    },
   });
   if (result) {
     return (
@@ -82,12 +216,14 @@ function ChallengerSessionActivate({ sessionId }: { sessionId: number }) {
 function ChallengerSessionPrepare({ proposalId }: { proposalId: number }) {
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<ChallengerSessionPreparation | null>(null);
+  const [activation, setActivation] = useState<ChallengerSessionActivation | null>(null);
   const mut = useMutation({
     mutationFn: () =>
       prepareChallengerSession(proposalId, { confirmed: true, confirmed_by: "manual_user" }),
     onSuccess: (data) => setResult(data),
   });
   if (result) {
+    const challengerStatus = activation ? activation.status : result.status;
     return (
       <div className="approval-block" style={{ marginTop: 6 }}>
         <strong>Paper Signal Session 준비됨 (prepared)</strong>
@@ -106,7 +242,17 @@ function ChallengerSessionPrepare({ proposalId }: { proposalId: number }) {
           </ul>
         )}
         {/* M2.5 Phase 3 — prepared 세션을 active로 전환(런너 대상 자격만) */}
-        <ChallengerSessionActivate sessionId={result.session_id} />
+        <ChallengerSessionActivate
+          sessionId={result.session_id}
+          onActivated={(a) => setActivation(a)}
+        />
+        {/* M2.6 — Baseline ↔ Challenger 읽기 전용 비교(M2.1 API 재사용) */}
+        <ChallengerComparison
+          baselineSessionId={result.baseline_session_id}
+          challengerSessionId={result.session_id}
+          challengerStatus={challengerStatus}
+          runnerEnabled={activation?.runner_currently_enabled}
+        />
       </div>
     );
   }
