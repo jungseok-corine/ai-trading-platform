@@ -38,3 +38,20 @@ class PaperSignalSessionRepository(BaseRepository[PaperSignalSession]):
             )
         )
         return result.scalars().first()
+
+    async def find_open_challenger_for_strategy_proposal(
+        self, source_strategy_proposal_id: int
+    ) -> PaperSignalSession | None:
+        """같은 source StrategyProposal에 대한 미종료 challenger 세션(prepared/active)을 찾는다.
+
+        중복 prepared/active challenger 세션을 막기 위한 가드(M2.5 Phase 2). stopped는 제외한다.
+        """
+        result = await self.session.execute(
+            select(PaperSignalSession).where(
+                PaperSignalSession.source_strategy_proposal_id
+                == source_strategy_proposal_id,
+                PaperSignalSession.source_type == "signal_challenger",
+                PaperSignalSession.status.in_(["prepared", "active"]),
+            )
+        )
+        return result.scalars().first()

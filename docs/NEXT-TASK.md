@@ -299,6 +299,32 @@ challenger를 사람-게이트 PaperSignalSession으로 옮겨 baseline과 비�
 - **다음(별도 단계)**: Phase 2 `PaperSignalChallengerSessionService.prepare_challenger_session`(prepared 세션만
   생성) → Phase 3 start(prepared→active) + M2.1 비교 UI 연결.
 
+**M2.5 Phase 2 — Prepared Challenger Session (`DONE`)**: M2.2가 만든 DRAFT challenger에 대해 사람이 명시
+확인하면 **비실행(prepared) PaperSignalSession**을 만든다. **세션 시작 아님 — runner 미대상 · SignalLog/주문/
+자동매매/잡 없음.**
+
+- 서비스 `paper_signal_challenger_session_service.py`(`PaperSignalChallengerSessionService.prepare_from_strategy_proposal`):
+  confirmed+confirmed_by 게이트, 제안 존재(404), source paper_signal_analysis(422), status PENDING(422),
+  ai_analysis_run + target_type paper_signal_session(422), run.target_id의 baseline PaperSignalSession 존재(422),
+  `created_version_id` 존재(422 — M2.2 선행 필요) + challenger 버전 존재·**DRAFT**·auto_trade off·동일 strategy(422),
+  같은 source 제안에 이미 prepared/active challenger 세션이면 **409**. 생성 세션: `status="prepared"`,
+  `candidate_strategy_proposal_id=NULL`, `source_type="signal_challenger"`, `source_strategy_proposal_id=proposal.id`,
+  `baseline_session_id`=run.target_id, `strategy_version_id`=created_version_id, `symbol_code`=baseline 세션 심볼.
+  StrategyVersion/Experiment/SignalLog/Trade/Order/AssignmentLog 미생성, approve 미호출, 잡 미활성.
+- 리포지토리: `find_open_challenger_for_strategy_proposal`(prepared/active 중복 가드) 추가. `list_active`는
+  여전히 `status=="active"`만 → prepared 세션 런너 비대상.
+- API: `POST /strategy-proposals/{id}/prepare-challenger-session`(201; 404/422/409). payload: session_id·
+  status(=prepared)·source_type(=signal_challenger)·source_strategy_proposal_id·baseline_session_id·
+  challenger_version_id·symbol_code·runner_eligible(=false)·warnings. **start 엔드포인트 없음(이 단계).**
+- 프론트(`StrategyProposalReportCard`): M2.2 challenger 준비 성공 블록 안에 확인 체크박스("prepared 세션만
+  생성하며 신호 기록 시작/주문/자동매매는 하지 않습니다") + "Paper Signal Session 준비" → 성공 시 prepared 세션
+  #id · runner 미대상 · 기준 세션 id · "비교는 신호 기록 후 가능 · 시작은 별도 단계". **시작/실행 컨트롤 없음.**
+- 테스트 `tests/test_paper_signal_challenger_session.py` (16): 게이트/404/422(source·pending·created_version·
+  target·baseline·not-draft·auto_trade)/409 중복/prepared 1개 생성·필드 검증·**list_active 비대상**·제안 불변
+  (PENDING·created_version 유지)·**StrategyVersion/Experiment/SignalLog/Trade/AssignmentLog 미생성·baseline·
+  challenger 상태 불변**/API. 전체 1569 passed.
+- **다음(별도 단계, 미착수)**: Phase 3 start(prepared→active, 사람-게이트) + M2.1 비교 UI 연결.
+
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
 CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).** 스키마 변경은 사람만 승인(D-20).

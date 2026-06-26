@@ -212,6 +212,19 @@ export interface PaperSignalComparison {
   warnings: string[];
 }
 
+// M2.5 Phase 2 — 비실행(prepared) challenger PaperSignalSession 준비 결과.
+export interface ChallengerSessionPreparation {
+  session_id: number;
+  status: string; // 항상 "prepared"
+  source_type: string; // 항상 "signal_challenger"
+  source_strategy_proposal_id: number;
+  baseline_session_id: number;
+  challenger_version_id: number;
+  symbol_code: string;
+  runner_eligible: boolean; // 항상 false
+  warnings: string[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

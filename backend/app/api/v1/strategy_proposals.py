@@ -26,6 +26,19 @@ from app.services.paper_signal_challenger_service import (
     SIGNAL_TRACK_SOURCE,
     is_signal_track_proposal,
 )
+from app.services.paper_signal_challenger_session_service import (
+    BaselineSessionMissingError,
+    ChallengerAutoTradeError,
+    ChallengerSessionProposalNotFoundError,
+    ChallengerVersionNotDraftError,
+    ConfirmationRequiredError as ChallengerSessionConfirmationRequiredError,
+    DuplicateChallengerSessionError,
+    MissingAnalysisRunError as ChallengerSessionMissingAnalysisRunError,
+    MissingChallengerVersionError,
+    NotSignalProposalError as ChallengerSessionNotSignalProposalError,
+    PaperSignalChallengerSessionService,
+    ProposalNotPendingError as ChallengerSessionProposalNotPendingError,
+)
 from app.services.proposal_service import (
     InvalidProposalError,
     ProposalNotFoundError,
@@ -56,6 +69,12 @@ def get_challenger_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalChallengerService:
     return PaperSignalChallengerService(session)
+
+
+def get_challenger_session_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalChallengerSessionService:
+    return PaperSignalChallengerSessionService(session)
 
 
 # --- schemas ---------------------------------------------------------------
@@ -142,6 +161,18 @@ class PrepareChallengerResponse(BaseModel):
     auto_trade_enabled: bool
     proposal_status: str
     no_change: bool
+    warnings: list[str]
+
+
+class PrepareChallengerSessionResponse(BaseModel):
+    session_id: int
+    status: str  # 항상 "prepared"
+    source_type: str  # 항상 "signal_challenger"
+    source_strategy_proposal_id: int
+    baseline_session_id: int
+    challenger_version_id: int
+    symbol_code: str
+    runner_eligible: bool  # 항상 False
     warnings: list[str]
 
 
@@ -360,6 +391,48 @@ async def prepare_signal_challenger(
     except ChallengerAlreadyPreparedError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return PrepareChallengerResponse(**prep.to_dict())
+
+
+@router.post(
+    "/{proposal_id}/prepare-challenger-session",
+    response_model=PrepareChallengerSessionResponse,
+    status_code=201,
+)
+async def prepare_challenger_session(
+    proposal_id: int,
+    payload: PrepareChallengerRequest,
+    service: PaperSignalChallengerSessionService = Depends(get_challenger_session_service),
+) -> PrepareChallengerSessionResponse:
+    """M2.2가 만든 DRAFT challenger에 대해 **비실행(prepared) PaperSignalSession**을 준비한다.
+
+    세션 시작 아님 · status='prepared'(runner 미대상) · SignalLog 없음 · 주문/자동매매 없음.
+    시작(prepared→active)은 별도 사람-게이트 단계(이 단계에 없음).
+    """
+    try:
+        prep = await service.prepare_from_strategy_proposal(
+            proposal_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except ChallengerSessionProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except ChallengerSessionConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerSessionNotSignalProposalError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerSessionProposalNotPendingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerSessionMissingAnalysisRunError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except BaselineSessionMissingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except MissingChallengerVersionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerVersionNotDraftError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except DuplicateChallengerSessionError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return PrepareChallengerSessionResponse(**prep.to_dict())
 
 
 @router.get("/{proposal_id}/transition-plan", response_model=TransitionPlanRead)

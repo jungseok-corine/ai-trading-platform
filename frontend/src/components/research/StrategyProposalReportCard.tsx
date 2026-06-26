@@ -5,15 +5,74 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   getProposal,
   getStrategyTransitionPlan,
+  prepareChallengerSession,
   prepareSignalChallenger,
 } from "../../api/research";
 import type {
+  ChallengerSessionPreparation,
   ProposalStatus,
   SignalChallengerPreparation,
 } from "../../types/research";
 import TransitionPlanView from "./TransitionPlanView";
 import { RawJsonDetails, WillHappenBlock, WillNotHappenBlock } from "./approvalBlocks";
 import { STRATEGY_WILL_HAPPEN, STRATEGY_WILL_NOT_HAPPEN } from "./safetyCopy";
+
+// M2.5 Phase 2 — DRAFT challenger 준비 후, 비실행(prepared) PaperSignalSession 준비.
+// 세션 시작 컨트롤 없음(시작은 별도 단계). 라벨에 실행/시작/자동매매/주문 사용 금지.
+function ChallengerSessionPrepare({ proposalId }: { proposalId: number }) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<ChallengerSessionPreparation | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      prepareChallengerSession(proposalId, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: (data) => setResult(data),
+  });
+  if (result) {
+    return (
+      <div className="approval-block" style={{ marginTop: 6 }}>
+        <strong>Paper Signal Session 준비됨 (prepared)</strong>
+        <ul className="approval-list">
+          <li>prepared 세션 #{result.session_id}</li>
+          <li>status: {result.status} · runner 미대상</li>
+          <li>기준 세션 #{result.baseline_session_id} · challenger 버전 #{result.challenger_version_id}</li>
+          <li>주문 없음 · 자동매매 아님</li>
+          <li className="muted">비교는 신호 기록 후 가능 · 시작은 별도 단계</li>
+        </ul>
+        {result.warnings.length > 0 && (
+          <ul className="approval-list">
+            {result.warnings.map((w) => (
+              <li key={w} className="muted">⚠ {w}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 6 }}>
+      <label className="confirm-check">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        prepared 세션만 생성하며 신호 기록 시작/주문/자동매매는 하지 않습니다
+      </label>
+      <div className="form-row">
+        <button
+          className="primary"
+          disabled={!confirmed || mut.isPending}
+          onClick={() => mut.mutate()}
+        >
+          {mut.isPending ? "준비 중…" : "Paper Signal Session 준비"}
+        </button>
+      </div>
+      {mut.isError && (
+        <p className="value error">⚠️ 세션 준비 실패 — challenger 준비 상태를 확인하세요.</p>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   proposalId: number;
@@ -177,6 +236,8 @@ export default function StrategyProposalReportCard({
                   ))}
                 </ul>
               )}
+              {/* M2.5 Phase 2 — DRAFT challenger 준비 후 비실행 prepared 세션 준비 */}
+              <ChallengerSessionPrepare proposalId={proposalId} />
             </div>
           )}
         </div>

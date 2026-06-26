@@ -6,6 +6,7 @@ import type {
   CandidateAnalysis,
   CandidateEvent,
   CandidateStrategyProposal,
+  ChallengerSessionPreparation,
   ComparisonResult,
   DailyReport,
   Experiment,
@@ -407,6 +408,19 @@ export async function prepareSignalChallenger(
 ): Promise<SignalChallengerPreparation> {
   const { data } = await apiClient.post<SignalChallengerPreparation>(
     `/strategy-proposals/${id}/prepare-signal-challenger`,
+    payload,
+  );
+  return data;
+}
+
+// M2.5 Phase 2 — DRAFT challenger에 대해 비실행(prepared) PaperSignalSession을 준비한다.
+// 세션 시작 아님 · runner 미대상 · SignalLog/주문/자동매매 없음.
+export async function prepareChallengerSession(
+  id: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<ChallengerSessionPreparation> {
+  const { data } = await apiClient.post<ChallengerSessionPreparation>(
+    `/strategy-proposals/${id}/prepare-challenger-session`,
     payload,
   );
   return data;
