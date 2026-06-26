@@ -47,6 +47,18 @@ from app.services.paper_signal_analysis_run_service import (
     InvalidModeError,
     PaperSignalAnalysisRunService,
 )
+from app.services.paper_signal_challenger_session_service import (
+    ActivationSessionNotFoundError,
+    ChallengerAutoTradeError as ActivationChallengerAutoTradeError,
+    ChallengerVersionNotDraftError as ActivationChallengerVersionNotDraftError,
+    ConfirmationRequiredError as ActivationConfirmationRequiredError,
+    DuplicateActiveChallengerError,
+    InconsistentSessionError,
+    LinkedProposalInvalidError,
+    NotChallengerSessionError,
+    PaperSignalChallengerSessionService,
+    SessionNotPreparedError,
+)
 from app.services.paper_signal_comparison_service import (
     PaperSignalComparisonService,
     SameSessionError,
@@ -127,6 +139,12 @@ def get_paper_signal_comparison_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalComparisonService:
     return PaperSignalComparisonService(session)
+
+
+def get_challenger_session_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalChallengerSessionService:
+    return PaperSignalChallengerSessionService(session)
 
 
 def get_paper_signal_analysis_input_service(
@@ -491,6 +509,23 @@ class StopPaperSignalSessionRequest(BaseModel):
     note: str | None = None
 
 
+class ActivateChallengerSessionRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+class ActivateChallengerSessionResponse(BaseModel):
+    session_id: int
+    status: str  # 항상 "active"
+    source_type: str  # 항상 "signal_challenger"
+    source_strategy_proposal_id: int
+    baseline_session_id: int
+    strategy_version_id: int
+    runner_eligible: bool  # 항상 True
+    runner_currently_enabled: bool
+    warnings: list[str]
+
+
 class PaperSignalSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -585,6 +620,45 @@ async def stop_paper_signal_session(
     except SessionNotFoundError as e:
         raise HTTPException(status_code=404, detail="session not found") from e
     return PaperSignalSessionRead.model_validate(session_row)
+
+
+@router.post(
+    "/paper-signal-sessions/{session_id}/activate",
+    response_model=ActivateChallengerSessionResponse,
+)
+async def activate_challenger_session(
+    session_id: int,
+    payload: ActivateChallengerSessionRequest,
+    service: PaperSignalChallengerSessionService = Depends(get_challenger_session_service),
+) -> ActivateChallengerSessionResponse:
+    """prepared challenger 세션을 active로 전환한다(런너 대상 자격만 부여).
+
+    신호를 즉시 만들지 않는다 · 잡을 켜지 않는다 · run_due_sessions 미호출 · 주문/거래 없음.
+    실제 신호 기록은 paper_signal_session_runner 잡이 켜지고 실행될 때만 발생한다(별도 단계).
+    """
+    try:
+        result = await service.activate_prepared_session(
+            session_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except ActivationSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    except ActivationConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except NotChallengerSessionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SessionNotPreparedError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except InconsistentSessionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ActivationChallengerVersionNotDraftError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ActivationChallengerAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except LinkedProposalInvalidError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except DuplicateActiveChallengerError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return ActivateChallengerSessionResponse(**result.to_dict())
 
 
 @router.get("/paper-signal-sessions/{session_id}/outcomes")

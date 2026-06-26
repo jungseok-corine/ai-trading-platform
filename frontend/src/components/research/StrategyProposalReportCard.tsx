@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  activateChallengerSession,
   getProposal,
   getStrategyTransitionPlan,
   prepareChallengerSession,
   prepareSignalChallenger,
 } from "../../api/research";
 import type {
+  ChallengerSessionActivation,
   ChallengerSessionPreparation,
   ProposalStatus,
   SignalChallengerPreparation,
@@ -16,6 +18,64 @@ import type {
 import TransitionPlanView from "./TransitionPlanView";
 import { RawJsonDetails, WillHappenBlock, WillNotHappenBlock } from "./approvalBlocks";
 import { STRATEGY_WILL_HAPPEN, STRATEGY_WILL_NOT_HAPPEN } from "./safetyCopy";
+
+// M2.5 Phase 3 — prepared 세션을 active로 전환(런너 대상 자격만). 신호 즉시 생성·주문·거래 없음.
+function ChallengerSessionActivate({ sessionId }: { sessionId: number }) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<ChallengerSessionActivation | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      activateChallengerSession(sessionId, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: (data) => setResult(data),
+  });
+  if (result) {
+    return (
+      <div className="approval-block" style={{ marginTop: 6 }}>
+        <strong>신호 세션 active 전환됨</strong>
+        <ul className="approval-list">
+          <li>active 세션 #{result.session_id} · runner 대상 자격 있음</li>
+          <li>
+            runner 현재 상태:{" "}
+            {result.runner_currently_enabled ? "활성(다음 실행 시 신호 기록)" : "비활성"}
+          </li>
+          <li>신호 생성은 별도 runner 실행 시에만 · 주문 없음 · 거래 없음 · 자동매매 아님</li>
+        </ul>
+        {result.warnings.length > 0 && (
+          <ul className="approval-list">
+            {result.warnings.map((w) => (
+              <li key={w} className="muted">ℹ {w}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 6 }}>
+      <label className="confirm-check">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        신호 세션을 active로 전환합니다. 신호 생성은 별도 runner 실행 시에만 발생하며 주문/거래는
+        생성하지 않습니다.
+      </label>
+      <div className="form-row">
+        <button
+          className="primary"
+          disabled={!confirmed || mut.isPending}
+          onClick={() => mut.mutate()}
+        >
+          {mut.isPending ? "전환 중…" : "신호 세션 활성화"}
+        </button>
+      </div>
+      {mut.isError && (
+        <p className="value error">⚠️ active 전환 실패 — 세션/버전/제안 상태를 확인하세요.</p>
+      )}
+    </div>
+  );
+}
 
 // M2.5 Phase 2 — DRAFT challenger 준비 후, 비실행(prepared) PaperSignalSession 준비.
 // 세션 시작 컨트롤 없음(시작은 별도 단계). 라벨에 실행/시작/자동매매/주문 사용 금지.
@@ -45,6 +105,8 @@ function ChallengerSessionPrepare({ proposalId }: { proposalId: number }) {
             ))}
           </ul>
         )}
+        {/* M2.5 Phase 3 — prepared 세션을 active로 전환(런너 대상 자격만) */}
+        <ChallengerSessionActivate sessionId={result.session_id} />
       </div>
     );
   }

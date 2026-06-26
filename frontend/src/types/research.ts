@@ -225,6 +225,19 @@ export interface ChallengerSessionPreparation {
   warnings: string[];
 }
 
+// M2.5 Phase 3 — prepared challenger 세션을 active로 전환한 결과(런너 대상 자격만).
+export interface ChallengerSessionActivation {
+  session_id: number;
+  status: string; // 항상 "active"
+  source_type: string; // 항상 "signal_challenger"
+  source_strategy_proposal_id: number;
+  baseline_session_id: number;
+  strategy_version_id: number;
+  runner_eligible: boolean; // 항상 true
+  runner_currently_enabled: boolean;
+  warnings: string[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

@@ -6,6 +6,7 @@ import type {
   CandidateAnalysis,
   CandidateEvent,
   CandidateStrategyProposal,
+  ChallengerSessionActivation,
   ChallengerSessionPreparation,
   ComparisonResult,
   DailyReport,
@@ -421,6 +422,19 @@ export async function prepareChallengerSession(
 ): Promise<ChallengerSessionPreparation> {
   const { data } = await apiClient.post<ChallengerSessionPreparation>(
     `/strategy-proposals/${id}/prepare-challenger-session`,
+    payload,
+  );
+  return data;
+}
+
+// M2.5 Phase 3 — prepared challenger 세션을 active로 전환(런너 대상 자격만 부여).
+// 신호 즉시 생성 없음 · 잡 미활성 · 주문/거래 없음. 실제 기록은 runner 실행 시에만.
+export async function activateChallengerSession(
+  sessionId: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<ChallengerSessionActivation> {
+  const { data } = await apiClient.post<ChallengerSessionActivation>(
+    `/paper-signal-sessions/${sessionId}/activate`,
     payload,
   );
   return data;

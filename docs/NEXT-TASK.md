@@ -325,6 +325,33 @@ challenger를 사람-게이트 PaperSignalSession으로 옮겨 baseline과 비�
   challenger 상태 불변**/API. 전체 1569 passed.
 - **다음(별도 단계, 미착수)**: Phase 3 start(prepared→active, 사람-게이트) + M2.1 비교 UI 연결.
 
+**M2.5 Phase 3 — Prepared Session Activation (`DONE`)**: 사람이 명시 확인하면 prepared challenger 세션을
+**active로 전환**한다(런너 대상 자격만 부여). **활성화는 신호를 즉시 만들지 않는다 — 잡 미활성 ·
+run_due_sessions 미호출 · 주문/거래 없음 · status만 변경.**
+
+- 서비스 `PaperSignalChallengerSessionService.activate_prepared_session(session_id, confirmed, confirmed_by)`:
+  confirmed+confirmed_by 게이트, 세션 존재(404), source_type signal_challenger(422), status prepared(422),
+  링크 일관성(candidate FK NULL·source 제안·baseline·version 존재, 422), 버전 DRAFT·auto_trade off(422),
+  연결 제안 paper_signal_analysis·PENDING·created_version 일치(422), (현재 세션 외) active challenger 중복(409).
+  **세션 status만 prepared→active**(started_by/started_at 갱신). baseline/proposal/version/experiment 무변경,
+  SignalLog/Trade/Order/AssignmentLog 미생성, 잡 미활성, run_due_sessions 미호출.
+- 리포지토리: `find_active_challenger_for_strategy_proposal`(현재 세션 제외 active 중복 가드) 추가.
+- 안전: 활성화는 `list_active`에 세션을 포함시켜 **런너 대상 자격만** 준다 — 실제 SignalLog는 default-OFF
+  `paper_signal_session_runner` 잡이 켜지고 실행될 때만 `run_due_sessions`가 생성. 응답에 `runner_eligible=true`,
+  `runner_currently_enabled`(현재 config 플래그) + warnings("activation does not create signals immediately"
+  등). 잡 설정·auto_trade 변경 없음. (D-21)
+- API: `POST /paper-signal-sessions/{session_id}/activate`(200; 404/422/409). 라벨은 activate(start/run/trade
+  아님).
+- 프론트(`StrategyProposalReportCard`): prepared 세션 성공 블록 안에 확인 체크박스("신호 세션을 active로
+  전환합니다. 신호 생성은 별도 runner 실행 시에만 발생하며 주문/거래는 생성하지 않습니다") + "신호 세션 활성화"
+  → 성공 시 active 세션 #id · runner 대상 자격 · runner 현재 상태 · "신호 생성은 별도 runner 실행 시 · 주문/거래
+  없음". 자동매매/주문/매매 시작 라벨 없음.
+- 테스트 `tests/test_paper_signal_challenger_session_activate.py` (12): 게이트/404/422(non-challenger·
+  not-prepared·inconsistent·not-draft·auto_trade·proposal-not-pending)/409 중복/**status만 prepared→active·
+  started_by 갱신·list_active 포함·SignalLog/Trade/Experiment/AssignmentLog 미생성·버전 DRAFT·제안 PENDING·
+  baseline 불변·runner 플래그 불변**/API. 전체 1581 passed.
+- **다음(별도 단계, 미착수)**: M2.1 비교 UI 연결(active challenger vs baseline). runner 잡 활성은 사람 별도 결정.
+
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
 CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).** 스키마 변경은 사람만 승인(D-20).

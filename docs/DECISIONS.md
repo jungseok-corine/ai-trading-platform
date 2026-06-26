@@ -557,3 +557,34 @@ M2.4 스키마 설계 중, 런너 경로를 코드로 검증했다: `run_due_ses
 `source_type='signal_challenger'` 행을 먼저 제거(또는 실패)해야 한다 — 마이그레이션 `downgrade()`에 명시.
 
 **구현/상세**: `docs/design/M2.4-challenger-session-schema-design.md`. 관련: [[D-19]], [[followup-bulk-approve-safety]].
+
+---
+
+## D-21. 세션 활성화(prepared→active)는 런너 활성화·신호 생성과 분리한다
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (구현됨 — M2.5 Phase 3)
+
+**경위**:  
+M2.5 Phase 3에서 prepared challenger 세션을 active로 전환하는 사람-게이트 단계를 구현했다. "active"는
+`PaperSignalSessionRepository.list_active()`가 잡는 상태라, 자칫 "활성화 = 신호 생성/매매"로 오해될 수 있다.
+
+**결정 내용**:
+
+1. **활성화는 세션 `status`만 prepared→active로 바꾼다.** 이는 전용 `paper_signal_session_runner` 잡의
+   **대상 자격(eligibility)만** 부여한다. 활성화 자체는 잡을 켜지 않고, `run_due_sessions`를 호출하지 않으며,
+   SignalLog/Trade/Order를 만들지 않는다. baseline/proposal/StrategyVersion/Experiment를 바꾸지 않는다.
+2. **신호 기록은 별도 조건에서만 발생한다**: (a) `paper_signal_session_runner_enabled=true`(사람이 별도로 켬)
+   + (b) 잡이 스케줄 실행될 때 `run_due_sessions`가 active 세션에 대해 SignalLog를 만든다. 주문/체결은 전 구간
+   없음(잡이 TradeService를 구성하지 않음).
+3. **활성화 응답은 이 분리를 명시한다**: `runner_eligible=true`, `runner_currently_enabled`(현재 플래그) +
+   "Activation does not create signals immediately" 등 warnings. 활성화는 잡 설정을 바꾸지 않는다.
+
+**이유**:  
+- "준비/활성/실행/매매"를 한 단계씩 분리해 각 단계에 사람 확인을 두는 것이 이 프로젝트의 핵심 안전 패턴
+  (D-12 계열). 활성화가 곧 신호/매매가 아니라는 점을 코드·응답·UI에서 반복 고지한다.
+- 잡 활성(`*_enabled`)은 기본 OFF 불변식이라 활성화 단계에서 자동으로 켜지 않는다(작업 규칙 §4/§11).
+
+**구현**: `app/services/paper_signal_challenger_session_service.py`(activate_prepared_session),
+`app/api/v1/candidates.py`(POST .../activate), `tests/test_paper_signal_challenger_session_activate.py`.
+관련: [[D-20]].

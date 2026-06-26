@@ -55,3 +55,20 @@ class PaperSignalSessionRepository(BaseRepository[PaperSignalSession]):
             )
         )
         return result.scalars().first()
+
+    async def find_active_challenger_for_strategy_proposal(
+        self, source_strategy_proposal_id: int, exclude_session_id: int | None = None
+    ) -> PaperSignalSession | None:
+        """같은 source StrategyProposal에 대한 **active** challenger 세션을 찾는다(현재 세션 제외).
+
+        활성화(M2.5 Phase 3) 시 중복 active challenger를 막기 위한 가드.
+        """
+        stmt = select(PaperSignalSession).where(
+            PaperSignalSession.source_strategy_proposal_id == source_strategy_proposal_id,
+            PaperSignalSession.source_type == "signal_challenger",
+            PaperSignalSession.status == "active",
+        )
+        if exclude_session_id is not None:
+            stmt = stmt.where(PaperSignalSession.id != exclude_session_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
