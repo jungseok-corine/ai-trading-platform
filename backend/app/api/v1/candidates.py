@@ -495,12 +495,12 @@ class PaperSignalSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    candidate_strategy_proposal_id: int
+    candidate_strategy_proposal_id: int | None  # signal_challenger 세션(M2.5+)은 NULL
     experiment_id: int | None
     strategy_version_id: int | None
     candidate_event_id: int | None
     symbol_code: str
-    status: str  # active | stopped
+    status: str  # prepared | active | stopped
     started_by: str
     started_at: datetime
     stopped_at: datetime | None

@@ -277,7 +277,27 @@ challenger를 사람-게이트 PaperSignalSession으로 옮겨 baseline과 비�
 - **거부**: B(side table — NOT NULL 블로커 미해소, A 필요), D(병렬 세션 테이블 — M2.1 비교/런너/outcome가
   두 형태 union 필요, 회귀 위험 큼), E(D-19). C(워크플로 오케스트레이션 테이블)는 A 위 후속 단계로 이연.
 - **다음에 필요한 결정(사람)**: Option A additive 마이그레이션 **승인 여부**. 승인 시 Phase 1(마이그레이션+모델)
-  부터 단계별 진행. 구현 미착수.
+  부터 단계별 진행.
+
+**M2.5 Phase 1 — Option A 스키마/모델 호환 기반 (`DONE`)**: challenger 세션을 안전하게 표현하기 위한
+**스키마 기반만** 구현했다. **challenger 세션 워크플로/prepare·start 엔드포인트/UI는 아직 없음.**
+
+- 마이그레이션 `p1q2r3s4t5u6` (additive/constraint-relaxing, head): `paper_signal_sessions`에서
+  `candidate_strategy_proposal_id` **nullable**화 + `source_type`(NOT NULL, server_default
+  `candidate_proposal` → 기존 행 backfill) + `source_strategy_proposal_id`(nullable FK→strategy_proposals,
+  SET NULL) + `baseline_session_id`(nullable self-FK, SET NULL) + 인덱스 3개. downgrade는 NULL candidate
+  행(challenger)이 있으면 **중단**(데이터 손상 방지). upgrade→downgrade→re-upgrade 라운드트립 검증.
+- 모델 `paper_signal_session.py`: 위 컬럼 추가, `candidate_strategy_proposal_id` Optional화, status 주석에
+  `prepared`(런너 비대상) 추가. `PaperSignalSessionRead.candidate_strategy_proposal_id`도 Optional화(직렬화
+  하위호환). 리포지토리/서비스 변경 없음 — `list_active`는 이미 `status=="active"`만 잡아 `prepared` 자동 제외.
+- 테스트 `tests/test_paper_signal_session_source_schema.py` (6): 기존 candidate 세션 create/source_type
+  backfill/find_active_for_proposal/duplicate 가드 유지, `prepared` 세션이 list_active 비대상, challenger
+  행 표현(candidate FK NULL + source 추적), **StrategyVersion/Experiment/SignalLog/Trade/AssignmentLog
+  미생성**. 전체 1553 passed.
+- **이 단계 효과 없음**: prepare/start 엔드포인트 없음, 세션 생성/시작 없음, SignalLog 없음, 잡 활성 없음,
+  주문/거래 없음, TESTING/ACTIVE 없음. 스키마 기반만. (D-20)
+- **다음(별도 단계)**: Phase 2 `PaperSignalChallengerSessionService.prepare_challenger_session`(prepared 세션만
+  생성) → Phase 3 start(prepared→active) + M2.1 비교 UI 연결.
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
