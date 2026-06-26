@@ -410,8 +410,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   unsupported·real-trading·runner-enabled)/성공 1개 SignalLog·선택 세션만 평가·다른 active 세션 불변·카운터
   갱신·status 불변/무신호·시세오류 skipped/**Trade·Order·AssignmentLog·Experiment·StrategyVersion 미생성·
   버전 status 불변**/API. 전체 1596 passed.
-- **다음(별도 단계, 미착수)**: runner 상시 활성(Option C, 사람 별도 결정), baseline+challenger 페어 배치(Option E).
+- **다음(별도 단계, 미착수)**: runner 상시 활성(Option C, 사람 별도 결정), baseline+challenger 페어 run-once(M2.9 설계).
   세션 단위 run-once 우선 원칙 유지(D-22).
+
+**M2.9 — Baseline ↔ Challenger Pair Run-Once (`설계만 완료`, 구현 미승인)**: baseline와 challenger 세션을
+**한 번의 사람 트리거**로 각각 1회씩 신호 기록해 공정한 비교 데이터를 쌓는 흐름 설계. 설계 문서:
+**`docs/design/M2.9-pair-run-once-operation-design.md`**.
+
+- **핵심 결론**: 단일 세션 run-once는 baseline/challenger를 서로 다른 시점에 샘플링해 비교가 불공정해질 수 있다.
+  → 한 요청에서 두 세션을 같은 시장 시점·같은 종목·강제된 baseline↔challenger 관계로 평가.
+- **권장 = Option B(백엔드 페어 엔드포인트)**: `POST /paper-signal-sessions/{baseline_id}/compare/{challenger_id}/run-once-pair`.
+  서버가 관계 검증(challenger.source_type=signal_challenger·baseline_session_id 일치·동일 symbol·둘 다 active·둘 다
+  DRAFT+auto_trade off·KIS_REAL false·runner false)을 먼저 한 뒤 **두 세션만** M2.8 코어로 1회씩 평가. 검증 실패는
+  **실행 전 전체 거부(422)**, 런타임 skip(중복/장마감/무신호)은 정상 결과로 계속. `list_active`/`run_due_sessions`/
+  스케줄러 `run_now` 미사용 · 최대 2 SignalLog · 주문/거래 없음 · 잡 미활성 · status 무변경(카운터만).
+- **거부**: A(프론트 전용 — 관계/심볼 검증이 클라이언트에 흩어짐), D(현상 유지 — 불공정 위험). C(백엔드+테스트
+  먼저, UI 후속)는 UI가 커지면 폴백.
+- **다음에 필요한 결정(사람)**: Option B(백엔드 페어) vs Option A(프론트 전용) 선택. 구현 미착수. runner 상시
+  활성은 여전히 별도 승인.
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존

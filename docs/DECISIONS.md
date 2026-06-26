@@ -617,3 +617,30 @@ M2.7에서 active 세션의 SignalLog 생성 흐름을 설계하며 런너를 �
 - 기존 generic `run-now`는 전체 active를 돌려 challenger 테스트엔 과하다 → 세션-스코프 엔드포인트가 더 안전·명확.
 
 **구현/상세**: `docs/design/M2.7-paper-signal-runner-operation-gate.md`. 관련: [[D-21]].
+
+---
+
+## D-23. baseline/challenger 신호 누적은 명시적 페어 run-once로 — 상시 스케줄러보다 먼저
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (가드레일 / 설계 단계, 구현 미승인)
+
+**경위**:  
+M2.9에서 공정한 baseline↔challenger 비교를 위한 신호 누적 흐름을 설계했다. 단일 세션 run-once(M2.8)는 두 세션을
+서로 다른 사람-트리거 시점에 평가해 비교 데이터가 불공정해질 수 있다.
+
+**결정 내용**:
+
+1. **페어 신호 누적은 명시적 페어 run-once부터 한다.** 한 사람-게이트 요청에서 **명시한 두 세션(baseline,
+   challenger)만** 각각 1회씩 평가한다. 서버가 관계(challenger.baseline_session_id 일치)·동일 symbol·둘 다
+   active·둘 다 DRAFT+auto_trade off를 **실행 전** 검증한다(Option B 권장; 검증을 클라이언트에 두는 Option A 회피).
+2. **상시 스케줄러 활성(M2.7 Option C)은 그 다음, 별도 사람 승인.** 페어 run-once는 범위가 두 세션·한 tick으로
+   한정되고 dedupe로 세션당 0/1을 보장한다(최대 2 SignalLog).
+3. **페어 run-once도 주문/거래 경로를 만들지 않는다.** `list_active`/`run_due_sessions`/`run_now` 미사용,
+   TradeService/OrderService/broker 주문 미구성, `KIS_REAL_TRADING_ENABLED=false`, 버전 DRAFT, auto_trade off.
+
+**이유**:  
+- 같은 요청에서 같은 시장 시점·같은 종목으로 두 세션을 샘플링해야 비교가 공정하다.
+- 서버가 관계/심볼/상태를 강제하면 잘못 짝지어진 페어 실행을 막는다(클라이언트 검증보다 안전).
+
+**구현/상세**: `docs/design/M2.9-pair-run-once-operation-design.md`. 관련: [[D-22]], [[D-21]].
