@@ -262,9 +262,26 @@ challenger를 사람-게이트 PaperSignalSession으로 옮겨 baseline과 비�
   + 주문/거래 경로 없음.
 - **다음에 필요한 결정(사람)**: challenger 세션 워크플로용 **마이그레이션 승인 여부**. 구현 미착수.
 
+**M2.4 — Challenger Session Workflow 스키마 설계 (`설계만 완료`, 마이그레이션 미승인)**: M2.3 갭을 닫기 위한
+**가장 작은 안전한 스키마 변경** 설계. 설계 문서: **`docs/design/M2.4-challenger-session-schema-design.md`**.
+
+- **핵심 발견**: 런너(`run_due_sessions`/`list_active`)는 `status=="active"` + `strategy_version_id` +
+  `symbol_code`만 본다 — **`candidate_strategy_proposal_id`를 읽지 않는다.** 따라서 (a) candidate FK를
+  nullable로 풀고, (b) source/추적 컬럼을 additive로 추가하고, (c) 런너가 안 보는 **`"prepared"` 상태**를
+  도입하는 것이 최소 안전 변경이다. 새 세션 테이블·Experiment 불필요.
+- **권장 = Option A**: `paper_signal_sessions`에 `candidate_strategy_proposal_id` nullable화 +
+  `source_type`(기본 `candidate_proposal`) + `source_strategy_proposal_id`(nullable FK) +
+  `baseline_session_id`(nullable self-FK) 추가, `strategy_version_id`(기존) 재사용, `status`에 `"prepared"`
+  값 추가(문자열 — enum 마이그레이션 없음). 상태기계: prepared →(사람 시작)→ active →(사람 중지)→ stopped.
+  기존 candidate 세션은 그대로 동작(backfill `source_type='candidate_proposal'`).
+- **거부**: B(side table — NOT NULL 블로커 미해소, A 필요), D(병렬 세션 테이블 — M2.1 비교/런너/outcome가
+  두 형태 union 필요, 회귀 위험 큼), E(D-19). C(워크플로 오케스트레이션 테이블)는 A 위 후속 단계로 이연.
+- **다음에 필요한 결정(사람)**: Option A additive 마이그레이션 **승인 여부**. 승인 시 Phase 1(마이그레이션+모델)
+  부터 단계별 진행. 구현 미착수.
+
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
-CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).**
+CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).** 스키마 변경은 사람만 승인(D-20).
 
 ---
 

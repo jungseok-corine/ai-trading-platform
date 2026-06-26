@@ -521,3 +521,39 @@ nullable `candidate_strategy_proposal_id`/별도 `source_strategy_proposal_id`·
 - 우회(candidate proposal 재사용)는 baseline+challenger 동시 운용을 막아 비교 목적 자체를 깨뜨린다.
 
 **구현/상세**: `docs/design/M2.3-challenger-session-workflow-gap.md`. 관련: [[followup-bulk-approve-safety]].
+
+---
+
+## D-20. Challenger 세션 스키마는 PaperSignalSession을 최소 확장(Option A)한다 — nullable candidate FK + source 컬럼 + `prepared` 상태
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (스키마 방향 결정 / 마이그레이션은 사람 승인 대기)
+
+**경위**:  
+M2.4 스키마 설계 중, 런너 경로를 코드로 검증했다: `run_due_sessions`/`PaperSignalSessionRepository.list_active()`는
+`status=="active"` + `strategy_version_id` + `symbol_code`만 사용하고 **`candidate_strategy_proposal_id`를 전혀
+읽지 않는다.** `PaperSignalOutcomeService`/M2.1 비교도 `candidate_strategy_proposal_id`에 의존하지 않는다.
+
+**결정 내용**:
+
+1. **스키마 방향은 Option A** — `paper_signal_sessions`를 최소 확장한다: `candidate_strategy_proposal_id`를
+   **nullable**로 풀고, `source_type`(기본 `candidate_proposal`)·`source_strategy_proposal_id`(nullable FK)·
+   `baseline_session_id`(nullable self-FK)를 additive로 추가하며, 기존 `strategy_version_id`를 재사용한다.
+   **새 세션 테이블도 Experiment도 만들지 않는다.**
+2. **'준비됨/비실행' 상태는 `status="prepared"` 값으로 표현한다.** `list_active()`가 `status=="active"`만
+   잡으므로 `prepared` 세션은 **런너에 보이지 않는다**(사람이 명시적으로 start해 active로 올릴 때까지). 상태기계:
+   prepared → active → stopped. `status`는 문자열이라 enum 마이그레이션 불필요.
+3. **거부**: B(side table — NOT NULL 블로커 미해소), D(병렬 세션 테이블 — 런너/outcome/M2.1이 두 형태 union 필요),
+   E(D-19). C(오케스트레이션 테이블)는 A 위 후속 단계로 이연.
+4. **마이그레이션 자체는 여전히 사람 승인 대기(D-19).** additive + constraint-relaxing이지만 스키마 변경이므로
+   사람만 승인한다(작업 규칙 §6/§11).
+
+**이유**:  
+- 런너/outcome/비교가 candidate FK에 무관 → nullable화는 런타임 선택 로직을 바꾸지 않는다(최소 위험).
+- `prepared` 상태는 기존 active 필터를 그대로 활용한 **런너 불가시성** 메커니즘 — 별도 started/active 구분 불필요.
+- 단일 세션 테이블 유지 → M2.1 비교(한 테이블의 두 id)가 변경 없이 그대로 동작.
+
+**다운그레이드 주의**: nullable→NOT NULL 복원은 challenger 행(NULL candidate FK)이 없을 때만 안전. 다운그레이드는
+`source_type='signal_challenger'` 행을 먼저 제거(또는 실패)해야 한다 — 마이그레이션 `downgrade()`에 명시.
+
+**구현/상세**: `docs/design/M2.4-challenger-session-schema-design.md`. 관련: [[D-19]], [[followup-bulk-approve-safety]].
