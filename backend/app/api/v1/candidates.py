@@ -67,6 +67,14 @@ from app.services.paper_signal_comparison_service import (
     PaperSignalComparisonService,
     SameSessionError,
 )
+from app.services.paper_signal_pair_run_once_service import (
+    BaselineMismatchError,
+    NotChallengerSessionError as PairNotChallengerSessionError,
+    PairBaselineNotFoundError,
+    PairChallengerNotFoundError,
+    PaperSignalPairRunOnceService,
+    SymbolMismatchError,
+)
 from app.services.paper_signal_run_once_service import (
     ConfirmationRequiredError as RunOnceConfirmationRequiredError,
     MissingSymbolError,
@@ -174,6 +182,18 @@ def get_run_once_service(
         session, MarketDataService(broker, session, overseas_client=overseas)
     )
     return PaperSignalSessionRunOnceService(session, signal_service)
+
+
+def get_pair_run_once_service(
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+    overseas=Depends(get_overseas_client),
+) -> PaperSignalPairRunOnceService:
+    # 동일한 signal-only SignalService — TradeService/주문 클라이언트 미구성.
+    signal_service = SignalService(
+        session, MarketDataService(broker, session, overseas_client=overseas)
+    )
+    return PaperSignalPairRunOnceService(session, signal_service)
 
 
 def get_paper_signal_analysis_input_service(
@@ -572,6 +592,23 @@ class RunOnceResponse(BaseModel):
     warnings: list[str]
 
 
+class PairRunOnceSide(BaseModel):
+    session_id: int
+    signal_created: bool
+    signal_id: int | None
+    reason: str | None
+
+
+class PairRunOnceResponse(BaseModel):
+    baseline: PairRunOnceSide
+    challenger: PairRunOnceSide
+    orders_created: int  # 항상 0
+    trades_created: int  # 항상 0
+    runner_enabled: bool  # 항상 False
+    comparison_ready_hint: str
+    warnings: list[str]
+
+
 class PaperSignalSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -746,6 +783,57 @@ async def run_paper_signal_session_once(
     except RunnerEnabledError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return RunOnceResponse(**result.to_dict())
+
+
+@router.post(
+    "/paper-signal-sessions/{baseline_id}/compare/{challenger_id}/run-once-pair",
+    response_model=PairRunOnceResponse,
+)
+async def run_paper_signal_pair_once(
+    baseline_id: int,
+    challenger_id: int,
+    payload: RunOnceRequest,
+    service: PaperSignalPairRunOnceService = Depends(get_pair_run_once_service),
+) -> PairRunOnceResponse:
+    """명시한 baseline + challenger 두 active 세션만 각각 1회 신호 평가한다(SignalLog만).
+
+    전체 active 실행/스케줄러/잡 활성 아님 · 주문/거래 없음 · 세션 status 불변 · 최대 2 SignalLog.
+    관계/심볼/버전 등 자격 실패는 실행 전 422, 런타임 skip(중복/장마감/무신호)은 정상 결과로 계속.
+    """
+    try:
+        result = await service.run_pair(
+            baseline_id, challenger_id,
+            confirmed=payload.confirmed, confirmed_by=payload.confirmed_by,
+        )
+    except PairBaselineNotFoundError as e:
+        raise HTTPException(status_code=404, detail="baseline session not found") from e
+    except PairChallengerNotFoundError as e:
+        raise HTTPException(status_code=404, detail="challenger session not found") from e
+    except RunOnceConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except PairNotChallengerSessionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except BaselineMismatchError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SymbolMismatchError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SessionNotActiveError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceMissingVersionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceVersionNotDraftError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceVersionAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except UnsupportedStrategyTypeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except MissingSymbolError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RealTradingEnabledError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunnerEnabledError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return PairRunOnceResponse(**result.to_dict())
 
 
 @router.get("/paper-signal-sessions/{session_id}/outcomes")

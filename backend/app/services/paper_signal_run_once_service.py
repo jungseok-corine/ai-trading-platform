@@ -109,15 +109,18 @@ class PaperSignalSessionRunOnceService:
         self._repo = PaperSignalSessionRepository(session)
         self._version_repo = StrategyVersionRepository(session)
 
-    async def run_once(
-        self, session_id: int, confirmed: bool, confirmed_by: str | None
-    ) -> RunOnceResult:
+    # --- 공유 헬퍼 (M2.10 페어가 동일 검증/평가를 재사용 — 검증 드리프트 방지) ---
+
+    @staticmethod
+    def check_confirmation(confirmed: bool, confirmed_by: str | None) -> None:
         if not confirmed:
             raise ConfirmationRequiredError("confirmed must be true")
         if not confirmed_by:
             raise ConfirmationRequiredError("confirmed_by is required")
 
-        # 전역 안전 게이트: 실거래/상시 런너가 켜져 있으면 V1은 거부한다.
+    @staticmethod
+    def check_global_gates() -> None:
+        """전역 안전 게이트: 실거래/상시 런너가 켜져 있으면 V1은 거부한다."""
         settings = get_settings()
         if settings.kis_real_trading_enabled:
             raise RealTradingEnabledError("KIS_REAL_TRADING_ENABLED must be false")
@@ -127,15 +130,17 @@ class PaperSignalSessionRunOnceService:
                 "to avoid concurrent scheduler runs (disable the recurring runner first)"
             )
 
-        sess = await self._repo.get(session_id)
-        if sess is None:
-            raise RunOnceSessionNotFoundError(session_id)
+    async def validate_session(self, sess) -> tuple:
+        """이미 로드된(non-None) 세션의 실행 자격을 검증한다(평가/커밋 없음).
+
+        반환: (version, strategy). 실패 시 gate 예외(422 매핑)를 던진다.
+        """
         if sess.status != "active":
             raise SessionNotActiveError(
-                f"session {session_id} status is {sess.status!r}, not active"
+                f"session {sess.id} status is {sess.status!r}, not active"
             )
         if sess.strategy_version_id is None:
-            raise MissingVersionError(f"session {session_id} has no strategy_version_id")
+            raise MissingVersionError(f"session {sess.id} has no strategy_version_id")
         version = await self._version_repo.get(sess.strategy_version_id)
         if version is None:
             raise MissingVersionError(
@@ -152,29 +157,30 @@ class PaperSignalSessionRunOnceService:
                 f"strategy_version {version.id} has auto_trade_enabled=true — refusing run-once"
             )
         if not sess.symbol_code:
-            raise MissingSymbolError(f"session {session_id} has no symbol_code")
+            raise MissingSymbolError(f"session {sess.id} has no symbol_code")
         strategy = create_strategy(params.get("strategy_type", ""), params)
         if strategy is None:
             raise UnsupportedStrategyTypeError(
                 f"strategy_type {params.get('strategy_type')!r} is not registered"
             )
+        return version, strategy
 
+    async def evaluate_session(self, sess, version, strategy) -> RunOnceResult:
+        """검증된 단일 세션을 1회 평가한다(SignalLog만, **커밋하지 않음**).
+
+        예외(시세 오류 등)는 skipped로 흡수한다(크래시 아님 — 기존 런너 의미). 카운터만 갱신.
+        커밋은 호출자(run_once / 페어)가 한다.
+        """
         run_at = datetime.now(timezone.utc)
         warnings = list(_BASE_WARNINGS)
-
-        # --- 단일 세션 평가: SignalLog만. 예외는 skipped로 흡수(크래시 아님) — 기존 런너 의미. ---
+        params = version.parameters or {}
         try:
             log = await self._signal_service.generate_and_log_signal(
-                strategy,
-                sess.symbol_code,
-                version.id,
-                strategy_params=params,
-                market=params.get("market", "KR"),
-                exchange=params.get("exchange"),
+                strategy, sess.symbol_code, version.id, strategy_params=params,
+                market=params.get("market", "KR"), exchange=params.get("exchange"),
             )
         except Exception as exc:  # noqa: BLE001 - 시세 오류 등은 skipped로 처리(런너와 동일)
             await self._repo.update(sess, last_run_at=run_at, last_error=str(exc))
-            await self._session.commit()
             return RunOnceResult(
                 session_id=sess.id, status=sess.status, signal_created=False,
                 reason=f"signal evaluation error (treated as skipped): {exc}",
@@ -186,35 +192,35 @@ class PaperSignalSessionRunOnceService:
         reason: str | None = None
         if created:
             signal_id = log.id
-            # 세션별 outcome 귀속(주문과 무관). 기존 런너와 동일.
-            log.paper_signal_session_id = sess.id
+            log.paper_signal_session_id = sess.id  # 세션별 outcome 귀속(주문과 무관).
         else:
             reason = (
                 "no SignalLog created (no actionable strategy signal, stale/closed market, "
                 "or duplicate candle)"
             )
-
-        # 운영 카운터만 갱신 — 세션 status는 바꾸지 않는다(기존 런너 의미와 동일).
+        # 운영 카운터만 갱신 — status는 바꾸지 않는다(기존 런너 의미와 동일).
         await self._repo.update(
-            sess,
-            last_run_at=run_at,
-            last_error=None,
-            run_count=sess.run_count + 1,
-            signal_count=sess.signal_count + (1 if created else 0),
+            sess, last_run_at=run_at, last_error=None,
+            run_count=sess.run_count + 1, signal_count=sess.signal_count + (1 if created else 0),
         )
-        await self._session.commit()
-
         return RunOnceResult(
-            session_id=sess.id,
-            status=sess.status,  # 불변: 'active'
-            signal_created=created,
-            signal_id=signal_id,
-            reason=reason,
-            orders_created=0,
-            trades_created=0,
-            runner_enabled=False,
-            warnings=warnings,
+            session_id=sess.id, status=sess.status, signal_created=created,
+            signal_id=signal_id, reason=reason, orders_created=0, trades_created=0,
+            runner_enabled=False, warnings=warnings,
         )
+
+    async def run_once(
+        self, session_id: int, confirmed: bool, confirmed_by: str | None
+    ) -> RunOnceResult:
+        self.check_confirmation(confirmed, confirmed_by)
+        self.check_global_gates()
+        sess = await self._repo.get(session_id)
+        if sess is None:
+            raise RunOnceSessionNotFoundError(session_id)
+        version, strategy = await self.validate_session(sess)
+        result = await self.evaluate_session(sess, version, strategy)
+        await self._session.commit()
+        return result
 
 
 __all__ = [

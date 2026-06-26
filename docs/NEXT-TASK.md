@@ -426,8 +426,29 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   스케줄러 `run_now` 미사용 · 최대 2 SignalLog · 주문/거래 없음 · 잡 미활성 · status 무변경(카운터만).
 - **거부**: A(프론트 전용 — 관계/심볼 검증이 클라이언트에 흩어짐), D(현상 유지 — 불공정 위험). C(백엔드+테스트
   먼저, UI 후속)는 UI가 커지면 폴백.
-- **다음에 필요한 결정(사람)**: Option B(백엔드 페어) vs Option A(프론트 전용) 선택. 구현 미착수. runner 상시
-  활성은 여전히 별도 승인.
+- **다음에 필요한 결정(사람)**: Option B(백엔드 페어) vs Option A(프론트 전용) 선택. → M2.10에서 Option B 구현됨.
+
+**M2.10 — Backend Baseline ↔ Challenger Pair Run-Once (`DONE`, backend/API/tests)**: 사람이 명시 확인하면
+**명시한 baseline + challenger 두 active 세션만** 각각 1회씩 신호를 평가한다(M2.9 Option B / D-23).
+**두 세션만 · SignalLog만(최대 2개) · 주문/거래 없음 · 스케줄러/잡 미활성 · 반복 아님 · status 무변경.**
+
+- M2.8 리팩터: `PaperSignalSessionRunOnceService`에서 검증/평가 코어를 추출(`check_confirmation`/
+  `check_global_gates`/`validate_session`/`evaluate_session` — 후자는 **커밋 안 함**). `run_once`는 이를
+  조합(behavior 동일, M2.8 테스트 15 유지). → **검증 드리프트 방지**.
+- 서비스 `paper_signal_pair_run_once_service.py`(`PaperSignalPairRunOnceService.run_pair`): confirm+전역 게이트,
+  baseline/challenger 존재(404×2), challenger.source_type=signal_challenger(422)·baseline_session_id 일치(422)·
+  동일 symbol(422), **두 세션 모두 validate_session(active·DRAFT·auto_trade off·strategy_type·symbol)**을 **평가 전**
+  수행(한쪽 실패 시 어느 쪽도 평가 안 함). 그 뒤 baseline→challenger 순으로 `evaluate_session`(skip 정상, 성공
+  SignalLog 롤백 안 함), **한 트랜잭션 1회 커밋**. `list_active`/`run_due_sessions`/`run_now` 미사용.
+- API: `POST /paper-signal-sessions/{baseline_id}/compare/{challenger_id}/run-once-pair`(200 성공/partial/skipped;
+  404×2/422). 응답: baseline·challenger{session_id·signal_created·signal_id·reason} + orders_created(=0)·
+  trades_created(=0)·runner_enabled(=false)·comparison_ready_hint·warnings. market-data only SignalService DI.
+- 테스트 `tests/test_paper_signal_pair_run_once.py` (20): 게이트(confirm·404×2·active×2·source_type·baseline
+  불일치·symbol 불일치·not-draft·auto_trade·unsupported·real-trading·runner)/**한쪽 게이트 실패 시 양쪽 미평가**/
+  성공 2 SignalLog·정확 귀속·**페어만 평가(2회)**·다른 active 세션 불변·카운터·status 불변/partial(한쪽 skip)/
+  시세오류 skipped/**Trade·Order·AssignmentLog·Experiment·version·status 무변경**/API. 전체 1616 passed.
+- **프론트 미구현**: 페어 UI 와이어링은 **M2.11로 이연**(backend/API/tests/docs only).
+- **다음(별도 단계, 미착수)**: M2.11 프론트 페어 UI, M2.13 recurring runner 설계, M2.14 구현(명시 승인).
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
