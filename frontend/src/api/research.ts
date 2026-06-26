@@ -21,6 +21,7 @@ import type {
   PaperSignalAnalysisRun,
   PaperSignalComparison,
   PaperSignalOutcomeBoard,
+  PaperSignalPairRunOnceResult,
   PaperSignalRunOnceResult,
   PaperSignalSession,
   PipelineRun,
@@ -449,6 +450,20 @@ export async function runPaperSignalSessionOnce(
 ): Promise<PaperSignalRunOnceResult> {
   const { data } = await apiClient.post<PaperSignalRunOnceResult>(
     `/paper-signal-sessions/${sessionId}/run-once`,
+    payload,
+  );
+  return data;
+}
+
+// M2.10 — 명시한 baseline + challenger 두 active 세션만 각각 1회 신호 기록(공정 비교용).
+// 두 세션만 · SignalLog만(최대 2) · 스케줄러/잡 미활성 · 주문/거래 없음 · 반복 아님.
+export async function runPaperSignalPairOnce(
+  baselineSessionId: number,
+  challengerSessionId: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalPairRunOnceResult> {
+  const { data } = await apiClient.post<PaperSignalPairRunOnceResult>(
+    `/paper-signal-sessions/${baselineSessionId}/compare/${challengerSessionId}/run-once-pair`,
     payload,
   );
   return data;

@@ -447,8 +447,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   불일치·symbol 불일치·not-draft·auto_trade·unsupported·real-trading·runner)/**한쪽 게이트 실패 시 양쪽 미평가**/
   성공 2 SignalLog·정확 귀속·**페어만 평가(2회)**·다른 active 세션 불변·카운터·status 불변/partial(한쪽 skip)/
   시세오류 skipped/**Trade·Order·AssignmentLog·Experiment·version·status 무변경**/API. 전체 1616 passed.
-- **프론트 미구현**: 페어 UI 와이어링은 **M2.11로 이연**(backend/API/tests/docs only).
-- **다음(별도 단계, 미착수)**: M2.11 프론트 페어 UI, M2.13 recurring runner 설계, M2.14 구현(명시 승인).
+- **프론트 미구현**: 페어 UI 와이어링은 **M2.11로 이연**(backend/API/tests/docs only). → M2.11에서 구현됨.
+
+**M2.11 — Frontend Pair Run-Once UI Wiring (`DONE`, frontend-only)**: M2.10 페어 엔드포인트를 비교 블록 UI로
+연결한다. **백엔드 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 미활성 · 주문/거래 없음.**
+
+- API/타입(`research.ts`): `runPaperSignalPairOnce(baselineSessionId, challengerSessionId, {confirmed, confirmed_by})`
+  → `POST .../compare/{challenger}/run-once-pair`; `PaperSignalPairRunOnceResult` 타입(baseline/challenger
+  sub-object + orders/trades=0 + runner_enabled + comparison_ready_hint + warnings).
+- 프론트(`StrategyProposalReportCard`): `ChallengerComparison` 안에 **권장 동작** `PairRunOnce`(active일 때) 추가 —
+  확인 체크박스("기준 세션과 challenger 세션을 각각 1회 신호 기록합니다. 주문/거래는 생성하지 않습니다") +
+  "페어 신호 1회 기록" → 기준/Challenger 각 결과(생성 SignalLog #id / skipped 사유) · orders 0 · trades 0 ·
+  runner false · warnings · "결과 확인을 위해 신호 성과 비교를 다시 실행하세요". prepared면 "페어 신호 기록은
+  active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
+  라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
+- 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
+- **다음(별도 단계, 미착수)**: M2.12 비교/UX 정리, M2.13 recurring runner 설계, M2.14 구현(명시 승인).
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존

@@ -9,12 +9,14 @@ import {
   getStrategyTransitionPlan,
   prepareChallengerSession,
   prepareSignalChallenger,
+  runPaperSignalPairOnce,
   runPaperSignalSessionOnce,
 } from "../../api/research";
 import type {
   ChallengerSessionActivation,
   ChallengerSessionPreparation,
   PaperSignalComparison,
+  PaperSignalPairRunOnceResult,
   PaperSignalRunOnceResult,
   ProposalStatus,
   SignalChallengerPreparation,
@@ -35,6 +37,91 @@ function cmpDelta(v: number | null): string {
 }
 
 // M2.8 — 선택한 단일 active 세션에 신호 1회 기록(SignalLog만). 반복/스케줄러/주문/거래 없음.
+// M2.11 — 공정 비교용: baseline + challenger 두 active 세션을 각각 1회 신호 기록(SignalLog만).
+// 권장 동작(단일 세션보다 공정). 반복/스케줄러/주문/거래 아님.
+function PairRunOnce({
+  baselineSessionId,
+  challengerSessionId,
+  challengerStatus,
+}: {
+  baselineSessionId: number;
+  challengerSessionId: number;
+  challengerStatus: string;
+}) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<PaperSignalPairRunOnceResult | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      runPaperSignalPairOnce(baselineSessionId, challengerSessionId, {
+        confirmed: true,
+        confirmed_by: "manual_user",
+      }),
+    onSuccess: (data) => setResult(data),
+  });
+  if (challengerStatus !== "active") {
+    return (
+      <div className="muted" style={{ fontSize: "0.8em", marginTop: 4 }}>
+        페어 신호 기록은 active 전환 후 가능합니다.
+      </div>
+    );
+  }
+  const sideText = (label: string, s: PaperSignalPairRunOnceResult["baseline"]) =>
+    s.signal_created
+      ? `${label} SignalLog #${s.signal_id} 생성`
+      : `${label} skipped: ${s.reason ?? "사유 없음"}`;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div className="muted" style={{ fontSize: "0.8em" }}>
+        공정한 비교를 위해 기준 세션과 challenger 세션을 같은 사람-트리거 흐름에서 각각 1회 평가합니다
+        (권장 · 공정 비교용 · 기준/챌린저 각각 1회).
+      </div>
+      <label className="confirm-check" style={{ fontSize: "0.82em" }}>
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        기준 세션과 challenger 세션을 각각 1회 신호 기록합니다. 주문/거래는 생성하지 않습니다.
+      </label>
+      <div className="form-row">
+        <button
+          className="primary"
+          disabled={!confirmed || mut.isPending}
+          onClick={() => mut.mutate()}
+        >
+          {mut.isPending ? "기록 중…" : "페어 신호 1회 기록"}
+        </button>
+        <span className="muted" style={{ fontSize: "0.78em", marginLeft: 6 }}>
+          SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님
+        </span>
+      </div>
+      {mut.isError && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          페어 기록 실패 — 두 세션 상태/관계(같은 baseline·종목·DRAFT)를 확인하세요.
+        </div>
+      )}
+      {result && (
+        <div style={{ fontSize: "0.8em", marginTop: 4 }}>
+          <div className="muted">{sideText("기준 세션", result.baseline)}</div>
+          <div className="muted">{sideText("Challenger", result.challenger)}</div>
+          <div className="muted">
+            orders {result.orders_created} · trades {result.trades_created} · runner{" "}
+            {String(result.runner_enabled)}
+          </div>
+          {result.warnings.map((w) => (
+            <div key={w} className="muted" style={{ color: "#b45309" }}>
+              ℹ {w}
+            </div>
+          ))}
+          <div className="muted">
+            {result.comparison_ready_hint || "결과 확인을 위해 신호 성과 비교를 다시 실행하세요."}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SessionRunOnce({
   sessionId,
   challengerStatus,
@@ -144,8 +231,19 @@ function ChallengerComparison({
           active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.
         </div>
       )}
-      {/* M2.8 — 선택 세션에 신호 1회 기록(SignalLog만) */}
-      <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
+      {/* M2.11 — 권장: baseline+challenger 페어 1회 기록(공정 비교용) */}
+      <PairRunOnce
+        baselineSessionId={baselineSessionId}
+        challengerSessionId={challengerSessionId}
+        challengerStatus={challengerStatus}
+      />
+      {/* M2.8 — 단일 세션 1회 기록(수동/디버그용 보조 동작) */}
+      <details style={{ marginTop: 4 }}>
+        <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
+          단일 세션만 1회 기록 (보조 · 디버그용)
+        </summary>
+        <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
+      </details>
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
           {[5, 15, 30, 60].map((h) => (

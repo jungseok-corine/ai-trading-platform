@@ -251,6 +251,24 @@ export interface PaperSignalRunOnceResult {
   warnings: string[];
 }
 
+// M2.10/M2.11 — baseline+challenger 페어 1회 실행 결과(SignalLog만 · 최대 2 · 주문/거래 없음 · 반복 아님).
+export interface PaperSignalPairRunOnceSide {
+  session_id: number;
+  signal_created: boolean;
+  signal_id: number | null;
+  reason: string | null;
+}
+
+export interface PaperSignalPairRunOnceResult {
+  baseline: PaperSignalPairRunOnceSide;
+  challenger: PaperSignalPairRunOnceSide;
+  orders_created: number; // 항상 0
+  trades_created: number; // 항상 0
+  runner_enabled: boolean; // 항상 false
+  comparison_ready_hint: string;
+  warnings: string[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;
