@@ -243,12 +243,28 @@ StrategyProposal에서 사람이 명시 확인하면 **DRAFT 전용** challenger
   approve 엔드포인트 거부/ bulk approve 격리/API.
 - 마이그레이션 없음. (D-17 DRAFT-only, D-18 링크·가드)
 
-**M2 전체 완료(M2.1 읽기 전용 비교 + M2.2 DRAFT-only challenger 준비).** 다음 단계(별도 승인): 준비된 DRAFT
-challenger로 readiness→세션 게이트를 거쳐 challenger PaperSignalSession 시작 후 M2.1로 비교 — 모두 기존
-사람-게이트 경로 재사용(신규 자동화 없음).
+**M2 전체 완료(M2.1 읽기 전용 비교 + M2.2 DRAFT-only challenger 준비).**
+
+**M2.3 — Challenger → Session → Comparison 워크플로 갭 분석 (`설계만 완료`, 구현 미승인)**: 준비된 DRAFT
+challenger를 사람-게이트 PaperSignalSession으로 옮겨 baseline과 비교하는 다음 단계의 **갭 분석**.
+설계 문서: **`docs/design/M2.3-challenger-session-workflow-gap.md`**.
+
+- **핵심 결론**: M2.3 *기능적 브리지*는 **명시적 마이그레이션 승인 없이는 구현 불가**다. 이유: (1) 현재
+  PaperSignalSession 생성은 **CandidateStrategyProposal + Experiment + readiness**에 묶여 있고(세션 시작
+  API/모델 모두), (2) M2.2 challenger는 **StrategyProposal.created_version_id**만 가진다(Experiment/variant/
+  candidate proposal/readiness 없음), (3) `PaperSignalSession.candidate_strategy_proposal_id`는 **NOT NULL**,
+  (4) 시작 경로는 버전을 **ExperimentVariant** 경유로 찾는다, (5) **per-proposal duplicate-active 가드** 때문에
+  baseline의 candidate proposal을 재사용하면 baseline·challenger 세션이 공존 불가, (6) **'준비됨/비실행' 세션
+  상태가 없음**(active/stopped만).
+- **권장**: Option B(UI 전용 헬퍼)는 안전하지만 기능 갭을 닫지 못함. **기능적 브리지는 마이그레이션 승인
+  전까지 이연.** 향후 방향(Option C/E): 사람-게이트 challenger 세션 *준비* + `prepared` 비실행 상태 +
+  nullable/별도 source 링크 + 세션 자동시작 없음 + 잡 활성 없음 + prepare 시 SignalLog 0 + TESTING/ACTIVE 없음
+  + 주문/거래 경로 없음.
+- **다음에 필요한 결정(사람)**: challenger 세션 워크플로용 **마이그레이션 승인 여부**. 구현 미착수.
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
-검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지.
+검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
+CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).**
 
 ---
 

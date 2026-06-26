@@ -483,3 +483,41 @@ M2.2(DRAFT-only Signal Challenger Preparation) 구현 시 두 가지 비자명�
 
 **구현**: `app/services/paper_signal_challenger_service.py`, `app/api/v1/strategy_proposals.py`(가드),
 `tests/test_paper_signal_challenger.py`.
+
+---
+
+## D-19. M2.3 challenger 세션 브리지는 마이그레이션 승인 전까지 구현하지 않는다 — challenger를 기존 candidate/experiment 경로에 끼워넣지 않는다
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (가드레일 / 갭 분석 단계, 구현 미승인)
+
+**경위**:  
+M2.3(준비된 DRAFT challenger → 사람-게이트 PaperSignalSession → baseline 비교) 갭 분석 결과, 기능적
+브리지를 무-마이그레이션으로 안전하게 만들 수 없음을 확인했다(코드 검증):
+
+1. 현재 세션 생성은 **CandidateStrategyProposal + Experiment + readiness**에 묶여 있다(시작 API/모델 모두).
+2. M2.2 challenger는 **StrategyProposal.created_version_id**만 가진다(Experiment/variant/candidate
+   proposal/readiness 없음).
+3. `PaperSignalSession.candidate_strategy_proposal_id`는 **NOT NULL**.
+4. 시작 경로는 버전을 **ExperimentVariant** 경유로 찾는다.
+5. **per-proposal duplicate-active 가드** 때문에 baseline의 candidate proposal을 재사용하면 baseline·
+   challenger 세션이 공존할 수 없다(비교 불가).
+6. **'준비됨/비실행' 세션 상태가 없다**(active/stopped만).
+
+**결정 내용**:
+
+1. **M2.3 기능적 브리지는 명시적 마이그레이션 승인 전까지 구현하지 않는다.** 위 구조적 불일치 때문에 세션
+   모델/시작 경로 변경 없이는 challenger 세션을 만들 수 없다 — 스키마 변경은 사람만 승인한다(작업 규칙 §6/§11).
+2. **M2.2 challenger를 기존 CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 않는다.** baseline의
+   candidate proposal/experiment를 재사용하는 우회는 duplicate-active 가드와 충돌하고 의미를 흐린다(회피).
+3. **무위험 대안은 Option B(UI 전용 헬퍼)뿐**이며, 이는 네비게이션만 돕고 기능 갭은 닫지 못함을 명시한다.
+
+**향후 방향(승인 시, Option C/E)**: 사람-게이트 challenger 세션 *준비* 엔드포인트 + `prepared` 비실행 상태 +
+nullable `candidate_strategy_proposal_id`/별도 `source_strategy_proposal_id`·`source_challenger_version_id`
+링크. 세션 자동시작·잡 활성·SignalLog(prepare 시)·TESTING/ACTIVE·주문/거래 경로는 모두 없음(여전히 사람-게이트).
+
+**이유**:  
+- 갭이 데이터 모델 수준이라 UI/서비스 트릭으로는 안전하게 우회 불가 → 정직한 스키마 결정을 사람에게 위임.
+- 우회(candidate proposal 재사용)는 baseline+challenger 동시 운용을 막아 비교 목적 자체를 깨뜨린다.
+
+**구현/상세**: `docs/design/M2.3-challenger-session-workflow-gap.md`. 관련: [[followup-bulk-approve-safety]].
