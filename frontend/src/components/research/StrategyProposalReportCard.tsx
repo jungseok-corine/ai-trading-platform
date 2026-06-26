@@ -1,9 +1,16 @@
 // C-2.30: AI 전략 제안 승인 전 리포트 카드.
 // 승인 전에 "무엇이 바뀌고, 무엇이 바뀌지 않는지"를 보여준다.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getProposal, getStrategyTransitionPlan } from "../../api/research";
-import type { ProposalStatus } from "../../types/research";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  getProposal,
+  getStrategyTransitionPlan,
+  prepareSignalChallenger,
+} from "../../api/research";
+import type {
+  ProposalStatus,
+  SignalChallengerPreparation,
+} from "../../types/research";
 import TransitionPlanView from "./TransitionPlanView";
 import { RawJsonDetails, WillHappenBlock, WillNotHappenBlock } from "./approvalBlocks";
 import { STRATEGY_WILL_HAPPEN, STRATEGY_WILL_NOT_HAPPEN } from "./safetyCopy";
@@ -42,6 +49,21 @@ export default function StrategyProposalReportCard({
   const planOk = !!plan && plan.plan_valid;
   // 승인 가능 조건: pending + 확인 체크 + 전환계획 로드 성공 + plan_valid + 진행중 아님.
   const canApprove = isPending && confirmed && planOk && !approving;
+
+  // M2.2 — paper_signal 트랙 제안은 공유 approve(TESTING) 경로를 쓰지 않는다.
+  // 대신 DRAFT-only challenger 준비만 노출한다(승인/머티리얼라이즈 아님).
+  const isSignalTrack = detail?.source === "paper_signal_analysis";
+  const [challengerConfirmed, setChallengerConfirmed] = useState(false);
+  const [challengerResult, setChallengerResult] =
+    useState<SignalChallengerPreparation | null>(null);
+  const challengerMut = useMutation({
+    mutationFn: () =>
+      prepareSignalChallenger(proposalId, {
+        confirmed: true,
+        confirmed_by: "manual_user",
+      }),
+    onSuccess: (data) => setChallengerResult(data),
+  });
 
   return (
     <div className="card approval-report-card">
@@ -88,22 +110,80 @@ export default function StrategyProposalReportCard({
         </div>
       )}
 
-      {/* 전환 계획 */}
-      {planQ.isLoading && <p className="muted">전환 계획 불러오는 중…</p>}
-      {planQ.isError && (
-        <p className="value error">
-          ⚠️ 전환 계획을 불러오지 못했습니다. 안전을 위해 승인할 수 없습니다.
-        </p>
+      {/* 전환 계획 — signal 트랙은 공유 approve(TESTING) 경로를 쓰지 않으므로 숨긴다. */}
+      {!isSignalTrack && (
+        <>
+          {planQ.isLoading && <p className="muted">전환 계획 불러오는 중…</p>}
+          {planQ.isError && (
+            <p className="value error">
+              ⚠️ 전환 계획을 불러오지 못했습니다. 안전을 위해 승인할 수 없습니다.
+            </p>
+          )}
+          {plan && <TransitionPlanView plan={plan} />}
+
+          <WillHappenBlock items={STRATEGY_WILL_HAPPEN} />
+          <WillNotHappenBlock items={STRATEGY_WILL_NOT_HAPPEN} />
+
+          {plan && <RawJsonDetails label="transition_plan" data={plan} />}
+        </>
       )}
-      {plan && <TransitionPlanView plan={plan} />}
 
-      <WillHappenBlock items={STRATEGY_WILL_HAPPEN} />
-      <WillNotHappenBlock items={STRATEGY_WILL_NOT_HAPPEN} />
+      {/* M2.2 — paper_signal 트랙: DRAFT-only challenger 준비 (승인 아님). */}
+      {isSignalTrack && isPending && (
+        <div className="approval-actions">
+          <p className="muted">
+            Paper signal 트랙 제안 — 공유 승인(TESTING) 경로 미사용. DRAFT challenger만 준비합니다
+            (DRAFT-only · runner 미대상 · 주문 없음 · 세션 시작 없음 · 자동매매 아님).
+          </p>
+          {!challengerResult ? (
+            <>
+              <label className="confirm-check">
+                <input
+                  type="checkbox"
+                  checked={challengerConfirmed}
+                  onChange={(e) => setChallengerConfirmed(e.target.checked)}
+                />
+                DRAFT challenger만 생성하며 자동매매/주문/세션 시작은 하지 않습니다
+              </label>
+              <div className="form-row">
+                <button
+                  className="primary"
+                  disabled={!challengerConfirmed || challengerMut.isPending}
+                  onClick={() => challengerMut.mutate()}
+                >
+                  {challengerMut.isPending ? "준비 중…" : "Signal Challenger 준비"}
+                </button>
+              </div>
+              {challengerMut.isError && (
+                <p className="value error">
+                  ⚠️ challenger 준비 실패 — 제안 상태/연결을 확인하세요.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="approval-block">
+              <strong>DRAFT challenger 준비됨</strong>
+              <ul className="approval-list">
+                <li>challenger 버전 #{challengerResult.challenger_version_id}</li>
+                <li>status: {challengerResult.challenger_status} (DRAFT-only)</li>
+                <li>auto_trade_enabled: {String(challengerResult.auto_trade_enabled)} · runner 미대상</li>
+                <li>주문 없음 · 세션 시작 없음 · 자동매매 아님</li>
+                <li className="muted">세션은 별도 승인 후 시작 · 제안 상태는 {challengerResult.proposal_status} 유지</li>
+              </ul>
+              {challengerResult.warnings.length > 0 && (
+                <ul className="approval-list">
+                  {challengerResult.warnings.map((w) => (
+                    <li key={w} className="muted">⚠ {w}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-      {plan && <RawJsonDetails label="transition_plan" data={plan} />}
-
-      {/* 승인 UX: one-click 금지. 확인 체크 필수. */}
-      {isPending ? (
+      {/* 승인 UX: one-click 금지. 확인 체크 필수. (signal 트랙은 위에서 처리) */}
+      {isPending && !isSignalTrack ? (
         <div className="approval-actions">
           <label className="confirm-check">
             <input
@@ -125,9 +205,9 @@ export default function StrategyProposalReportCard({
             <p className="muted">전환 계획이 유효하지 않거나 로드되지 않아 승인이 비활성화됩니다.</p>
           )}
         </div>
-      ) : (
+      ) : !isPending ? (
         <p className="muted">검토 완료 ({detail?.reviewed_by ?? "-"})</p>
-      )}
+      ) : null}
     </div>
   );
 }

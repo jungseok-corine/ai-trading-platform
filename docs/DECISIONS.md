@@ -449,3 +449,37 @@ M2(Paper Signal Version Comparison) 설계 중, 기존 `ProposalService.approve`
 **구현/상세**: `docs/design/M2-paper-signal-challenger-comparison.md`.
 
 **이연**: M2 구현 자체(읽기 전용 비교·DRAFT challenger 준비)는 각각 별도 사람 승인 후 진행.
+
+---
+
+## D-18. Signal challenger 추적은 PENDING 제안의 created_version_id 링크로 하고, 공유 approve는 엔드포인트 가드로 막는다
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (구현됨 — M2.2)
+
+**경위**:  
+M2.2(DRAFT-only Signal Challenger Preparation) 구현 시 두 가지 비자명한 선택이 필요했다:
+(1) 준비된 DRAFT challenger 버전을 어떤 필드로 제안에 연결할지, (2) 공유 `ProposalService.approve`
+(TESTING=runner-eligible 생성)가 signal 트랙 제안에 쓰이는 것을 어떻게 막을지.
+
+**결정 내용**:
+
+1. **추적 링크는 `StrategyProposal.created_version_id`를 재사용하되, 제안 상태는 PENDING으로 유지한다.**
+   기존엔 approve만 이 필드를 채웠고 동시에 status를 APPROVED로 바꿨다. M2.2는 **승인이 아니므로**
+   created_version_id만 채우고 **status는 PENDING 그대로** 둔다(review 필드 미설정). 새 컬럼/마이그레이션
+   없이 idempotency(중복 준비 409)와 추적을 동시에 얻는다. 즉 "created_version_id != null"은 더 이상
+   "승인됨"을 의미하지 않으며, signal 트랙에선 "DRAFT challenger 준비됨"을 뜻한다.
+
+2. **공유 approve 차단은 엔드포인트 레벨 가드로 한다(서비스 내부 미변경).** `POST /strategy-proposals/{id}/approve`
+   와 bulk-review의 approve 액션은 호출 전 `source=="paper_signal_analysis"`를 확인해 422(단건)/`failed` 격리
+   (bulk)로 막는다. `ProposalService.approve` 내부는 건드리지 않아 strategy/intelligence 트랙 동작에 영향이 없다.
+
+**이유**:  
+- 전용 challenger 테이블(Option D)은 마이그레이션·UI 비용이 큼 → V1은 기존 필드 재사용이 최소·안전.
+- 가드를 서비스 내부가 아닌 엔드포인트에 두면 공유 임계 경로 수정 없이 signal 트랙만 정확히 차단한다(D-17 §2 준수).
+
+**주의**: created_version_id 의미가 트랙에 따라 다르므로, 향후 이 필드로 "승인 여부"를 추론하지 말 것
+(status로 판단). bulk approve 격리는 [[followup-bulk-approve-safety]] 후속 과제와도 정합적이다.
+
+**구현**: `app/services/paper_signal_challenger_service.py`, `app/api/v1/strategy_proposals.py`(가드),
+`tests/test_paper_signal_challenger.py`.

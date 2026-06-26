@@ -356,6 +356,20 @@ export interface ProposalDetail extends StrategyProposal {
   diff: ParamDiff[];
 }
 
+// M2.2 — DRAFT-only challenger 준비 결과(승인 아님 · runner 미대상 · 주문/세션 없음).
+export interface SignalChallengerPreparation {
+  proposal_id: number;
+  source_analysis_run_id: number | null;
+  source_session_id: number | null;
+  base_version_id: number;
+  challenger_version_id: number;
+  challenger_status: string;
+  auto_trade_enabled: boolean;
+  proposal_status: string;
+  no_change: boolean;
+  warnings: string[];
+}
+
 // --- Scanner proposal (C-2.39) ---------------------------------------------
 export interface ScannerProposal {
   id: number;

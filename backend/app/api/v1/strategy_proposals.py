@@ -13,6 +13,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.enums import ProposalStatus
 from app.services.proposal_generator import ProposalGeneratorService
+from app.services.paper_signal_challenger_service import (
+    ChallengerAlreadyPreparedError,
+    ChallengerProposalNotFoundError,
+    ConfirmationRequiredError as ChallengerConfirmationRequiredError,
+    InvalidChallengerParamsError,
+    MissingAnalysisRunError,
+    MissingBaseVersionError,
+    NotSignalProposalError,
+    PaperSignalChallengerService,
+    ProposalNotPendingError as ChallengerProposalNotPendingError,
+    SIGNAL_TRACK_SOURCE,
+    is_signal_track_proposal,
+)
 from app.services.proposal_service import (
     InvalidProposalError,
     ProposalNotFoundError,
@@ -37,6 +50,12 @@ def get_service(session: AsyncSession = Depends(get_db)) -> ProposalService:
 
 def get_generator(session: AsyncSession = Depends(get_db)) -> ProposalGeneratorService:
     return ProposalGeneratorService(session)
+
+
+def get_challenger_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalChallengerService:
+    return PaperSignalChallengerService(session)
 
 
 # --- schemas ---------------------------------------------------------------
@@ -108,6 +127,24 @@ class ApproveResponse(BaseModel):
     created_version_id: int
 
 
+class PrepareChallengerRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+class PrepareChallengerResponse(BaseModel):
+    proposal_id: int
+    source_analysis_run_id: int | None
+    source_session_id: int | None
+    base_version_id: int
+    challenger_version_id: int
+    challenger_status: str
+    auto_trade_enabled: bool
+    proposal_status: str
+    no_change: bool
+    warnings: list[str]
+
+
 class TransitionPlanRead(BaseModel):
     proposal_id: int
     proposal_type: str
@@ -174,14 +211,36 @@ async def bulk_review(
     payload: BulkReviewRequest,
     service: ProposalService = Depends(get_service),
 ) -> dict:
-    """여러 전략 제안을 한 번에 승인/거절한다(개별 실패는 결과에 격리)."""
+    """여러 전략 제안을 한 번에 승인/거절한다(개별 실패는 결과에 격리).
+
+    안전 가드(D-17): bulk **approve**도 paper_signal 트랙 제안을 TESTING으로 만들 수 있다.
+    그래서 approve 액션일 때 signal 트랙 제안 id는 service에 넘기지 않고 'blocked'로 격리한다
+    (prepare-signal-challenger 사용 안내). reject는 영향 없음.
+    """
+    blocked: list[dict] = []
+    ids = payload.proposal_ids
+    if payload.action == "approve":
+        kept: list[int] = []
+        for pid in ids:
+            p = await service.get_proposal(pid)
+            if p is not None and is_signal_track_proposal(p.source):
+                blocked.append({
+                    "id": pid,
+                    "reason": f"{SIGNAL_TRACK_SOURCE}: use prepare-signal-challenger (DRAFT-only)",
+                })
+            else:
+                kept.append(pid)
+        ids = kept
     try:
-        return await service.bulk_review(
-            payload.proposal_ids, payload.action,
+        result = await service.bulk_review(
+            ids, payload.action,
             reviewed_by=payload.reviewed_by, review_note=payload.review_note,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    if blocked:
+        result["failed"] = list(result.get("failed", [])) + blocked
+    return result
 
 
 @router.get("", response_model=list[ProposalRead])
@@ -217,7 +276,24 @@ async def approve_proposal(
     payload: ReviewRequest,
     service: ProposalService = Depends(get_service),
 ) -> ApproveResponse:
-    """제안을 승인하고 새 DRAFT 버전을 생성한다(auto_trade_enabled=False 강제)."""
+    """제안을 승인하고 새 TESTING 버전을 생성한다(auto_trade_enabled=False 강제).
+
+    안전 가드(D-17): paper_signal 트랙 제안은 이 공유 approve 경로로 승인할 수 없다.
+    approve는 TESTING(=runner-eligible) 버전을 만들기 때문이다. 대신
+    `prepare-signal-challenger`(DRAFT 전용)를 사용해야 한다.
+    """
+    guard = await service.get_proposal(proposal_id)
+    if guard is None:
+        raise HTTPException(status_code=404, detail="proposal not found")
+    if is_signal_track_proposal(guard.source):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{SIGNAL_TRACK_SOURCE} proposals cannot be approved via this path "
+                "(it creates a runner-eligible TESTING version). "
+                "Use POST /strategy-proposals/{id}/prepare-signal-challenger (DRAFT-only)."
+            ),
+        )
     try:
         proposal, version = await service.approve(
             proposal_id, reviewed_by=payload.reviewed_by, review_note=payload.review_note
@@ -246,6 +322,44 @@ async def reject_proposal(
     except ProposalNotPendingError as e:
         raise HTTPException(status_code=409, detail="proposal already reviewed") from e
     return ProposalRead.model_validate(proposal)
+
+
+@router.post(
+    "/{proposal_id}/prepare-signal-challenger",
+    response_model=PrepareChallengerResponse,
+    status_code=201,
+)
+async def prepare_signal_challenger(
+    proposal_id: int,
+    payload: PrepareChallengerRequest,
+    service: PaperSignalChallengerService = Depends(get_challenger_service),
+) -> PrepareChallengerResponse:
+    """paper_signal 트랙 제안에서 **DRAFT 전용** challenger 버전을 준비한다.
+
+    승인 아님 · TESTING/ACTIVE 아님 · runner 미대상 · 세션 시작 없음 · 주문/자동매매 없음.
+    제안 상태는 PENDING 유지, 추적은 created_version_id 링크로만 한다.
+    """
+    try:
+        prep = await service.prepare_from_proposal(
+            proposal_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except ChallengerProposalNotFoundError as e:
+        raise HTTPException(status_code=404, detail="proposal not found") from e
+    except ChallengerConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except NotSignalProposalError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except MissingAnalysisRunError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except MissingBaseVersionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except InvalidChallengerParamsError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerProposalNotPendingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ChallengerAlreadyPreparedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return PrepareChallengerResponse(**prep.to_dict())
 
 
 @router.get("/{proposal_id}/transition-plan", response_model=TransitionPlanRead)

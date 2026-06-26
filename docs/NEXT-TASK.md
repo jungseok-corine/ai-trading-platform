@@ -215,24 +215,40 @@ outcome 지표로 나란히 비교한다. **순수 읽기 전용 — 생성/상�
   warning(symbol·low count)/**세션·SignalLog·StrategyVersion·Experiment·Trade·AssignmentLog 미생성·상태 불변**/API.
 - 마이그레이션 없음. `approve` 미호출. challenger 버전/세션/실험 미생성. (D-17 §3)
 
-**M2.2(DRAFT challenger 준비)는 여전히 별도 사람 승인 후 진행 — 미착수.**
+**M2.2 — DRAFT-only Signal Challenger Preparation (`DONE`)**: paper_signal 트랙 PENDING
+StrategyProposal에서 사람이 명시 확인하면 **DRAFT 전용** challenger StrategyVersion을 준비한다.
+**제안 승인 아님 · 공유 approve(TESTING) 경로 미사용 · TESTING/ACTIVE 미생성 · 세션 시작/주문/잡 없음.**
 
----
+- 서비스 `paper_signal_challenger_service.py`(`PaperSignalChallengerService.prepare_from_proposal`):
+  confirmed+confirmed_by 게이트, 제안 존재(404), `source=="paper_signal_analysis"`(422), status PENDING(422),
+  `ai_analysis_run_id` + run `target_type==paper_signal_session`(422), `base_version_id` + 버전 존재·동일
+  strategy(422), 병합 파라미터 strategy_type 등록 검증(422), `created_version_id` 이미 있으면 409.
+  파라미터 = **base 위에 suggested 덮어쓰기**(필수 base 필드 보존) + `auto_trade_enabled` **항상 False 강제**.
+  `StrategyService.create_version(status=DRAFT)`로 **DRAFT** 버전 1개만 생성(`approve` 미호출). 추적은
+  `proposal.created_version_id` 링크로만 — **상태는 PENDING 유지**(review 필드 미설정). auto_trade=true 요청은
+  override + warning, base와 동일하면 no_change=true + "reviewable clone" warning.
+- **approve-path 가드(D-18)**: 공유 `POST /strategy-proposals/{id}/approve`는 signal 트랙 제안을 **422**로 거부
+  (approve가 TESTING=runner-eligible을 만들기 때문) → prepare-signal-challenger 사용 안내. bulk-review의
+  **approve** 액션도 signal 트랙 id를 service에 넘기지 않고 `failed`로 격리. `ProposalService.approve` 내부는
+  미변경(엔드포인트 레벨 가드).
+- API: `POST /strategy-proposals/{id}/prepare-signal-challenger`(201; 404/422/409). payload: proposal_id·
+  source_analysis_run_id·source_session_id·base_version_id·challenger_version_id·challenger_status(=draft)·
+  auto_trade_enabled(=false)·proposal_status(=pending)·no_change·warnings.
+- 프론트(`StrategyProposalReportCard`): `source==paper_signal_analysis` 제안은 공유 승인(TESTING) 블록을 숨기고
+  확인 체크박스("DRAFT challenger만 생성하며 자동매매/주문/세션 시작은 하지 않습니다") + "Signal Challenger 준비"
+  버튼 → 성공 시 challenger 버전 #id · DRAFT-only · runner 미대상 · 주문 없음 · 세션 별도 승인 후 시작 표시.
+- 테스트 `tests/test_paper_signal_challenger.py` (18): 게이트/404/422(source·run·target·base·params·not-pending)/
+  409 중복/DRAFT 1개 생성·auto_trade=false·PENDING 유지·created_version_id 링크/auto_trade override/no_change/
+  **list_active 비대상·TESTING·ACTIVE·Experiment·ScannerRuleVersion·SignalLog·Trade·AssignmentLog 미생성·세션 불변**/
+  approve 엔드포인트 거부/ bulk approve 격리/API.
+- 마이그레이션 없음. (D-17 DRAFT-only, D-18 링크·가드)
 
-## 다음 후보: M2.2 — DRAFT-only Signal Challenger preparation (설계 완료, 구현 미승인)
+**M2 전체 완료(M2.1 읽기 전용 비교 + M2.2 DRAFT-only challenger 준비).** 다음 단계(별도 승인): 준비된 DRAFT
+challenger로 readiness→세션 게이트를 거쳐 challenger PaperSignalSession 시작 후 M2.1로 비교 — 모두 기존
+사람-게이트 경로 재사용(신규 자동화 없음).
 
-설계 문서: **`docs/design/M2-paper-signal-challenger-comparison.md`** (M2.1은 위에서 완료).
-
-핵심 위험: 기존 `ProposalService.approve`는 **TESTING** 버전을 만들고, runner의 `list_active()`가
-ACTIVE/**TESTING**을 잡아 신호를 생성한다(런너-대상). 신호 전용 트랙은 **DRAFT 유지(런너 비대상)**여야 한다.
-
-권장 분할(각 단계 별도 사람 승인 필요):
-- **M2.1 (가장 안전, 먼저) — `DONE`**: 두 PaperSignalSession의 신호 outcome **읽기 전용 비교**. 위 참고.
-- **M2.2 (그 다음, 별도 승인) — 미착수**: PENDING StrategyProposal → **DRAFT 전용** challenger 버전 생성
-  (`create_version(status=DRAFT)`, `approve` 미호출·TESTING 아님), 기존 readiness/세션 게이트로 비교.
-
-⛔ `ProposalService.approve` 수정 금지(공유 매매-인접 경로). TESTING challenger 생성 금지. 사람 검토
-없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **무인 세션에서는 M2 구현하지 않음 — 설계까지만.**
+⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
+검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지.
 
 ---
 

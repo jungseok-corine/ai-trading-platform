@@ -34,6 +34,7 @@ import type {
   ScannerRule,
   ScannerRuleStatus,
   ScannerRuleVersion,
+  SignalChallengerPreparation,
   StrategyProposal,
   TransitionPlan,
   UsMarketSnapshot,
@@ -395,6 +396,19 @@ export async function approveProposal(
   payload: { reviewed_by?: string | null; review_note?: string | null },
 ): Promise<{ proposal: StrategyProposal; created_version_id: number }> {
   const { data } = await apiClient.post(`/strategy-proposals/${id}/approve`, payload);
+  return data;
+}
+
+// M2.2 — paper_signal 트랙 제안에서 DRAFT-only challenger 버전을 준비한다.
+// 승인 아님 · TESTING/ACTIVE 아님 · runner 미대상 · 세션 시작/주문/자동매매 없음.
+export async function prepareSignalChallenger(
+  id: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<SignalChallengerPreparation> {
+  const { data } = await apiClient.post<SignalChallengerPreparation>(
+    `/strategy-proposals/${id}/prepare-signal-challenger`,
+    payload,
+  );
   return data;
 }
 
