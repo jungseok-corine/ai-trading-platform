@@ -197,19 +197,38 @@ market_data로 계산해 세션 단위로 집계·표시한다.
 실주문/자동매매, 실험 compare 자동화, 실전 승격은 다음 작업(별도 승인 게이트). M1은 **PENDING 초안
 생성까지만** — 전략/세션/제안/실험 무변경, 주문/잡 효과 없음.
 
+**M2.1 — Read-only Paper Signal Session Comparison (`DONE`)**: 두 기존 PaperSignalSession을 신호
+outcome 지표로 나란히 비교한다. **순수 읽기 전용 — 생성/상태변경/주문/잡 효과 전혀 없음.**
+
+- 서비스 `paper_signal_comparison_service.py`(`PaperSignalComparisonService.compare`): horizon(5/15/30/60)
+  검증, 같은 세션 id 거부(`SameSessionError`→422), 각 세션에 기존 `PaperSignalOutcomeService.session_outcomes`
+  재사용(없으면 `SessionNotFoundError`→404). baseline/challenger 요약 + deltas(challenger−baseline,
+  by_action 포함) + warnings 구성. strategy_version_id는 세션 레코드에서 읽음. **DB 쓰기 없음.**
+- warnings(실패 아님): 종목 상이 시 "different symbols…", 분석 신호 수 < 5면 "Low analyzed signal count…".
+  매수/매도 추천·통계적 유의성 주장 없음.
+- API: `GET /paper-signal-sessions/{baseline_id}/compare/{challenger_id}?horizon_minutes=30`
+  (candidates.py 라우터 재사용). 200 payload / 404 세션 없음 / 422 같은 id·invalid horizon.
+- 프론트(`CandidateStrategyProposalPanel`): 제안에 세션이 2개 이상이면 기준 세션 vs 사용자가 입력한
+  비교 세션 id + horizon으로 "신호 성과 비교 보기" → 지표/델타 표 + 경고 표시. 라벨: "읽기 전용 · 주문 없음 ·
+  자동매매 아님 · 전략/세션 상태 변경 없음". 생성/시작/승인 컨트롤 없음.
+- 테스트 `tests/test_paper_signal_comparison.py` (11): 404(baseline/challenger)/422(same·horizon)/요약·델타·
+  warning(symbol·low count)/**세션·SignalLog·StrategyVersion·Experiment·Trade·AssignmentLog 미생성·상태 불변**/API.
+- 마이그레이션 없음. `approve` 미호출. challenger 버전/세션/실험 미생성. (D-17 §3)
+
+**M2.2(DRAFT challenger 준비)는 여전히 별도 사람 승인 후 진행 — 미착수.**
+
 ---
 
-## 다음 후보: M2 — Paper Signal Version Comparison / Challenger (설계만 완료, 구현 미승인)
+## 다음 후보: M2.2 — DRAFT-only Signal Challenger preparation (설계 완료, 구현 미승인)
 
-설계 문서: **`docs/design/M2-paper-signal-challenger-comparison.md`** (코드 없음).
+설계 문서: **`docs/design/M2-paper-signal-challenger-comparison.md`** (M2.1은 위에서 완료).
 
 핵심 위험: 기존 `ProposalService.approve`는 **TESTING** 버전을 만들고, runner의 `list_active()`가
 ACTIVE/**TESTING**을 잡아 신호를 생성한다(런너-대상). 신호 전용 트랙은 **DRAFT 유지(런너 비대상)**여야 한다.
 
 권장 분할(각 단계 별도 사람 승인 필요):
-- **M2.1 (가장 안전, 먼저)**: 두 PaperSignalSession의 신호 outcome **읽기 전용 비교**(baseline vs
-  challenger). 생성 없음·마이그레이션 없음·런너 노출 없음. `GET /paper-signal-sessions/{a}/compare/{b}`.
-- **M2.2 (그 다음, 별도 승인)**: PENDING StrategyProposal → **DRAFT 전용** challenger 버전 생성
+- **M2.1 (가장 안전, 먼저) — `DONE`**: 두 PaperSignalSession의 신호 outcome **읽기 전용 비교**. 위 참고.
+- **M2.2 (그 다음, 별도 승인) — 미착수**: PENDING StrategyProposal → **DRAFT 전용** challenger 버전 생성
   (`create_version(status=DRAFT)`, `approve` 미호출·TESTING 아님), 기존 readiness/세션 게이트로 비교.
 
 ⛔ `ProposalService.approve` 수정 금지(공유 매매-인접 경로). TESTING challenger 생성 금지. 사람 검토

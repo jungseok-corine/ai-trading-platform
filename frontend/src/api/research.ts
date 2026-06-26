@@ -17,6 +17,7 @@ import type {
   NewsEvent,
   PaperReadinessApproval,
   PaperSignalAnalysisRun,
+  PaperSignalComparison,
   PaperSignalOutcomeBoard,
   PaperSignalSession,
   PipelineRun,
@@ -267,6 +268,20 @@ export async function getPaperSignalSessionOutcomes(
 ): Promise<PaperSignalOutcomeBoard> {
   const { data } = await apiClient.get<PaperSignalOutcomeBoard>(
     `/paper-signal-sessions/${sessionId}/outcomes`,
+    { params: { horizon_minutes: horizonMinutes } },
+  );
+  return data;
+}
+
+// M2.1 — 두 PaperSignalSession의 신호 outcome을 읽기 전용으로 비교한다.
+// 주문/생성/상태변경 없음 — challenger 버전/세션/실험을 만들지 않는다.
+export async function comparePaperSignalSessions(
+  baselineId: number,
+  challengerId: number,
+  horizonMinutes = 30,
+): Promise<PaperSignalComparison> {
+  const { data } = await apiClient.get<PaperSignalComparison>(
+    `/paper-signal-sessions/${baselineId}/compare/${challengerId}`,
     { params: { horizon_minutes: horizonMinutes } },
   );
   return data;

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approvePaperReadiness,
+  comparePaperSignalSessions,
   createCandidateStrategyProposal,
   createImprovementProposal,
   createPaperSignalAnalysisRun,
@@ -27,6 +28,7 @@ import type {
   CandidateEvent,
   CandidateStrategyProposal,
   PaperSignalAnalysisRun,
+  PaperSignalComparison,
 } from "../../types/research";
 
 // 스캐너 매칭 조건(matched_conditions) → 검토해볼 만한 전략 템플릿 가이드.
@@ -309,6 +311,151 @@ function SessionOutcomeSummary({ sessionId }: { sessionId: number }) {
   );
 }
 
+// M2.1 — 두 세션의 신호 outcome을 나란히 비교한다(읽기 전용).
+// baseline은 고정, challenger는 사용자가 세션 id로 직접 선택. 생성/주문/상태변경 없음.
+function fmtNum(v: number | null): string {
+  return v == null ? "-" : String(v);
+}
+
+function fmtDelta(v: number | null): string {
+  if (v == null) return "-";
+  return v > 0 ? `+${v}` : String(v);
+}
+
+function SessionComparePanel({ baselineSessionId }: { baselineSessionId: number }) {
+  const [challengerId, setChallengerId] = useState("");
+  const [horizon, setHorizon] = useState(30);
+  const [result, setResult] = useState<PaperSignalComparison | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      comparePaperSignalSessions(baselineSessionId, Number(challengerId), horizon),
+    onSuccess: (data) => setResult(data),
+  });
+  const cid = Number(challengerId);
+  const valid =
+    challengerId.trim() !== "" &&
+    Number.isInteger(cid) &&
+    cid > 0 &&
+    cid !== baselineSessionId;
+
+  const rows: { label: string; b: number | null; c: number | null; d: number | null }[] =
+    result
+      ? [
+          {
+            label: "신호 수",
+            b: result.baseline.signal_count,
+            c: result.challenger.signal_count,
+            d: result.deltas.signal_count_delta,
+          },
+          {
+            label: "분석",
+            b: result.baseline.analyzed_count,
+            c: result.challenger.analyzed_count,
+            d: result.deltas.analyzed_count_delta,
+          },
+          {
+            label: "대기",
+            b: result.baseline.pending_count,
+            c: result.challenger.pending_count,
+            d: result.deltas.pending_count_delta,
+          },
+          {
+            label: "승률 %",
+            b: result.baseline.win_rate,
+            c: result.challenger.win_rate,
+            d: result.deltas.win_rate_delta,
+          },
+          {
+            label: "평균 %",
+            b: result.baseline.avg_return_pct,
+            c: result.challenger.avg_return_pct,
+            d: result.deltas.avg_return_pct_delta,
+          },
+          {
+            label: "최고 %",
+            b: result.baseline.best_return_pct,
+            c: result.challenger.best_return_pct,
+            d: result.deltas.best_return_pct_delta,
+          },
+          {
+            label: "최저 %",
+            b: result.baseline.worst_return_pct,
+            c: result.challenger.worst_return_pct,
+            d: result.deltas.worst_return_pct_delta,
+          },
+        ]
+      : [];
+
+  return (
+    <div className="signal-compare" style={{ marginTop: 6 }}>
+      <div className="muted" style={{ fontSize: "0.8em" }}>
+        신호 성과 비교 (읽기 전용 · 주문 없음 · 자동매매 아님 · 전략/세션 상태 변경 없음)
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <span className="muted" style={{ fontSize: "0.8em" }}>
+          기준 세션 #{baselineSessionId} vs
+        </span>
+        <input
+          type="number"
+          min={1}
+          placeholder="비교 세션 id"
+          value={challengerId}
+          onChange={(e) => setChallengerId(e.target.value)}
+          style={{ width: 110 }}
+        />
+        <select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
+          {[5, 15, 30, 60].map((h) => (
+            <option key={h} value={h}>
+              {h}분
+            </option>
+          ))}
+        </select>
+        <button disabled={!valid || mut.isPending} onClick={() => mut.mutate()}>
+          {mut.isPending ? "비교 중…" : "신호 성과 비교 보기"}
+        </button>
+      </div>
+      {mut.isError && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          비교 실패 — 세션 id와 horizon을 확인하세요.
+        </div>
+      )}
+      {result && (
+        <div style={{ marginTop: 6 }}>
+          {result.warnings.map((w) => (
+            <div key={w} className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+              ⚠ {w}
+            </div>
+          ))}
+          <table className="signal-compare-table" style={{ fontSize: "0.8em", marginTop: 4 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>지표</th>
+                <th>기준 #{result.baseline_session_id}</th>
+                <th>비교 #{result.challenger_session_id}</th>
+                <th>Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.label}>
+                  <td style={{ textAlign: "left" }}>{r.label}</td>
+                  <td style={{ textAlign: "right" }}>{fmtNum(r.b)}</td>
+                  <td style={{ textAlign: "right" }}>{fmtNum(r.c)}</td>
+                  <td style={{ textAlign: "right" }}>{fmtDelta(r.d)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
+            {result.horizon_minutes}분 forward · 종목{" "}
+            {result.symbol_match ? "동일" : "상이"} · Δ = 비교 − 기준. 추천/유의성 판단 아님.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 준비·준비승인된 제안에 대한 Paper 신호 기록 세션 제어(signal-only).
 // 시작/중지만 — 주문/자동매매/상태전환 없음. SignalLog만 쌓인다. + 세션 outcome 요약(읽기 전용).
 function PaperSignalSessionControl({
@@ -354,6 +501,7 @@ function PaperSignalSessionControl({
           {active.last_run_at ? ` · 최근 ${formatDateTime(active.last_run_at)}` : ""}
         </div>
         <SessionOutcomeSummary sessionId={active.id} />
+        {mine.length >= 2 && <SessionComparePanel baselineSessionId={active.id} />}
         <button
           disabled={stopMut.isPending}
           onClick={() => stopMut.mutate(active.id)}
@@ -372,6 +520,7 @@ function PaperSignalSessionControl({
           <span className="proposal-status status-draft">신호 기록 중지됨</span>
           <span className="muted"> · 세션 #{latest.id}</span>
           <SessionOutcomeSummary sessionId={latest.id} />
+          {mine.length >= 2 && <SessionComparePanel baselineSessionId={latest.id} />}
         </div>
       )}
       <label style={{ display: "block", fontSize: "0.82em" }}>

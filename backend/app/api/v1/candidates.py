@@ -47,6 +47,10 @@ from app.services.paper_signal_analysis_run_service import (
     InvalidModeError,
     PaperSignalAnalysisRunService,
 )
+from app.services.paper_signal_comparison_service import (
+    PaperSignalComparisonService,
+    SameSessionError,
+)
 from app.services.paper_signal_outcome_service import (
     InvalidHorizonError,
     PaperSignalOutcomeService,
@@ -117,6 +121,12 @@ def get_paper_signal_outcome_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalOutcomeService:
     return PaperSignalOutcomeService(session)
+
+
+def get_paper_signal_comparison_service(
+    session: AsyncSession = Depends(get_db),
+) -> PaperSignalComparisonService:
+    return PaperSignalComparisonService(session)
 
 
 def get_paper_signal_analysis_input_service(
@@ -591,6 +601,31 @@ async def get_paper_signal_session_outcomes(
     except InvalidHorizonError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return board.to_dict()
+
+
+@router.get("/paper-signal-sessions/{baseline_id}/compare/{challenger_id}")
+async def compare_paper_signal_sessions(
+    baseline_id: int,
+    challenger_id: int,
+    horizon_minutes: int = Query(default=30),
+    service: PaperSignalComparisonService = Depends(get_paper_signal_comparison_service),
+) -> dict:
+    """두 PaperSignalSession의 신호 outcome을 나란히 비교한다.
+
+    읽기 전용 — 주문 없음 · 자동매매 아님 · 전략/세션 상태 변경 없음.
+    challenger 버전/세션/실험을 만들지 않고, 제안 승인/머티리얼라이즈도 하지 않는다.
+    """
+    try:
+        comparison = await service.compare(
+            baseline_id, challenger_id, horizon_minutes=horizon_minutes
+        )
+    except SameSessionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except InvalidHorizonError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except OutcomeSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    return comparison.to_dict()
 
 
 @router.get("/paper-signal-sessions/{session_id}/analysis-input")

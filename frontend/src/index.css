@@ -572,6 +572,25 @@ tr.selected {
   background: #e0e7ff;
 }
 
+/* M2.1 신호 성과 비교 표(읽기 전용 — 주문/생성/상태변경 없음) */
+.signal-compare-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 420px;
+}
+
+.signal-compare-table th,
+.signal-compare-table td {
+  border: 1px solid #e5e7eb;
+  padding: 2px 6px;
+  text-align: right;
+}
+
+.signal-compare-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
 /* AI 분석 run 상태 배지 + 리포트 패널 (읽기 전용 리뷰) */
 .run-status {
   font-size: 11px;

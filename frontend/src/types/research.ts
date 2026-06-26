@@ -163,6 +163,55 @@ export interface PaperSignalOutcomeBoard {
   recent_signals: PaperSignalOutcomeRow[];
 }
 
+// M2.1 읽기 전용 비교 — 두 PaperSignalSession의 신호 outcome. 주문/생성/상태변경 없음.
+export interface PaperSignalComparisonSide {
+  session_id: number;
+  status: string;
+  symbol_code: string;
+  strategy_version_id: number | null;
+  signal_count: number;
+  analyzed_count: number;
+  pending_count: number;
+  win_rate: number | null;
+  avg_return_pct: number | null;
+  best_return_pct: number | null;
+  worst_return_pct: number | null;
+  by_action: {
+    action: string;
+    count: number;
+    analyzed_count: number;
+    win_rate: number | null;
+    avg_return_pct: number | null;
+  }[];
+}
+
+export interface PaperSignalComparison {
+  baseline_session_id: number;
+  challenger_session_id: number;
+  horizon_minutes: number;
+  generated_at: string;
+  symbol_match: boolean;
+  baseline: PaperSignalComparisonSide;
+  challenger: PaperSignalComparisonSide;
+  deltas: {
+    signal_count_delta: number | null;
+    analyzed_count_delta: number | null;
+    pending_count_delta: number | null;
+    win_rate_delta: number | null;
+    avg_return_pct_delta: number | null;
+    best_return_pct_delta: number | null;
+    worst_return_pct_delta: number | null;
+    by_action: {
+      action: string;
+      count_delta: number | null;
+      analyzed_count_delta: number | null;
+      win_rate_delta: number | null;
+      avg_return_pct_delta: number | null;
+    }[];
+  };
+  warnings: string[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;
