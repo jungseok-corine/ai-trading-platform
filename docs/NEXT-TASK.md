@@ -384,8 +384,34 @@ run_due_sessions 미호출 · 주문/거래 없음 · status만 변경.**
   주문/거래 경로 없음, status 무변경(카운터만), dedupe/staleness 그대로. 거부: Option C(스케줄러 상시 활성 —
   더 위험, 후속 별도 승인), Option E(baseline+challenger 페어 배치 — 후속). Option A(전체 run-once)는 기존
   run-now로 이미 가능하나 범위가 넓어 challenger 테스트엔 부적합.
-- **다음에 필요한 결정(사람)**: 세션 단위 run-once(Option B) 구현 **승인 여부**. 구현 미착수. runner 상시 활성은
-  여전히 별도 승인.
+- **다음에 필요한 결정(사람)**: 세션 단위 run-once(Option B) 구현 **승인 여부**. → M2.8에서 구현됨.
+
+**M2.8 — Session-specific Paper Signal Run-Once (`DONE`)**: 사람이 명시 확인하면 **선택한 단일 active
+PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B / D-22). **선택 세션만 · SignalLog만 ·
+주문/거래 없음 · 스케줄러/잡 미활성 · 반복 아님 · 세션 status 불변.**
+
+- 서비스 `paper_signal_run_once_service.py`(`PaperSignalSessionRunOnceService.run_once`): confirmed+
+  confirmed_by 게이트, 전역 게이트(`kis_real_trading_enabled`/`paper_signal_session_runner_enabled` true면
+  **422**), 세션 존재(404)·active(422)·strategy_version 존재(422)·**DRAFT**(422)·auto_trade off(422)·등록
+  strategy_type(422)·symbol(422). **선택한 1개 세션만** 기존 `SignalService.generate_and_log_signal`로 평가 —
+  `list_active`/`run_due_sessions`/스케줄러 `run_now` **미사용**. 최대 1개 SignalLog 생성(생성 시
+  `paper_signal_session_id`=세션). dedupe/staleness/무신호는 `signal_created=false`(skipped, 사유), 시세 오류는
+  예외 흡수해 skipped(크래시 아님). 카운터(run_count/signal_count/last_run_at/last_error)만 갱신 — **세션/버전/
+  제안/실험 status 무변경**, 주문/거래/AssignmentLog/version/experiment 미생성.
+- API: `POST /paper-signal-sessions/{session_id}/run-once`(200 성공/skipped; 404/422). DI는 broker 시세 조회용
+  `SignalService`(market-data only, **TradeService 미구성**)를 구성. 응답: session_id·status(=active)·
+  signal_created·signal_id?·reason?·orders_created(=0)·trades_created(=0)·runner_enabled(=false)·warnings
+  ("This run creates SignalLog only." 등). **autonomous-jobs run-now/잡 활성 API 미변경.**
+- 프론트(`StrategyProposalReportCard` M2.6 비교 블록): active 세션이면 확인 체크박스("선택한 세션 1개에 대해
+  신호를 1회 기록합니다. 주문/거래는 생성하지 않습니다") + "신호 1회 기록" → 결과(생성 signal #id / skipped 사유 ·
+  orders 0 · trades 0 · 다시 비교). prepared면 "active 전환 후 가능". 라벨: "선택 세션만 · SignalLog만 · 주문
+  없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님". runner/잡/매매/주문 시작 컨트롤 없음.
+- 테스트 `tests/test_paper_signal_run_once.py` (15): 게이트(confirmed·404·not-active·not-draft·auto_trade·
+  unsupported·real-trading·runner-enabled)/성공 1개 SignalLog·선택 세션만 평가·다른 active 세션 불변·카운터
+  갱신·status 불변/무신호·시세오류 skipped/**Trade·Order·AssignmentLog·Experiment·StrategyVersion 미생성·
+  버전 status 불변**/API. 전체 1596 passed.
+- **다음(별도 단계, 미착수)**: runner 상시 활성(Option C, 사람 별도 결정), baseline+challenger 페어 배치(Option E).
+  세션 단위 run-once 우선 원칙 유지(D-22).
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존

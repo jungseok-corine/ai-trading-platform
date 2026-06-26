@@ -10,8 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_broker_client, get_overseas_client
 from app.db.session import get_db
 from app.domain.models.enums import MarketCode
+from app.services.market_data_service import MarketDataService
+from app.services.signal_service import SignalService
+from app.trading.broker.base import BrokerClient
 from app.services.candidate_outcome_service import CandidateOutcomeService
 from app.services.candidate_proposal_experiment_service import (
     CandidateProposalExperimentService,
@@ -62,6 +66,19 @@ from app.services.paper_signal_challenger_session_service import (
 from app.services.paper_signal_comparison_service import (
     PaperSignalComparisonService,
     SameSessionError,
+)
+from app.services.paper_signal_run_once_service import (
+    ConfirmationRequiredError as RunOnceConfirmationRequiredError,
+    MissingSymbolError,
+    MissingVersionError as RunOnceMissingVersionError,
+    PaperSignalSessionRunOnceService,
+    RealTradingEnabledError,
+    RunnerEnabledError,
+    RunOnceSessionNotFoundError,
+    SessionNotActiveError,
+    UnsupportedStrategyTypeError,
+    VersionAutoTradeError as RunOnceVersionAutoTradeError,
+    VersionNotDraftError as RunOnceVersionNotDraftError,
 )
 from app.services.paper_signal_outcome_service import (
     InvalidHorizonError,
@@ -145,6 +162,18 @@ def get_challenger_session_service(
     session: AsyncSession = Depends(get_db),
 ) -> PaperSignalChallengerSessionService:
     return PaperSignalChallengerSessionService(session)
+
+
+def get_run_once_service(
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+    overseas=Depends(get_overseas_client),
+) -> PaperSignalSessionRunOnceService:
+    # signal-only SignalService(시세 조회 전용) — TradeService/주문 클라이언트 미구성.
+    signal_service = SignalService(
+        session, MarketDataService(broker, session, overseas_client=overseas)
+    )
+    return PaperSignalSessionRunOnceService(session, signal_service)
 
 
 def get_paper_signal_analysis_input_service(
@@ -526,6 +555,23 @@ class ActivateChallengerSessionResponse(BaseModel):
     warnings: list[str]
 
 
+class RunOnceRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
+class RunOnceResponse(BaseModel):
+    session_id: int
+    status: str  # 'active' (불변)
+    signal_created: bool
+    signal_id: int | None
+    reason: str | None
+    orders_created: int  # 항상 0
+    trades_created: int  # 항상 0
+    runner_enabled: bool  # 항상 False
+    warnings: list[str]
+
+
 class PaperSignalSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -659,6 +705,47 @@ async def activate_challenger_session(
     except DuplicateActiveChallengerError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return ActivateChallengerSessionResponse(**result.to_dict())
+
+
+@router.post(
+    "/paper-signal-sessions/{session_id}/run-once",
+    response_model=RunOnceResponse,
+)
+async def run_paper_signal_session_once(
+    session_id: int,
+    payload: RunOnceRequest,
+    service: PaperSignalSessionRunOnceService = Depends(get_run_once_service),
+) -> RunOnceResponse:
+    """선택한 단일 active 세션에 대해 신호를 1회만 평가한다(SignalLog만).
+
+    전체 active 세션 실행/스케줄러 run-now/잡 활성 아님 · 주문/거래 없음 · 세션 status 불변.
+    중복 캔들·장 마감·무신호는 signal_created=false(skipped)로 반환한다(크래시 아님).
+    """
+    try:
+        result = await service.run_once(
+            session_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except RunOnceSessionNotFoundError as e:
+        raise HTTPException(status_code=404, detail="session not found") from e
+    except RunOnceConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SessionNotActiveError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceMissingVersionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceVersionNotDraftError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunOnceVersionAutoTradeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except UnsupportedStrategyTypeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except MissingSymbolError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RealTradingEnabledError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RunnerEnabledError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return RunOnceResponse(**result.to_dict())
 
 
 @router.get("/paper-signal-sessions/{session_id}/outcomes")

@@ -238,6 +238,19 @@ export interface ChallengerSessionActivation {
   warnings: string[];
 }
 
+// M2.8 — 세션 1회 실행 결과(SignalLog만 · 주문/거래 없음 · 반복 아님).
+export interface PaperSignalRunOnceResult {
+  session_id: number;
+  status: string; // 'active' (불변)
+  signal_created: boolean;
+  signal_id: number | null;
+  reason: string | null;
+  orders_created: number; // 항상 0
+  trades_created: number; // 항상 0
+  runner_enabled: boolean; // 항상 false
+  warnings: string[];
+}
+
 export interface PreparedExperiment {
   proposal_id: number;
   candidate_event_id: number;

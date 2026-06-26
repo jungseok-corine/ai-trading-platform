@@ -21,6 +21,7 @@ import type {
   PaperSignalAnalysisRun,
   PaperSignalComparison,
   PaperSignalOutcomeBoard,
+  PaperSignalRunOnceResult,
   PaperSignalSession,
   PipelineRun,
   PipelineSummary,
@@ -435,6 +436,19 @@ export async function activateChallengerSession(
 ): Promise<ChallengerSessionActivation> {
   const { data } = await apiClient.post<ChallengerSessionActivation>(
     `/paper-signal-sessions/${sessionId}/activate`,
+    payload,
+  );
+  return data;
+}
+
+// M2.8 — 선택한 단일 active 세션에 대해 신호를 1회만 기록한다(SignalLog만).
+// 전체 실행/스케줄러/잡 활성 아님 · 주문/거래 없음 · 반복 아님.
+export async function runPaperSignalSessionOnce(
+  sessionId: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalRunOnceResult> {
+  const { data } = await apiClient.post<PaperSignalRunOnceResult>(
+    `/paper-signal-sessions/${sessionId}/run-once`,
     payload,
   );
   return data;

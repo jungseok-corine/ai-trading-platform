@@ -9,11 +9,13 @@ import {
   getStrategyTransitionPlan,
   prepareChallengerSession,
   prepareSignalChallenger,
+  runPaperSignalSessionOnce,
 } from "../../api/research";
 import type {
   ChallengerSessionActivation,
   ChallengerSessionPreparation,
   PaperSignalComparison,
+  PaperSignalRunOnceResult,
   ProposalStatus,
   SignalChallengerPreparation,
 } from "../../types/research";
@@ -30,6 +32,63 @@ function cmpFmt(v: number | null): string {
 function cmpDelta(v: number | null): string {
   if (v == null) return "-";
   return v > 0 ? `+${v}` : String(v);
+}
+
+// M2.8 — 선택한 단일 active 세션에 신호 1회 기록(SignalLog만). 반복/스케줄러/주문/거래 없음.
+function SessionRunOnce({
+  sessionId,
+  challengerStatus,
+}: {
+  sessionId: number;
+  challengerStatus: string;
+}) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<PaperSignalRunOnceResult | null>(null);
+  const mut = useMutation({
+    mutationFn: () =>
+      runPaperSignalSessionOnce(sessionId, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: (data) => setResult(data),
+  });
+  if (challengerStatus !== "active") {
+    return (
+      <div className="muted" style={{ fontSize: "0.8em", marginTop: 4 }}>
+        신호 1회 기록은 active 전환 후 가능합니다.
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 6 }}>
+      <label className="confirm-check" style={{ fontSize: "0.82em" }}>
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        선택한 세션 1개에 대해 신호를 1회 기록합니다. 주문/거래는 생성하지 않습니다.
+      </label>
+      <div className="form-row">
+        <button disabled={!confirmed || mut.isPending} onClick={() => mut.mutate()}>
+          {mut.isPending ? "기록 중…" : "신호 1회 기록"}
+        </button>
+        <span className="muted" style={{ fontSize: "0.78em", marginLeft: 6 }}>
+          선택 세션만 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님
+        </span>
+      </div>
+      {mut.isError && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          기록 실패 — 세션 상태/버전을 확인하세요.
+        </div>
+      )}
+      {result && (
+        <div className="muted" style={{ fontSize: "0.8em", marginTop: 4 }}>
+          {result.signal_created
+            ? `신호 1건 기록됨 (signal #${result.signal_id})`
+            : `신호 미기록 — ${result.reason ?? "사유 없음"}`}{" "}
+          · orders {result.orders_created} · trades {result.trades_created} · 위에서 다시 비교하세요.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ChallengerComparison({
@@ -85,6 +144,8 @@ function ChallengerComparison({
           active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.
         </div>
       )}
+      {/* M2.8 — 선택 세션에 신호 1회 기록(SignalLog만) */}
+      <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
           {[5, 15, 30, 60].map((h) => (
