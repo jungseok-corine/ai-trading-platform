@@ -370,6 +370,23 @@ run_due_sessions 미호출 · 주문/거래 없음 · status만 변경.**
 - **다음(별도 단계, 미착수)**: runner 잡 활성(사람 별도 결정) 후 실제 신호 누적 → 비교가 의미 있어짐. 활성화 ≠
   runner 활성 ≠ 신호 생성 분리 유지(D-21).
 
+**M2.7 — Paper Signal Runner Operation Gate (`설계만 완료`, 구현 미승인)**: active 세션에 대해 SignalLog를
+안전하게 생성해 baseline↔challenger 비교를 의미 있게 만드는 **사람-게이트 운영 흐름 설계**. 설계 문서:
+**`docs/design/M2.7-paper-signal-runner-operation-gate.md`**.
+
+- **핵심 발견(코드 검증)**: `run_due_sessions`는 `list_active`(active 전부, source_type 무관)에 대해 DRAFT +
+  auto_trade off + 등록 strategy_type인 세션만 **SignalLog만** 생성한다(주문/Trade/TradeService 없음;
+  broker는 캔들 시세 조회 전용). 세션/버전 status 변경 없음(카운터만). candle 단위 dedupe
+  (`exists_for_candle`), 장 마감 staleness 가드(신호 미생성). **이미 `POST /autonomous-jobs/{job_id}/run`
+  (`run_now`)이 enabled 플래그와 무관하게 잡을 1회 실행**할 수 있으나, 이는 **모든 active 세션**을 돌린다(범위 큼).
+- **권장 = Option B(세션 단위 run-once)**: `POST /paper-signal-sessions/{id}/run-once`(confirmed+confirmed_by,
+  active만, DRAFT+auto_trade off, KIS_REAL false) — **선택한 1개 active 세션만** 1회 신호 평가. 스케줄러 미활성,
+  주문/거래 경로 없음, status 무변경(카운터만), dedupe/staleness 그대로. 거부: Option C(스케줄러 상시 활성 —
+  더 위험, 후속 별도 승인), Option E(baseline+challenger 페어 배치 — 후속). Option A(전체 run-once)는 기존
+  run-now로 이미 가능하나 범위가 넓어 challenger 테스트엔 부적합.
+- **다음에 필요한 결정(사람)**: 세션 단위 run-once(Option B) 구현 **승인 여부**. 구현 미착수. runner 상시 활성은
+  여전히 별도 승인.
+
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존
 CandidateStrategyProposal/Experiment 경로에 억지로 끼워넣지 말 것(D-19).** 스키마 변경은 사람만 승인(D-20).

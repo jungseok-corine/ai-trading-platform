@@ -588,3 +588,32 @@ M2.5 Phase 3에서 prepared challenger 세션을 active로 전환하는 사람-�
 **구현**: `app/services/paper_signal_challenger_session_service.py`(activate_prepared_session),
 `app/api/v1/candidates.py`(POST .../activate), `tests/test_paper_signal_challenger_session_activate.py`.
 관련: [[D-20]].
+
+---
+
+## D-22. Paper signal 운영은 세션 단위 수동 run-once부터 — 상시 스케줄러 활성보다 먼저
+
+**날짜**: 2026-06-26  
+**상태**: 확정 (가드레일 / 설계 단계, 구현 미승인)
+
+**경위**:  
+M2.7에서 active 세션의 SignalLog 생성 흐름을 설계하며 런너를 코드 검증했다: `run_due_sessions`는 **SignalLog만**
+만들고(주문/Trade/TradeService 없음, broker는 캔들 시세 전용), 세션/버전 status를 바꾸지 않으며, candle dedupe와
+장-마감 staleness 가드를 가진다. 또한 기존 `POST /autonomous-jobs/{job_id}/run`(`run_now`)이 **enabled 플래그와
+무관하게** 잡을 1회 실행할 수 있는데, 이는 **모든 active 세션**을 한꺼번에 돌린다.
+
+**결정 내용**:
+
+1. **운영은 세션 단위 수동 run-once부터 시작한다(Option B).** 선택한 단일 active 세션에 대해 confirmed 게이트로
+   1회만 신호를 평가한다. `paper_signal_session_runner_enabled`는 그대로 OFF, 스케줄러 트리거를 켜지 않는다.
+2. **상시 스케줄러 활성(Option C)은 그 다음, 별도 사람 승인**으로만 한다. 범위(모든 active 세션 × 매 interval)와
+   무인 백그라운드 쓰기 때문에 더 위험하다.
+3. **어떤 운영 단계도 주문/거래 경로를 만들지 않는다.** run-once/잡 모두 TradeService/OrderService/broker 주문
+   미구성, `KIS_REAL_TRADING_ENABLED=false`, 버전 DRAFT, auto_trade off.
+
+**이유**:  
+- "준비→활성→1회 실행→(나중에) 상시" 한 단계씩 사람 확인을 두는 패턴(D-12/D-21 계열). 세션 단위 1회 실행은
+  범위가 작고(한 세션·한 tick·dedupe 한도) 멈춤이 자명하다.
+- 기존 generic `run-now`는 전체 active를 돌려 challenger 테스트엔 과하다 → 세션-스코프 엔드포인트가 더 안전·명확.
+
+**구현/상세**: `docs/design/M2.7-paper-signal-runner-operation-gate.md`. 관련: [[D-21]].
