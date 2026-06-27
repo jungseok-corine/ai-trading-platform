@@ -462,7 +462,32 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.14 구현(명시 승인 — pair-scoped 반복 계획 + 마이그레이션 승인).
+- **다음(별도 단계, 미착수)**: M2.14B 디스패처/활성화(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+
+**M2.14A — Pair-Scoped Recurring Signal Run Plan Schema + Inert Plan Management (`DONE`, backend, migration 포함)**:
+pair-scoped 반복 신호 *계획*을 정의·관리만 한다(D-24, Option E의 1단계). **계획은 실행되지 않는다(inert):
+prepared만 생성 · SignalLog/Trade/Order 미생성 · 스케줄러/잡 미활성 · 디스패처/run-loop/APScheduler 없음.**
+
+- 마이그레이션 `q1r2s3t4u5v6`(down_revision=p1q2r3s4t5u6, additive): 신규 테이블 `paper_signal_recurring_runs`
+  (status[prepared/active/stopped/completed/failed]=prepared, scope_type, baseline/challenger FK,
+  interval_seconds, max_runs, completed_runs, last_run_at, next_run_at, created_by, stopped_*, last_error, note,
+  created_at/updated_at). CheckConstraint: interval>0 · max_runs>0 · completed_runs>=0 · baseline≠challenger.
+  인덱스 5종. **upgrade/downgrade/upgrade 라운드트립 검증 완료.** DB/code head → `q1r2s3t4u5v6`.
+- 모델 `paper_signal_recurring_run.py`(+`models/__init__.py` 등록), repo `find_open_for_pair`(prepared/active 중복
+  가드), 서비스 `PaperSignalRecurringRunService`(create_prepared_pair_plan / stop_plan / get_plan / list_plans).
+- **자격 검증은 M2.8 `check_confirmation`/`check_global_gates`/`validate_session` + M2.10 관계 예외 재사용**
+  (드리프트 방지). validate는 SignalLog/주문을 만들지 않음(signal_service=None로 검증 전용). 게이트: confirmed +
+  confirmed_by · 실거래 OFF · 상시 런너 OFF · 두 세션 active · 관계/symbol 일치 · 버전 존재+DRAFT+auto_trade off ·
+  interval∈[60,3600] · max_runs∈[1,390] · 같은 페어 비종료 계획 중복 거부.
+- 중지: M2.14A는 **prepared만** 중지 가능(이미 종료된 계획 중지는 422). 세션/버전/제안 불변. 종료된 계획이 있어도
+  같은 페어 새 prepared 계획 허용. 응답에 `orders_created=0`/`trades_created=0` + 경고 3종(prepared only/실행 전엔
+  SignalLog 없음/주문·거래 없음) 항상 명시.
+- API `app/api/v1/paper_signal_recurring_runs.py`(main 등록): `POST /paper-signal-recurring-runs`(201) ·
+  `GET .../{id}` · `GET ...` · `POST .../{id}/stop`(200). 404 미존재 · 409 중복 · 422 검증 실패. **activate/run/
+  dispatcher/scheduler 엔드포인트 없음.**
+- 테스트 `tests/test_paper_signal_recurring_run.py`(32): 게이트/범위/중복/중지/조회 + **SignalLog/Trade 0 · 세션/
+  버전/제안 status 불변 · 정확히 1행 생성** + API 201/409/404/422. 전체 백엔드 1648 passed. M2.1/M2.8/M2.10 호환 유지.
+- **M2.14B(디스패처/활성화)는 별도 명시 승인 후에만.** 전역 런너/run_due_sessions/run_now 미사용 유지.
 
 **M2.13 — Recurring Paper Signal Runner Operation Design (`DONE`, docs-only)**: 상시(반복) 신호 운영을
 설계만 한다. **코드/런타임/마이그레이션 변경 없음 · 런너 미활성/미실행 · SignalLog/Trade/Order 미생성.**

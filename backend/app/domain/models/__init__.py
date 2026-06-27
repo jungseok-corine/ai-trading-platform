@@ -21,6 +21,7 @@ from app.domain.models.market_context import (
 from app.domain.models.market_data import MarketData
 from app.domain.models.news_context import NewsEvent, UsMarketSnapshot
 from app.domain.models.operations_snapshot import OperationsSnapshot
+from app.domain.models.paper_signal_recurring_run import PaperSignalRecurringRun
 from app.domain.models.paper_signal_session import PaperSignalSession
 from app.domain.models.position import Position
 from app.domain.models.promotion import LivePromotionRecord, PromotionCriteria, PromotionEvaluation
@@ -62,6 +63,7 @@ __all__ = [
     "MarketData",
     "NewsEvent",
     "OperationsSnapshot",
+    "PaperSignalRecurringRun",
     "PaperSignalSession",
     "SymbolThemeMembership",
     "UsMarketSnapshot",

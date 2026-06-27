@@ -17,6 +17,7 @@ from app.api.v1 import edgar as edgar_api
 from app.api.v1 import intelligence as intelligence_api
 from app.api.v1 import action_inbox as action_inbox_api
 from app.api.v1 import candidates as candidates_api
+from app.api.v1 import paper_signal_recurring_runs as paper_signal_recurring_runs_api
 from app.api.v1 import daily_reports as daily_reports_api
 from app.api.v1 import data_freshness as data_freshness_api
 from app.api.v1 import data_refresh as data_refresh_api
@@ -181,6 +182,7 @@ app.include_router(seed_api.router, prefix="/api/v1")
 app.include_router(scanner_proposals_api.router, prefix="/api/v1")
 app.include_router(scanner_review_api.router, prefix="/api/v1")
 app.include_router(candidates_api.router, prefix="/api/v1")
+app.include_router(paper_signal_recurring_runs_api.router, prefix="/api/v1")
 app.include_router(assignments_api.router, prefix="/api/v1")
 app.include_router(experiments_api.router, prefix="/api/v1")
 app.include_router(strategy_proposals_api.router, prefix="/api/v1")
