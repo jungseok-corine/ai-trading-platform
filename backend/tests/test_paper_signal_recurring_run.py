@@ -656,3 +656,269 @@ async def test_api_activate_and_stop_active_flow(db_session: AsyncSession) -> No
             assert rs.json()["next_run_at"] is None
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+# ============================================================================
+# M2.14B-2: manual tick-once for one active plan (selected-plan, SignalLog-only)
+# ============================================================================
+from datetime import datetime as _dt, timezone as _tz  # noqa: E402
+
+from app.common.timezone import KST  # noqa: E402
+from app.domain.models.enums import TradeSide  # noqa: E402
+from app.services.paper_signal_recurring_run_service import (  # noqa: E402
+    RecurringPlanExhaustedError,
+    RecurringPlanNotTickableError,
+)
+
+
+class _FakeSignalService:
+    """version_id별 동작: skip_versions→None(미생성), 그 외→SignalLog 생성. 네트워크 없음."""
+
+    def __init__(self, db, skip_versions=None):
+        self._db = db
+        self.skip = set(skip_versions or [])
+        self.calls = []
+
+    async def generate_and_log_signal(self, strategy, symbol_code, version_id, **kw):
+        self.calls.append((symbol_code, version_id))
+        if version_id in self.skip:
+            return None
+        log = SignalLog(symbol_code=symbol_code, signal_type=TradeSide.BUY,
+                        generated_at=_dt.now(KST),
+                        candle_ts=_dt(2026, 6, 10, 9, 30, tzinfo=KST), market="KR",
+                        timeframe="1m", strategy_version_id=version_id)
+        self._db.add(log); await self._db.flush()
+        return log
+
+
+def _tick_svc(db, **fakekw):
+    return PaperSignalRecurringRunService(db, signal_service=_FakeSignalService(db, **fakekw))
+
+
+async def _make_active_plan(db, b, c, **create_kw):
+    created = await _create(db, b, c, **create_kw)
+    await _svc(db).activate_plan(created["id"], confirmed=True, confirmed_by="u")
+    return created["id"]
+
+
+# --- tick success ------------------------------------------------------------
+async def test_tick_creates_two_signals_and_advances(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5, interval_seconds=60)
+    sl_before = await _count(db_session, SignalLog)
+    result = await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    assert result["baseline"]["signal_created"] is True
+    assert result["challenger"]["signal_created"] is True
+    assert await _count(db_session, SignalLog) == sl_before + 2
+    assert result["completed_runs"] == 1
+    assert result["last_run_at"] is not None
+    assert result["status"] == "active"
+    assert result["next_run_at"] is not None
+    assert result["orders_created"] == 0 and result["trades_created"] == 0
+
+
+async def test_tick_only_selected_sessions_third_untouched(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, strat, sp, pc = await _make_pair(db_session)
+    # 제3의 active signal_challenger 세션(다른 baseline) — tick이 건드리면 안 됨.
+    other_ver = await _version(db_session, strat, 3)
+    other_base = await _session(db_session, other_ver, source_type="candidate_proposal")
+    other_chal = await _session(db_session, await _version(db_session, strat, 4),
+                                source_type="signal_challenger", baseline_id=other_base.id, sp_id=sp.id)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+    await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    sids = {b.id, c.id}
+    logs = (await db_session.execute(select(SignalLog.paper_signal_session_id))).scalars().all()
+    assert all((s in sids) for s in logs if s is not None)
+    await db_session.refresh(other_chal)
+    assert other_chal.signal_count == 0  # third session untouched
+
+
+async def test_tick_skipped_side_still_increments(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+    sl_before = await _count(db_session, SignalLog)
+    svc = _tick_svc(db_session, skip_versions={c_ver.id})  # challenger skips
+    result = await svc.tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    assert result["baseline"]["signal_created"] is True
+    assert result["challenger"]["signal_created"] is False
+    assert await _count(db_session, SignalLog) == sl_before + 1  # only baseline
+    assert result["completed_runs"] == 1  # attempt still counts
+
+
+async def test_tick_reaches_max_runs_completes(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=1)
+    result = await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    assert result["status"] == "completed"
+    assert result["completed_runs"] == 1
+    assert result["next_run_at"] is None
+
+
+async def test_tick_creates_no_trade(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+    tr_before = await _count(db_session, Trade)
+    await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    assert await _count(db_session, Trade) == tr_before
+
+
+async def test_tick_does_not_mutate_sessions_versions_proposals(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, strat, sp, pc = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+    await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    await db_session.refresh(b); await db_session.refresh(c)
+    await db_session.refresh(b_ver); await db_session.refresh(c_ver)
+    await db_session.refresh(sp); await db_session.refresh(pc)
+    assert b.status == "active" and c.status == "active"
+    assert b_ver.status == StrategyVersionStatus.DRAFT
+    assert c_ver.status == StrategyVersionStatus.DRAFT
+    assert sp.status == ProposalStatus.PENDING
+    assert pc.status == "approved"
+
+
+# --- tick gates --------------------------------------------------------------
+async def test_tick_confirmed_false_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    with pytest.raises(RecurringConfirmationRequiredError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=False, confirmed_by="u")
+
+
+async def test_tick_missing_confirmed_by_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    with pytest.raises(RecurringConfirmationRequiredError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by=None)
+
+
+async def test_tick_unknown_404(db_session: AsyncSession) -> None:
+    with pytest.raises(RecurringPlanNotFoundError):
+        await _tick_svc(db_session).tick_plan_once(999999, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_prepared_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)  # prepared, not activated
+    with pytest.raises(RecurringPlanNotTickableError):
+        await _tick_svc(db_session).tick_plan_once(created["id"], confirmed=True, confirmed_by="u")
+
+
+async def test_tick_stopped_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    await _svc(db_session).stop_plan(pid, confirmed=True, confirmed_by="u")
+    with pytest.raises(RecurringPlanNotTickableError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_completed_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=1)
+    await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")  # → completed
+    with pytest.raises(RecurringPlanNotTickableError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_exhausted_rejected(db_session: AsyncSession) -> None:
+    # status=active 인데 completed_runs>=max_runs인 방어적 상태를 직접 만든다.
+    b, c, *_ = await _make_pair(db_session)
+    repo = PaperSignalRecurringRunRepository(db_session)
+    plan = await repo.create(status="active", scope_type="baseline_challenger_pair",
+                             baseline_session_id=b.id, challenger_session_id=c.id,
+                             interval_seconds=60, max_runs=3, completed_runs=3, created_by="u")
+    await db_session.commit()
+    with pytest.raises(RecurringPlanExhaustedError):
+        await _tick_svc(db_session).tick_plan_once(plan.id, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_real_trading_enabled_rejected(db_session: AsyncSession, monkeypatch) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    monkeypatch.setattr(run_once_mod, "get_settings", lambda: _FakeSettings(real=True))
+    with pytest.raises(RealTradingEnabledError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_runner_enabled_rejected(db_session: AsyncSession, monkeypatch) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    monkeypatch.setattr(run_once_mod, "get_settings", lambda: _FakeSettings(runner=True))
+    with pytest.raises(RunnerEnabledError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_baseline_no_longer_active_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    b.status = "stopped"; await db_session.flush()
+    with pytest.raises(SessionNotActiveError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_challenger_relationship_changed_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    c.source_type = "candidate_proposal"; await db_session.flush()
+    with pytest.raises(NotChallengerSessionError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_version_no_longer_draft_rejected(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    c_ver.status = StrategyVersionStatus.TESTING; await db_session.flush()
+    with pytest.raises(VersionNotDraftError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_auto_trade_enabled_rejected(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c)
+    c_ver.parameters = {**c_ver.parameters, "auto_trade_enabled": True}
+    await db_session.flush()
+    with pytest.raises(VersionAutoTradeError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+
+
+async def test_tick_validation_failure_does_not_increment(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+    b.status = "stopped"; await db_session.flush()
+    with pytest.raises(SessionNotActiveError):
+        await _tick_svc(db_session).tick_plan_once(pid, confirmed=True, confirmed_by="u")
+    plan = await PaperSignalRecurringRunRepository(db_session).get(pid)
+    assert plan.completed_runs == 0  # no increment on pre-eval validation failure
+
+
+# --- API smoke ---------------------------------------------------------------
+async def test_api_tick_once_flow(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    # 서비스로 prepared+active 준비(실 broker DI 없이).
+    pid = await _make_active_plan(db_session, b, c, max_runs=5)
+
+    # tick DI를 fake signal_service로 오버라이드(네트워크 차단).
+    from app.api.v1 import paper_signal_recurring_runs as rr_api
+    app.dependency_overrides[get_db] = _override(db_session)
+    app.dependency_overrides[rr_api.get_recurring_run_tick_service] = (
+        lambda: _tick_svc(db_session)
+    )
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://t") as ac:
+            r = await ac.post(f"/api/v1/paper-signal-recurring-runs/{pid}/tick-once",
+                              json={"confirmed": True, "confirmed_by": "smoke"})
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["status"] == "active"
+            assert body["completed_runs"] == 1
+            assert body["orders_created"] == 0 and body["trades_created"] == 0
+            assert body["baseline"]["session_id"] == b.id
+            assert body["challenger"]["session_id"] == c.id
+            assert any("dispatcher" in w.lower() for w in body["warnings"])
+            # tick unknown plan → 404
+            r404 = await ac.post("/api/v1/paper-signal-recurring-runs/999999/tick-once",
+                                 json={"confirmed": True, "confirmed_by": "smoke"})
+            assert r404.status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(rr_api.get_recurring_run_tick_service, None)

@@ -462,7 +462,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.14B-2 디스패처(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+- **다음(별도 단계, 미착수)**: M2.14B-3 디스패처(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+
+**M2.14B-2 — Manual Tick-Once for One Active Recurring Plan (`DONE`, backend, no migration)**: 선택한 active 계획을
+사람이 confirm해 **1회 tick**한다. **디스패처/스케줄러 아님**: 전체 active 스캔/`list_active`/`run_due_sessions`/
+`run_now` 미사용 · 선택한 두 세션만 각각 1회 평가(최대 2 SignalLog) · 주문/거래 없음 · 잡 미활성.
+
+- **마이그레이션 없음.** 서비스 `tick_plan_once(plan_id, confirmed, confirmed_by)`: confirmed+confirmed_by ·
+  전역 게이트(실거래 OFF + 상시 런너 OFF) · 계획 **active** 필수(아니면 422) · `completed_runs >= max_runs`면 422 ·
+  **tick 시점 재검증**(`_load_and_validate_pair`로 M2.8/M2.10 검증 재사용) → **M2.8 `evaluate_session` 재사용**으로
+  baseline·challenger 각각 1회 평가(commit-free) → 계획 메타데이터만 갱신 후 **단일 커밋**.
+- SignalLog 생성은 주입된 signal-only SignalService(`evaluate_session` 경유)만 사용 — 재귀 서비스가 직접
+  `SignalLog()`/`generate_and_log_signal`을 만들지 않음. create/activate/stop은 여전히 signal_service=None(평가 도달 불가).
+- 메타데이터 의미: `completed_runs`는 **페어 tick 시도 횟수**(SignalLog 수 아님) — 양쪽 skip이어도 +1; 평가 전 검증
+  실패/예외는 +0(커밋 전 예외 → 롤백). `max_runs` 도달 시 status=`completed` + `next_run_at`=NULL, 아니면 active 유지 +
+  `next_run_at = now + interval`. 세션/버전/제안 status 불변(세션 카운터만 — M2.10과 동일).
+- API: `POST /paper-signal-recurring-runs/{id}/tick-once`(200). 404 미존재 · 422 비-active/소진/재검증 실패.
+  tick 전용 DI(`get_recurring_run_tick_service`)가 signal-only SignalService 주입. **run/dispatcher/scheduler/run-all/
+  run-due 엔드포인트 없음.**
+- 테스트 `tests/test_paper_signal_recurring_run.py`(74, +21): tick 성공(2 SignalLog·선택 세션만·제3 세션 무영향·
+  completed 전이·next_run_at)/skip(증가 유지)/소진·상태 게이트/재검증/검증실패 무증가 + **Trade 0·세션/버전/제안 불변**.
+  전체 백엔드 1690 passed. M2.1/M2.8/M2.10/M2.14A/B-1 호환 유지. 결정: **D-26**(tick은 디스패처 아님).
+- **M2.14B-3(디스패처)는 별도 명시 승인 후에만.** 무인 반복/전체 active 실행은 여전히 금지.
 
 **M2.14B-1 — Activate Recurring Signal Run Plans Without Execution (`DONE`, backend, no migration)**: 반복 계획에
 **상태 전환만** 추가한다(prepared→active, active→stopped). **활성화는 실행이 아니다**: 디스패처/잡/스케줄러 없음 ·

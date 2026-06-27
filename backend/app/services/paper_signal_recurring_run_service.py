@@ -98,16 +98,38 @@ class RecurringPlanNotActivatableError(Exception):
     """prepared가 아닌 계획 활성화 시도 (422). prepared만 active로 전환 가능."""
 
 
-class PaperSignalRecurringRunService:
-    """pair-scoped 반복 신호 *계획*을 생성·중지·조회한다(실행 없음, SignalLog 없음)."""
+class RecurringPlanNotTickableError(Exception):
+    """active가 아닌 계획 tick 시도 (422). active만 1회 tick 가능."""
 
-    def __init__(self, session: AsyncSession) -> None:
+
+class RecurringPlanExhaustedError(Exception):
+    """completed_runs >= max_runs인 계획 tick 시도 (422)."""
+
+
+# tick(선택 계획 1회 신호 기록) 경고 — dispatcher/scheduler 아님을 명시.
+_TICK_WARNINGS = [
+    "This tick evaluates only the selected recurring plan once.",
+    "No scheduler or dispatcher is started.",
+    "No orders or trades are created.",
+]
+
+
+class PaperSignalRecurringRunService:
+    """pair-scoped 반복 신호 *계획*을 생성·중지·조회하고, 선택 계획을 1회 tick한다.
+
+    create/activate/stop/get/list는 실행하지 않는다(signal_service 불필요). tick(M2.14B-2)만
+    SignalLog를 만들 수 있으며, **선택한 한 계획**의 baseline/challenger를 각각 1회 평가한다
+    (전체 active 스캔/디스패처/스케줄러 아님). tick에는 signal_service가 주입돼야 한다.
+    """
+
+    def __init__(self, session: AsyncSession, signal_service=None) -> None:
         self._session = session
         self._repo = PaperSignalRecurringRunRepository(session)
         self._session_repo = PaperSignalSessionRepository(session)
-        # 검증 전용으로 M2.8 코어를 재사용한다. evaluate/run은 절대 호출하지 않으므로
-        # signal_service가 필요 없다(None). validate_session/check_* 는 SignalLog를 만들지 않는다.
-        self._validator = PaperSignalSessionRunOnceService(session, signal_service=None)
+        # M2.8 코어 재사용(검증 드리프트 방지). create/activate/stop는 signal_service=None →
+        # evaluate_session은 호출되지 않으므로 SignalLog/주문 경로에 도달하지 않는다.
+        # tick만 signal_service를 받아 evaluate_session(시세 조회 전용)을 호출한다.
+        self._validator = PaperSignalSessionRunOnceService(session, signal_service=signal_service)
 
     # --- shared validation --------------------------------------------------
 
@@ -116,8 +138,9 @@ class PaperSignalRecurringRunService:
     ):
         """세션 존재 + 페어 관계(M2.10) + 두 세션 자격(M2.8 validate_session)을 검증한다.
 
-        create/activate가 공유한다(검증 드리프트 방지). **SignalLog/주문을 만들지 않는다**
-        (validate_session은 버전/전략을 읽고 검증만 한다). 반환: (baseline, challenger).
+        create/activate/tick가 공유한다(검증 드리프트 방지). **SignalLog/주문을 만들지 않는다**
+        (validate_session은 버전/전략을 읽고 검증만 한다).
+        반환: (baseline, b_version, b_strategy, challenger, c_version, c_strategy).
         """
         baseline = await self._session_repo.get(baseline_session_id)
         if baseline is None:
@@ -142,9 +165,9 @@ class PaperSignalRecurringRunService:
                 f"challenger {challenger.symbol_code!r}"
             )
         # 두 세션 자격(active + 버전 DRAFT + auto_trade off + 등록 strategy_type + symbol).
-        await self._validator.validate_session(baseline)
-        await self._validator.validate_session(challenger)
-        return baseline, challenger
+        b_version, b_strategy = await self._validator.validate_session(baseline)
+        c_version, c_strategy = await self._validator.validate_session(challenger)
+        return baseline, b_version, b_strategy, challenger, c_version, c_strategy
 
     # --- create -------------------------------------------------------------
 
@@ -253,6 +276,79 @@ class PaperSignalRecurringRunService:
         await self._session.commit()
         return self._to_dict(plan)
 
+    # --- tick once (M2.14B-2: 선택 계획 1회 평가 — 디스패처 아님) ------------
+
+    async def tick_plan_once(
+        self, plan_id: int, confirmed: bool, confirmed_by: str | None
+    ) -> dict:
+        """선택한 **active** 계획을 정확히 1회 tick한다(baseline/challenger 각각 1회 평가).
+
+        **디스패처/스케줄러 아님**: 사람이 plan_id를 고르고 confirm한 한 번만 실행한다.
+        - 전체 active 스캔/`list_active`/`run_due_sessions`/`run_now` 미사용 — 선택한 두 세션만.
+        - M2.8 evaluate_session 재사용 → 최대 2개 SignalLog(세션당 0/1). 주문/거래 경로 없음.
+        - 계획 메타데이터만 갱신(completed_runs/last_run_at/next_run_at/status). 세션/버전/제안 status 불변.
+        - completed_runs는 **페어 tick 시도 횟수**를 센다(SignalLog 수 아님). 양쪽 skip(중복/장마감/무신호)
+          이어도 1 증가. 평가 전 검증 실패/예외 시에는 증가하지 않는다(커밋 전 예외 → 롤백).
+        """
+        if not confirmed:
+            raise RecurringConfirmationRequiredError("confirmed must be true")
+        if not confirmed_by:
+            raise RecurringConfirmationRequiredError("confirmed_by is required")
+        # 전역 안전 게이트(실거래 OFF + 상시 런너 OFF). M2.8 코어 재사용.
+        self._validator.check_global_gates()
+        plan = await self._repo.get(plan_id)
+        if plan is None:
+            raise RecurringPlanNotFoundError(plan_id)
+        if plan.status != "active":
+            raise RecurringPlanNotTickableError(
+                f"plan {plan_id} status is {plan.status!r}; only active plans are tickable"
+            )
+        if plan.completed_runs >= plan.max_runs:
+            raise RecurringPlanExhaustedError(
+                f"plan {plan_id} completed_runs {plan.completed_runs} >= max_runs {plan.max_runs}"
+            )
+        # tick 시점 재검증(생성/활성화 이후 세션/버전 상태가 바뀌었을 수 있다).
+        (
+            baseline, b_version, b_strategy, challenger, c_version, c_strategy
+        ) = await self._load_and_validate_pair(
+            plan.baseline_session_id, plan.challenger_session_id
+        )
+        # 선택한 두 세션만 각각 1회 평가(commit-free). 시세 오류/중복/장마감은 skip으로 흡수(크래시 아님).
+        b_result = await self._validator.evaluate_session(baseline, b_version, b_strategy)
+        c_result = await self._validator.evaluate_session(challenger, c_version, c_strategy)
+
+        # 계획 메타데이터 갱신(페어 평가를 시도했으므로 completed_runs +1). 단일 커밋으로 SignalLog와 함께.
+        now = datetime.now(timezone.utc)
+        new_completed = plan.completed_runs + 1
+        if new_completed >= plan.max_runs:
+            new_status = "completed"
+            new_next: datetime | None = None
+        else:
+            new_status = "active"
+            new_next = now + timedelta(seconds=plan.interval_seconds)
+        await self._repo.update(
+            plan,
+            completed_runs=new_completed,
+            last_run_at=now,
+            status=new_status,
+            next_run_at=new_next,
+        )
+        await self._session.commit()
+
+        def _side(r) -> dict:
+            return {
+                "session_id": r.session_id,
+                "signal_created": r.signal_created,
+                "signal_id": r.signal_id,
+                "reason": r.reason,
+            }
+
+        result = self._to_dict(plan)
+        result["baseline"] = _side(b_result)
+        result["challenger"] = _side(c_result)
+        result["warnings"] = list(_TICK_WARNINGS)
+        return result
+
     # --- stop / read --------------------------------------------------------
 
     async def stop_plan(
@@ -333,4 +429,6 @@ __all__ = [
     "RecurringPlanNotFoundError",
     "RecurringPlanNotStoppableError",
     "RecurringPlanNotActivatableError",
+    "RecurringPlanNotTickableError",
+    "RecurringPlanExhaustedError",
 ]

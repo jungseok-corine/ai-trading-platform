@@ -703,3 +703,35 @@ M2.14B-1에서 반복 신호 *계획*에 상태 전환(prepared→active, active
 - 활성화 후 시간이 지나 세션/버전이 변할 수 있으므로 활성화 시점 재검증이 안전하다.
 
 **구현/상세**: M2.14B-1 (`app/services/paper_signal_recurring_run_service.py`). 관련: [[D-24]], [[D-22]], [[D-21]].
+
+---
+
+## D-26. 반복 계획의 수동 tick-once는 디스패처가 아니다 — 선택 계획·SignalLog만
+
+**날짜**: 2026-06-27  
+**상태**: 확정 (가드레일)
+
+**경위**:  
+M2.14B-2에서 active 반복 계획을 사람이 1회 실행하는 `tick-once` 엔드포인트를 추가했다. 무인 디스패처(M2.14B-3)와
+혼동되지 않도록 경계를 명문화한다.
+
+**결정 내용**:
+
+1. **수동 tick-once는 디스패처가 아니다.** 사람이 **하나의 plan_id를 골라 confirm한 한 번만** 실행한다.
+   active 계획을 스캔하지 않고(`list_active`/`run_due_sessions`/`run_now` 미사용), 미래 실행을 스케줄하지 않으며,
+   루프를 돌지 않는다. 선택한 계획의 baseline/challenger **두 세션만** 각각 1회 평가한다(최대 2 SignalLog).
+2. **completed_runs는 페어 tick 시도 횟수를 센다(SignalLog 수가 아님).** 양쪽이 skip(중복/장마감/무신호)이어도
+   시도 1회로 +1 한다. 평가 전 검증 실패/예외 시에는 증가하지 않는다(커밋 전 예외 → 롤백). `max_runs` 도달 시
+   status=completed + next_run_at=NULL.
+3. **tick 실행은 선택-계획-한정 · SignalLog-only로 유지한다.** 주문/거래 경로 없음(TradeService/OrderService/broker
+   주문 미구성), `KIS_REAL_TRADING_ENABLED=false`, 버전 DRAFT + auto_trade off, 세션/버전/제안 status 불변(세션
+   카운터만). SignalLog 생성은 M2.8 `evaluate_session`(주입된 signal-only SignalService) 경유만 — 재귀 서비스가
+   직접 만들지 않는다.
+4. **무인 디스패처/전체 active 실행(M2.14B-3)은 별도 명시 승인.** tick-once가 있어도 자동 반복은 금지된다.
+
+**이유**:  
+- "사람이 고른 한 계획, 한 번" 단위는 범위가 자명하고(두 세션·한 tick·dedupe 0/1) 멈춤이 명확하다(D-22/D-23 계열).
+- 시도 단위 카운트는 무인 디스패처가 나중에 같은 의미로 max_runs 종료 조건을 재사용할 수 있게 한다.
+
+**구현/상세**: M2.14B-2 (`paper_signal_recurring_run_service.tick_plan_once`,
+`POST /paper-signal-recurring-runs/{id}/tick-once`). 관련: [[D-25]], [[D-24]], [[D-23]], [[D-22]].

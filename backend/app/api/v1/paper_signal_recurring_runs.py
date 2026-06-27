@@ -1,7 +1,9 @@
-"""Pair-Scoped Recurring Signal Run Plan API (M2.14A — inert plan management).
+"""Pair-Scoped Recurring Signal Run Plan API (M2.14A/B-1/B-2).
 
-계획을 **생성·조회·중지**만 한다. 생성된 계획은 실행되지 않는다(prepared only):
-주문/거래/SignalLog 없음 · 스케줄러/잡 미활성 · 디스패처 없음(M2.14B 별도 승인). D-24 참조.
+계획을 **생성·조회·중지·활성화**하고, 선택한 active 계획을 **1회 tick**한다(M2.14B-2).
+tick은 디스패처/스케줄러가 아니다 — 사람이 한 계획을 고르고 confirm한 한 번만 실행한다:
+선택한 두 세션만 각각 1회 평가(최대 2 SignalLog) · 주문/거래 없음 · 전체 active 스캔/잡 활성 없음.
+D-24/D-25/D-26 참조.
 """
 from __future__ import annotations
 
@@ -11,7 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_broker_client, get_overseas_client
 from app.db.session import get_db
+from app.services.market_data_service import MarketDataService
 from app.services.paper_signal_pair_run_once_service import (
     BaselineMismatchError,
     NotChallengerSessionError,
@@ -25,9 +29,11 @@ from app.services.paper_signal_recurring_run_service import (
     RecurringConfirmationRequiredError,
     RecurringInvalidIntervalError,
     RecurringInvalidMaxRunsError,
+    RecurringPlanExhaustedError,
     RecurringPlanNotActivatableError,
     RecurringPlanNotFoundError,
     RecurringPlanNotStoppableError,
+    RecurringPlanNotTickableError,
 )
 from app.services.paper_signal_run_once_service import (
     MissingSymbolError,
@@ -39,6 +45,8 @@ from app.services.paper_signal_run_once_service import (
     VersionAutoTradeError,
     VersionNotDraftError,
 )
+from app.services.signal_service import SignalService
+from app.trading.broker.base import BrokerClient
 
 router = APIRouter(tags=["paper-signal-recurring-runs"])
 
@@ -48,6 +56,18 @@ def get_recurring_run_service(
 ) -> PaperSignalRecurringRunService:
     # 실행 경로 없음 — broker/SignalService를 주입하지 않는다(계획 관리 전용).
     return PaperSignalRecurringRunService(session)
+
+
+def get_recurring_run_tick_service(
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+    overseas=Depends(get_overseas_client),
+) -> PaperSignalRecurringRunService:
+    # tick 전용 — signal-only SignalService(시세 조회 전용). TradeService/주문 클라이언트 미구성.
+    signal_service = SignalService(
+        session, MarketDataService(broker, session, overseas_client=overseas)
+    )
+    return PaperSignalRecurringRunService(session, signal_service=signal_service)
 
 
 class CreateRecurringRunRequest(BaseModel):
@@ -70,9 +90,14 @@ class ActivateRecurringRunRequest(BaseModel):
     confirmed_by: str | None = None
 
 
+class TickRecurringRunRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
 class RecurringRunResponse(BaseModel):
     id: int
-    status: str  # prepared | active | stopped | (미래: completed/failed)
+    status: str  # prepared | active | stopped | completed | (미래: failed)
     scope_type: str
     baseline_session_id: int
     challenger_session_id: int
@@ -80,7 +105,7 @@ class RecurringRunResponse(BaseModel):
     max_runs: int
     completed_runs: int
     last_run_at: datetime | None
-    next_run_at: datetime | None  # M2.14A에서는 항상 None
+    next_run_at: datetime | None
     created_by: str
     stopped_by: str | None
     stopped_at: datetime | None
@@ -89,6 +114,18 @@ class RecurringRunResponse(BaseModel):
     orders_created: int  # 항상 0
     trades_created: int  # 항상 0
     warnings: list[str]
+
+
+class RecurringTickSide(BaseModel):
+    session_id: int
+    signal_created: bool
+    signal_id: int | None
+    reason: str | None
+
+
+class RecurringTickResponse(RecurringRunResponse):
+    baseline: RecurringTickSide
+    challenger: RecurringTickSide
 
 
 # validate_session/check_global_gates(M2.8) + 페어 관계(M2.10)에서 오는 자격 실패는 모두 422.
@@ -228,3 +265,35 @@ async def activate_recurring_run(
     except _VALIDATION_ERRORS as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return RecurringRunResponse(**result)
+
+
+@router.post(
+    "/paper-signal-recurring-runs/{plan_id}/tick-once",
+    response_model=RecurringTickResponse,
+)
+async def tick_recurring_run_once(
+    plan_id: int,
+    payload: TickRecurringRunRequest,
+    service: PaperSignalRecurringRunService = Depends(get_recurring_run_tick_service),
+) -> RecurringTickResponse:
+    """선택한 active 반복 계획을 1회 신호 기록한다(선택한 계획만 · SignalLog만).
+
+    dispatcher 아님 · scheduler/job 시작 없음 · 전체 active 실행 아님. baseline/challenger 각각 1회
+    평가(최대 2 SignalLog) · 주문 없음 · 거래 없음. completed_runs는 페어 tick 시도 횟수를 세며,
+    max_runs 도달 시 status=completed. 자격 재검증 실패는 422, 미존재는 404.
+    """
+    try:
+        result = await service.tick_plan_once(
+            plan_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except RecurringConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RecurringPlanNotFoundError as e:
+        raise HTTPException(status_code=404, detail="recurring run plan not found") from e
+    except RecurringPlanNotTickableError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RecurringPlanExhaustedError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except _VALIDATION_ERRORS as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return RecurringTickResponse(**result)
