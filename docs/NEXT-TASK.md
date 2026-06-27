@@ -462,7 +462,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.12 비교/UX 정리, M2.13 recurring runner 설계, M2.14 구현(명시 승인).
+- **다음(별도 단계, 미착수)**: M2.13 recurring runner 설계, M2.14 구현(명시 승인).
+
+**M2.12 — Paper Signal Comparison UX Cleanup (`DONE`, frontend-only)**: 비교/challenger 카드의 흐름을
+명확히 한다. **백엔드 변경 없음 · 새 엔드포인트 없음 · 마이그레이션 없음 · 스케줄러/잡 미활성 ·
+주문/거래 없음 · 페어/단일/비교 모두 사람 클릭 게이트 유지.**
+
+- 단일 파일만 수정: `StrategyProposalReportCard.tsx`. 새 API 호출 없음(기존 `runPaperSignalPairOnce` /
+  `runPaperSignalSessionOnce` / `comparePaperSignalSessions`만 사용, page-load 자동 호출 없음).
+- **단계 가이드**(`LifecycleGuide`): 준비→Active 전환→페어 신호 1회 기록→신호 성과 비교 보기→
+  반복 runner는 별도 승인 후. 상태로 현재 단계 강조(prepared=Active 전환, active 미기록=페어 기록,
+  active 기록/비교=비교 보기). 반복 runner 단계는 미강조(별도 승인).
+- **안전 배지**(`SafetyBadges`): "SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · runner 별도"를
+  일관 표시(표시 전용, 어떤 동작도 트리거 안 함).
+- **페어를 1차 동작으로**: "공정 비교를 위해 먼저 기준/챌린저를 각각 1회 기록하세요 (권장)". 단일 세션
+  run-once는 `<details>` "고급/디버그용: 단일 세션만 기록"로 강등.
+- **빈/저데이터 비교 안내**(신호 수 기준): 둘 다 0 → "아직 비교할 신호가 없습니다. 페어 신호 1회 기록 후
+  다시 비교하세요." / 한쪽만 0 → "한쪽 세션에만 신호가 있어 비교가 편향될 수 있습니다. 페어 신호 기록을
+  권장합니다." / compare warnings는 "통계 주의:"로 표기(에러 아님).
+- **페어 기록 후 넛지**: 결과 표시 후 "이제 ‘신호 성과 비교 보기’를 다시 눌러 결과를 확인하세요"
+  (자동 비교 실행 아님 — 비교는 여전히 사람이 버튼 클릭).
+- 검증: `npm run build`(typecheck+vite) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
+  금지 토큰/라벨 검색 clean. 새 위험 호출(broker/place_order/run_now/run_due_sessions/approve) 없음.
 
 ⛔ `ProposalService.approve` 내부 수정 금지(공유 매매-인접 경로). TESTING/ACTIVE challenger 생성 금지. 사람
 검토 없는 자동 머티리얼라이즈·세션 자동 시작·잡 활성 금지. **M2.2 challenger를 기존

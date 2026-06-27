@@ -36,6 +36,69 @@ function cmpDelta(v: number | null): string {
   return v > 0 ? `+${v}` : String(v);
 }
 
+// M2.12 — 안전 경계를 한 줄 배지로 일관 표시(읽기 전용 표식). 어떤 동작도 트리거하지 않음.
+const SAFETY_BADGES = [
+  "SignalLog만",
+  "주문 없음",
+  "거래 없음",
+  "자동매매 아님",
+  "runner 별도",
+];
+
+function SafetyBadges() {
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+      {SAFETY_BADGES.map((b) => (
+        <span
+          key={b}
+          className="muted"
+          style={{
+            fontSize: "0.7em",
+            border: "1px solid #d1d5db",
+            borderRadius: 4,
+            padding: "0 4px",
+          }}
+        >
+          {b}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// M2.12 — 단계 가이드. 현재 상태에 따라 사용자가 다음에 무엇을 눌러야 하는지 알려준다(표시 전용).
+const LIFECYCLE_STEPS = [
+  "Challenger 세션 준비",
+  "Active 전환",
+  "페어 신호 1회 기록",
+  "신호 성과 비교 보기",
+  "반복 runner는 별도 승인 후",
+];
+
+function LifecycleGuide({ currentIndex }: { currentIndex: number }) {
+  return (
+    <ol style={{ margin: "4px 0", paddingLeft: 18, fontSize: "0.78em" }}>
+      {LIFECYCLE_STEPS.map((s, i) => {
+        const done = i < currentIndex;
+        const cur = i === currentIndex;
+        return (
+          <li
+            key={s}
+            style={{
+              fontWeight: cur ? 600 : 400,
+              color: done ? "#16a34a" : cur ? "#111827" : "#9ca3af",
+              listStyle: "none",
+            }}
+          >
+            {done ? "✓" : `${i + 1}.`} {s}
+            {cur && <span style={{ marginLeft: 4, color: "#2563eb" }}>← 지금</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // M2.8 — 선택한 단일 active 세션에 신호 1회 기록(SignalLog만). 반복/스케줄러/주문/거래 없음.
 // M2.11 — 공정 비교용: baseline + challenger 두 active 세션을 각각 1회 신호 기록(SignalLog만).
 // 권장 동작(단일 세션보다 공정). 반복/스케줄러/주문/거래 아님.
@@ -43,10 +106,12 @@ function PairRunOnce({
   baselineSessionId,
   challengerSessionId,
   challengerStatus,
+  onPairComplete,
 }: {
   baselineSessionId: number;
   challengerSessionId: number;
   challengerStatus: string;
+  onPairComplete?: () => void;
 }) {
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<PaperSignalPairRunOnceResult | null>(null);
@@ -56,7 +121,10 @@ function PairRunOnce({
         confirmed: true,
         confirmed_by: "manual_user",
       }),
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      onPairComplete?.();
+    },
   });
   if (challengerStatus !== "active") {
     return (
@@ -71,9 +139,11 @@ function PairRunOnce({
       : `${label} skipped: ${s.reason ?? "사유 없음"}`;
   return (
     <div style={{ marginTop: 6 }}>
-      <div className="muted" style={{ fontSize: "0.8em" }}>
-        공정한 비교를 위해 기준 세션과 challenger 세션을 같은 사람-트리거 흐름에서 각각 1회 평가합니다
-        (권장 · 공정 비교용 · 기준/챌린저 각각 1회).
+      <div style={{ fontSize: "0.82em", fontWeight: 600 }}>
+        공정 비교를 위해 먼저 기준/챌린저를 각각 1회 기록하세요 (권장).
+      </div>
+      <div className="muted" style={{ fontSize: "0.78em" }}>
+        같은 사람-트리거 흐름에서 두 세션을 각각 1회 평가합니다 (공정 비교용 · 기준/챌린저 각각 1회).
       </div>
       <label className="confirm-check" style={{ fontSize: "0.82em" }}>
         <input
@@ -113,8 +183,8 @@ function PairRunOnce({
               ℹ {w}
             </div>
           ))}
-          <div className="muted">
-            {result.comparison_ready_hint || "결과 확인을 위해 신호 성과 비교를 다시 실행하세요."}
+          <div style={{ fontWeight: 600, color: "#2563eb", marginTop: 2 }}>
+            이제 아래 ‘신호 성과 비교 보기’를 다시 눌러 결과를 확인하세요.
           </div>
         </div>
       )}
@@ -191,11 +261,17 @@ function ChallengerComparison({
 }) {
   const [horizon, setHorizon] = useState(30);
   const [result, setResult] = useState<PaperSignalComparison | null>(null);
+  const [pairRan, setPairRan] = useState(false);
   const mut = useMutation({
     mutationFn: () =>
       comparePaperSignalSessions(baselineSessionId, challengerSessionId, horizon),
     onSuccess: (data) => setResult(data),
   });
+
+  // M2.12 — 현재 단계 계산(표시 전용). prepared=1(Active 전환), active 미기록=2(페어 기록),
+  // active 기록/비교 단계=3(비교 보기). 반복 runner(4)는 별도 승인 후라 강조하지 않는다.
+  const currentStep =
+    challengerStatus === "active" ? (pairRan || result ? 3 : 2) : 1;
 
   const rows: { label: string; b: number | null; c: number | null; d: number | null }[] = result
     ? [
@@ -207,17 +283,17 @@ function ChallengerComparison({
         { label: "최저 %", b: result.baseline.worst_return_pct, c: result.challenger.worst_return_pct, d: result.deltas.worst_return_pct_delta },
       ]
     : [];
-  const noSignals =
-    result != null &&
-    (result.baseline.analyzed_count ?? 0) === 0 &&
-    (result.challenger.analyzed_count ?? 0) === 0;
+  // M2.12 — 빈/저데이터 비교 안내는 신호 수 기준으로 명확화한다.
+  const bSig = result?.baseline.signal_count ?? 0;
+  const cSig = result?.challenger.signal_count ?? 0;
+  const bothZero = result != null && bSig === 0 && cSig === 0;
+  const oneZero = result != null && !bothZero && (bSig === 0 || cSig === 0);
 
   return (
     <div className="signal-compare" style={{ marginTop: 6 }}>
-      <div className="muted" style={{ fontSize: "0.8em" }}>
-        Baseline ↔ Challenger 비교 (읽기 전용 · 주문 없음 · 거래 없음 · 자동매매 아님 · runner 별도)
-      </div>
-      <div className="muted" style={{ fontSize: "0.8em" }}>
+      <LifecycleGuide currentIndex={currentStep} />
+      <SafetyBadges />
+      <div className="muted" style={{ fontSize: "0.8em", marginTop: 2 }}>
         기준 세션 #{baselineSessionId} ↔ challenger 세션 #{challengerSessionId} · challenger status:{" "}
         {challengerStatus}
       </div>
@@ -236,14 +312,20 @@ function ChallengerComparison({
         baselineSessionId={baselineSessionId}
         challengerSessionId={challengerSessionId}
         challengerStatus={challengerStatus}
+        onPairComplete={() => setPairRan(true)}
       />
-      {/* M2.8 — 단일 세션 1회 기록(수동/디버그용 보조 동작) */}
+      {/* M2.8 — 단일 세션 1회 기록(고급/디버그용 보조 동작) */}
       <details style={{ marginTop: 4 }}>
         <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
-          단일 세션만 1회 기록 (보조 · 디버그용)
+          고급/디버그용: 단일 세션만 기록
         </summary>
         <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
       </details>
+      {pairRan && !result && (
+        <div style={{ fontSize: "0.8em", fontWeight: 600, color: "#2563eb", marginTop: 4 }}>
+          이제 ‘신호 성과 비교 보기’를 다시 눌러 결과를 확인하세요.
+        </div>
+      )}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
           {[5, 15, 30, 60].map((h) => (
@@ -263,14 +345,19 @@ function ChallengerComparison({
       )}
       {result && (
         <div style={{ marginTop: 6 }}>
-          {noSignals && (
+          {bothZero && (
             <div className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
-              아직 비교할 신호 결과가 부족합니다. runner 실행 후 결과가 쌓이면 비교가 의미 있어집니다.
+              아직 비교할 신호가 없습니다. 페어 신호 1회 기록 후 다시 비교하세요.
+            </div>
+          )}
+          {oneZero && (
+            <div className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
+              한쪽 세션에만 신호가 있어 비교가 편향될 수 있습니다. 페어 신호 기록을 권장합니다.
             </div>
           )}
           {result.warnings.map((w) => (
             <div key={w} className="muted" style={{ fontSize: "0.8em", color: "#b45309" }}>
-              ⚠ {w}
+              ℹ 통계 주의: {w}
             </div>
           ))}
           <table className="signal-compare-table" style={{ fontSize: "0.8em", marginTop: 4 }}>
