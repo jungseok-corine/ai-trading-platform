@@ -4,19 +4,26 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   activateChallengerSession,
+  activatePaperSignalRecurringRun,
   comparePaperSignalSessions,
+  createPaperSignalRecurringRun,
   getProposal,
   getStrategyTransitionPlan,
+  listPaperSignalRecurringRuns,
   prepareChallengerSession,
   prepareSignalChallenger,
   runPaperSignalPairOnce,
   runPaperSignalSessionOnce,
+  stopPaperSignalRecurringRun,
+  tickPaperSignalRecurringRunOnce,
 } from "../../api/research";
 import type {
   ChallengerSessionActivation,
   ChallengerSessionPreparation,
   PaperSignalComparison,
   PaperSignalPairRunOnceResult,
+  PaperSignalRecurringRun,
+  PaperSignalRecurringTickResult,
   PaperSignalRunOnceResult,
   ProposalStatus,
   SignalChallengerPreparation,
@@ -192,6 +199,290 @@ function PairRunOnce({
   );
 }
 
+// M2.14C — pair-scoped 반복 신호 기록 *계획* 관리(생성/활성화/1회 tick/중지/조회).
+// 모든 동작은 사람 클릭으로만 호출 — page-load 자동 호출/백그라운드 폴링/자동 tick 없음.
+// dispatcher/scheduler/job 아님 · 선택한 페어만 · tick은 최대 2 SignalLog · 주문/거래 없음.
+const RECURRING_BADGES = [
+  "선택한 페어만",
+  "SignalLog만",
+  "주문 없음",
+  "거래 없음",
+  "자동매매 아님",
+  "dispatcher 없음",
+  "scheduler/job 없음",
+];
+
+function planLine(p: PaperSignalRecurringRun): string {
+  return (
+    `#${p.id} · ${p.status} · ${p.interval_seconds}s · ` +
+    `${p.completed_runs}/${p.max_runs}회 · ` +
+    `last ${p.last_run_at ?? "없음"} · next ${p.next_run_at ?? "없음"}`
+  );
+}
+
+function RecurringPlanControls({
+  baselineSessionId,
+  challengerSessionId,
+  challengerStatus,
+}: {
+  baselineSessionId: number;
+  challengerSessionId: number;
+  challengerStatus: string;
+}) {
+  const [tickIntervalSec, setTickIntervalSec] = useState(60);
+  const [maxRuns, setMaxRuns] = useState(30);
+  const [createOk, setCreateOk] = useState(false);
+  const [plans, setPlans] = useState<PaperSignalRecurringRun[] | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [tick, setTick] = useState<PaperSignalRecurringTickResult | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  // 활성화/tick/중지 확인 체크(액션별 분리).
+  const [activateOk, setActivateOk] = useState(false);
+  const [tickOk, setTickOk] = useState(false);
+  const [stopOk, setStopOk] = useState(false);
+
+  const reload = useMutation({
+    // 현재 페어의 계획만 추려서 보여준다(서버는 전체 목록 — 클라이언트에서 페어 필터).
+    mutationFn: () => listPaperSignalRecurringRuns(),
+    onSuccess: (all) =>
+      setPlans(
+        all.filter(
+          (p) =>
+            p.baseline_session_id === baselineSessionId &&
+            p.challenger_session_id === challengerSessionId,
+        ),
+      ),
+    onError: (e: unknown) => setErr(String(e)),
+  });
+  const createMut = useMutation({
+    mutationFn: () =>
+      createPaperSignalRecurringRun({
+        baseline_session_id: baselineSessionId,
+        challenger_session_id: challengerSessionId,
+        interval_seconds: tickIntervalSec,
+        max_runs: maxRuns,
+        confirmed: true,
+        confirmed_by: "manual_user",
+      }),
+    onSuccess: (p) => {
+      setErr(null);
+      setSelectedId(p.id);
+      reload.mutate();
+    },
+    onError: (e: unknown) => setErr(String(e)),
+  });
+  const activateMut = useMutation({
+    mutationFn: (id: number) =>
+      activatePaperSignalRecurringRun(id, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: () => {
+      setErr(null);
+      reload.mutate();
+    },
+    onError: (e: unknown) => setErr(String(e)),
+  });
+  const tickMut = useMutation({
+    mutationFn: (id: number) =>
+      tickPaperSignalRecurringRunOnce(id, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: (r) => {
+      setErr(null);
+      setTick(r);
+      reload.mutate();
+    },
+    onError: (e: unknown) => setErr(String(e)),
+  });
+  const stopMut = useMutation({
+    mutationFn: (id: number) =>
+      stopPaperSignalRecurringRun(id, { confirmed: true, confirmed_by: "manual_user" }),
+    onSuccess: () => {
+      setErr(null);
+      reload.mutate();
+    },
+    onError: (e: unknown) => setErr(String(e)),
+  });
+
+  if (challengerStatus !== "active") {
+    return (
+      <div className="muted" style={{ fontSize: "0.8em", marginTop: 6 }}>
+        반복 신호 기록 계획은 challenger 세션을 active로 전환한 뒤 만들 수 있습니다.
+      </div>
+    );
+  }
+
+  const selected = plans?.find((p) => p.id === selectedId) ?? null;
+
+  return (
+    <details style={{ marginTop: 6 }}>
+      <summary style={{ fontSize: "0.84em", fontWeight: 600, cursor: "pointer" }}>
+        반복 신호 기록 계획
+      </summary>
+      <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
+        선택한 기준/챌린저 페어만, 사람이 누를 때만 SignalLog를 기록합니다.
+      </div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+        {RECURRING_BADGES.map((b) => (
+          <span
+            key={b}
+            className="muted"
+            style={{ fontSize: "0.7em", border: "1px solid #d1d5db", borderRadius: 4, padding: "0 4px" }}
+          >
+            {b}
+          </span>
+        ))}
+      </div>
+
+      {/* 계획 생성(prepared) */}
+      <div style={{ marginTop: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ fontSize: "0.78em" }}>
+            간격(s)
+            <select value={tickIntervalSec} onChange={(e) => setTickIntervalSec(Number(e.target.value))}>
+              {[60, 120, 300, 600].map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: "0.78em" }}>
+            max_runs
+            <select value={maxRuns} onChange={(e) => setMaxRuns(Number(e.target.value))}>
+              {[1, 5, 10, 30, 60].map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="confirm-check" style={{ fontSize: "0.8em" }}>
+          <input type="checkbox" checked={createOk} onChange={(e) => setCreateOk(e.target.checked)} />
+          이 계획은 아직 자동 실행되지 않으며, SignalLog만 기록하는 계획입니다. 주문/거래는 생성하지 않습니다.
+        </label>
+        <div className="form-row">
+          <button
+            className="primary"
+            disabled={!createOk || createMut.isPending}
+            onClick={() => createMut.mutate()}
+          >
+            {createMut.isPending ? "만드는 중…" : "준비 상태 계획 만들기"}
+          </button>
+          <button disabled={reload.isPending} onClick={() => reload.mutate()} style={{ marginLeft: 6 }}>
+            계획 상태 새로고침
+          </button>
+        </div>
+      </div>
+
+      {err && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          요청 실패 — 계획 상태/관계(같은 baseline·종목·DRAFT·active)를 확인하세요.
+        </div>
+      )}
+
+      {/* 현재 페어 계획 목록 + 선택 */}
+      {plans && plans.length > 0 && (
+        <div style={{ marginTop: 6, fontSize: "0.8em" }}>
+          {plans.map((p) => (
+            <label key={p.id} style={{ display: "block", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name={`plan-${baselineSessionId}-${challengerSessionId}`}
+                checked={selectedId === p.id}
+                onChange={() => setSelectedId(p.id)}
+              />{" "}
+              {planLine(p)}
+            </label>
+          ))}
+        </div>
+      )}
+      {plans && plans.length === 0 && (
+        <div className="muted" style={{ fontSize: "0.78em", marginTop: 4 }}>
+          이 페어의 계획이 없습니다. 위에서 준비 상태 계획을 만들어 보세요.
+        </div>
+      )}
+
+      {/* 선택 계획 액션 */}
+      {selected && (
+        <div style={{ marginTop: 6, fontSize: "0.8em", borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
+          <div style={{ fontWeight: 600 }}>선택: {planLine(selected)}</div>
+
+          {selected.status === "prepared" && (
+            <div style={{ marginTop: 4 }}>
+              <label className="confirm-check" style={{ fontSize: "0.8em" }}>
+                <input type="checkbox" checked={activateOk} onChange={(e) => setActivateOk(e.target.checked)} />
+                active는 실행이 아니라, 향후 사람이 누르는 tick 또는 별도 승인 디스패처의 후보 상태입니다.
+              </label>
+              <button
+                disabled={!activateOk || activateMut.isPending}
+                onClick={() => activateMut.mutate(selected.id)}
+              >
+                {activateMut.isPending ? "전환 중…" : "계획 active 전환"}
+              </button>
+              <div className="muted" style={{ marginTop: 2 }}>
+                active 상태만으로는 아무 신호도 기록되지 않습니다.
+              </div>
+            </div>
+          )}
+
+          {selected.status === "active" && (
+            <div style={{ marginTop: 4 }}>
+              <label className="confirm-check" style={{ fontSize: "0.8em" }}>
+                <input type="checkbox" checked={tickOk} onChange={(e) => setTickOk(e.target.checked)} />
+                선택한 계획을 1회만 tick합니다. 기준/챌린저 각각 최대 1개, 총 최대 2개의 SignalLog만 생성됩니다.
+              </label>
+              <button
+                className="primary"
+                disabled={!tickOk || tickMut.isPending}
+                onClick={() => tickMut.mutate(selected.id)}
+              >
+                {tickMut.isPending ? "기록 중…" : "선택 계획 1회 신호 기록"}
+              </button>
+            </div>
+          )}
+
+          {(selected.status === "prepared" || selected.status === "active") && (
+            <div style={{ marginTop: 4 }}>
+              <label className="confirm-check" style={{ fontSize: "0.8em" }}>
+                <input type="checkbox" checked={stopOk} onChange={(e) => setStopOk(e.target.checked)} />
+                이 계획을 stopped 상태로 바꿉니다. 세션/전략/제안 상태는 바꾸지 않습니다.
+              </label>
+              <button
+                className="danger"
+                disabled={!stopOk || stopMut.isPending}
+                onClick={() => stopMut.mutate(selected.id)}
+              >
+                {stopMut.isPending ? "중지 중…" : "계획 중지"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* tick 결과 */}
+      {tick && (
+        <div style={{ marginTop: 6, fontSize: "0.8em" }}>
+          <div className="muted">
+            기준 세션{" "}
+            {tick.baseline.signal_created
+              ? `SignalLog #${tick.baseline.signal_id} 생성`
+              : `skipped: ${tick.baseline.reason ?? "사유 없음"}`}
+          </div>
+          <div className="muted">
+            Challenger{" "}
+            {tick.challenger.signal_created
+              ? `SignalLog #${tick.challenger.signal_id} 생성`
+              : `skipped: ${tick.challenger.reason ?? "사유 없음"}`}
+          </div>
+          <div className="muted">
+            {tick.completed_runs}/{tick.max_runs}회 · {tick.status} · next{" "}
+            {tick.next_run_at ?? "없음(완료)"} · orders {tick.orders_created} · trades{" "}
+            {tick.trades_created}
+          </div>
+          {tick.warnings.map((w) => (
+            <div key={w} className="muted" style={{ color: "#b45309" }}>ℹ {w}</div>
+          ))}
+          <div className="muted">결과 확인을 위해 신호 성과 비교를 다시 눌러보세요.</div>
+        </div>
+      )}
+    </details>
+  );
+}
+
 function SessionRunOnce({
   sessionId,
   challengerStatus,
@@ -313,6 +604,12 @@ function ChallengerComparison({
         challengerSessionId={challengerSessionId}
         challengerStatus={challengerStatus}
         onPairComplete={() => setPairRan(true)}
+      />
+      {/* M2.14C — pair-scoped 반복 신호 기록 계획(사람 클릭 전용 · dispatcher/scheduler 아님) */}
+      <RecurringPlanControls
+        baselineSessionId={baselineSessionId}
+        challengerSessionId={challengerSessionId}
+        challengerStatus={challengerStatus}
       />
       {/* M2.8 — 단일 세션 1회 기록(고급/디버그용 보조 동작) */}
       <details style={{ marginTop: 4 }}>

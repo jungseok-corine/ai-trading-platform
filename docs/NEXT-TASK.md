@@ -462,7 +462,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.14B-3 디스패처(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+- **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
+
+**M2.14C — Frontend UI for Pair-Scoped Recurring Signal Run Plans (`DONE`, frontend-only)**: M2.14A/B-1/B-2
+백엔드 API를 비교 카드 UI로 연결한다. **백엔드/마이그레이션 변경 없음 · 디스패처/스케줄러/잡 없음 · 모든 동작
+사람 클릭 전용(page-load 자동 호출·백그라운드 폴링·자동 tick 없음) · 주문/거래 없음.**
+
+- API 바인딩(`research.ts`): `createPaperSignalRecurringRun` / `listPaperSignalRecurringRuns` /
+  `getPaperSignalRecurringRun` / `activatePaperSignalRecurringRun` / `tickPaperSignalRecurringRunOnce` /
+  `stopPaperSignalRecurringRun`. 타입(`PaperSignalRecurringRun`, `PaperSignalRecurringTickSide`,
+  `PaperSignalRecurringTickResult`).
+- UI(`StrategyProposalReportCard` > `ChallengerComparison` 내 `RecurringPlanControls`, `<details> "반복 신호 기록
+  계획"`): challenger active일 때만 노출(아니면 "active 전환 후" 안내). 안전 배지(선택한 페어만/SignalLog만/주문
+  없음/거래 없음/자동매매 아님/dispatcher 없음/scheduler/job 없음). 생성(interval 60/120/300/600, max_runs
+  1/5/10/30/60 + 확인 체크 "아직 자동 실행되지 않으며…") → prepared. 현재 페어 계획 목록(클라이언트 필터) +
+  라디오 선택. 선택 계획 상태별 액션: prepared→active 전환(확인 체크), active→1회 tick(확인 체크, "최대 2개
+  SignalLog"), prepared/active→중지(확인 체크). tick 결과(기준/Challenger 생성·skip · completed/max · next ·
+  orders 0/trades 0 · 경고 · 비교 재실행 힌트). 수동 "계획 상태 새로고침" 버튼만(자동 폴링 없음).
+- 모든 mutation은 `onClick`에서만 호출. `useEffect` 없음 → on-mount 자동 호출 없음. interval state는
+  `tickIntervalSec`로 명명(타이머 `setInterval` 아님).
+- 검증: `npm run build`(tsc+vite) 통과. 백엔드 무변경 — recurring 74 + M2.10 contract sanity 유지. 프론트 테스트
+  프레임워크 없음(미작성). 금지어/위험 호출 검색 clean. 결정 변경 없음(D-24/25/26이 커버).
+- **M2.14B-3(무인 디스패처)는 별도 명시 승인 후에만.**
 
 **M2.14B-2 — Manual Tick-Once for One Active Recurring Plan (`DONE`, backend, no migration)**: 선택한 active 계획을
 사람이 confirm해 **1회 tick**한다. **디스패처/스케줄러 아님**: 전체 active 스캔/`list_active`/`run_due_sessions`/

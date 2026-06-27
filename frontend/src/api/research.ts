@@ -22,6 +22,8 @@ import type {
   PaperSignalComparison,
   PaperSignalOutcomeBoard,
   PaperSignalPairRunOnceResult,
+  PaperSignalRecurringRun,
+  PaperSignalRecurringTickResult,
   PaperSignalRunOnceResult,
   PaperSignalSession,
   PipelineRun,
@@ -1286,5 +1288,74 @@ export async function getPipelineRuns(limit = 20): Promise<PipelineRun[]> {
   const { data } = await apiClient.get<PipelineRun[]>("/research-pipeline/runs", {
     params: { limit },
   });
+  return data;
+}
+
+// M2.14A/B-1/B-2 — pair-scoped 반복 신호 기록 *계획* 관리(모두 사람 클릭으로만 호출).
+// dispatcher/scheduler 아님 · 주문/거래 없음 · tick은 선택 계획만(최대 2 SignalLog).
+export async function createPaperSignalRecurringRun(payload: {
+  baseline_session_id: number;
+  challenger_session_id: number;
+  interval_seconds: number;
+  max_runs: number;
+  confirmed: boolean;
+  confirmed_by: string;
+}): Promise<PaperSignalRecurringRun> {
+  const { data } = await apiClient.post<PaperSignalRecurringRun>(
+    "/paper-signal-recurring-runs",
+    payload,
+  );
+  return data;
+}
+
+export async function listPaperSignalRecurringRuns(params?: {
+  status?: string;
+}): Promise<PaperSignalRecurringRun[]> {
+  const { data } = await apiClient.get<PaperSignalRecurringRun[]>(
+    "/paper-signal-recurring-runs",
+    { params },
+  );
+  return data;
+}
+
+export async function getPaperSignalRecurringRun(
+  id: number,
+): Promise<PaperSignalRecurringRun> {
+  const { data } = await apiClient.get<PaperSignalRecurringRun>(
+    `/paper-signal-recurring-runs/${id}`,
+  );
+  return data;
+}
+
+export async function activatePaperSignalRecurringRun(
+  id: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalRecurringRun> {
+  const { data } = await apiClient.post<PaperSignalRecurringRun>(
+    `/paper-signal-recurring-runs/${id}/activate`,
+    payload,
+  );
+  return data;
+}
+
+export async function tickPaperSignalRecurringRunOnce(
+  id: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalRecurringTickResult> {
+  const { data } = await apiClient.post<PaperSignalRecurringTickResult>(
+    `/paper-signal-recurring-runs/${id}/tick-once`,
+    payload,
+  );
+  return data;
+}
+
+export async function stopPaperSignalRecurringRun(
+  id: number,
+  payload: { confirmed: boolean; confirmed_by: string },
+): Promise<PaperSignalRecurringRun> {
+  const { data } = await apiClient.post<PaperSignalRecurringRun>(
+    `/paper-signal-recurring-runs/${id}/stop`,
+    payload,
+  );
   return data;
 }

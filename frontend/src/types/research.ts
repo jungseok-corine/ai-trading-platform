@@ -620,3 +620,38 @@ export interface PipelineRun {
   summary: PipelineSummary | null;
   created_at: string;
 }
+
+// M2.14A/B-1/B-2 — pair-scoped 반복 신호 기록 *계획*. 사람이 누를 때만 동작(디스패처/스케줄러 아님).
+export interface PaperSignalRecurringRun {
+  id: number;
+  status: string; // prepared | active | stopped | completed | failed
+  scope_type: string;
+  baseline_session_id: number;
+  challenger_session_id: number;
+  interval_seconds: number;
+  max_runs: number;
+  completed_runs: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_by: string;
+  stopped_by: string | null;
+  stopped_at: string | null;
+  note: string | null;
+  last_error: string | null;
+  orders_created: number; // 항상 0
+  trades_created: number; // 항상 0
+  warnings: string[];
+}
+
+// M2.14B-2 — tick-once 결과(계획 메타데이터 + baseline/challenger 각 1회 평가 결과).
+export interface PaperSignalRecurringTickSide {
+  session_id: number;
+  signal_created: boolean;
+  signal_id: number | null;
+  reason: string | null;
+}
+
+export interface PaperSignalRecurringTickResult extends PaperSignalRecurringRun {
+  baseline: PaperSignalRecurringTickSide;
+  challenger: PaperSignalRecurringTickSide;
+}
