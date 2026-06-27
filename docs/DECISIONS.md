@@ -644,3 +644,35 @@ M2.9에서 공정한 baseline↔challenger 비교를 위한 신호 누적 흐름
 - 서버가 관계/심볼/상태를 강제하면 잘못 짝지어진 페어 실행을 막는다(클라이언트 검증보다 안전).
 
 **구현/상세**: `docs/design/M2.9-pair-run-once-operation-design.md`. 관련: [[D-22]], [[D-21]].
+
+---
+
+## D-24. 상시 신호 운영은 pair-scoped·max-run 제한 계획부터 — 전역 런너 활성은 V1 아님
+
+**날짜**: 2026-06-27  
+**상태**: 확정 (가드레일 / 설계 단계, 구현 미승인)
+
+**경위**:  
+M2.13에서 상시(반복) paper signal 운영을 설계하며 기존 전역 런너를 코드 검증했다. `run_paper_signal_session_job`
+→ `run_due_sessions`는 `list_active()`(status=="active" **전체**, candidate_proposal + signal_challenger 모두)를
+순회하며 SignalLog만 만든다(주문/Trade 없음, 세션/버전 status 불변). 또한 `SchedulerControlService.run_now`는
+**enabled 플래그를 확인하지 않고** `job.func(app)`을 직접 실행한다 → 플래그가 false라도 전체 active 1회 실행 가능.
+
+**결정 내용**:
+
+1. **기존 전역 `paper_signal_session_runner`를 첫 상시 V1으로 켜지 않는다.** 범위(전체 active × 매 interval)와
+   run-now 우회 때문에 운영 리스크가 가장 크다.
+2. **상시 운영은 pair-scoped, max-run 제한, SignalLog-only 반복 계획부터 한다(Option E).** 명시 baseline+
+   challenger 페어만, `confirmed` 게이트, 두 세션 active + 관계/symbol/DRAFT/auto_trade off 검증(M2.8/M2.10
+   게이트 재사용), `interval_seconds` + `max_runs`(상한 자동 종료) + 수동 중지 + 상태 노출.
+3. **반복 계획도 주문/거래 경로를 만들지 않는다.** `run_due_sessions`/`run_now` 미사용(단일 디스패처가 검증된
+   페어 1회 평가를 시간축으로 반복), TradeService/OrderService/broker 주문 미구성, `KIS_REAL_TRADING_ENABLED=false`,
+   버전 DRAFT, auto_trade off.
+4. **구현은 별도 승인 후에만(M2.14).** 신규 테이블 `paper_signal_recurring_runs` + 마이그레이션은 사람 승인 필요
+   (D-20 계열). UI는 "runner 시작"/"잡 활성화" 금지, "페어 반복 신호 기록"으로 한정.
+
+**이유**:  
+- pair-scoped + max_runs는 SignalLog량·표면을 유한·예측가능하게 만든다(전역은 무한·불특정).
+- "1회 → 반복"으로 가도 통제된 계획 객체가 선행돼야 종료 조건·사람 개입점·범위가 보장된다(D-22/D-23 연장선).
+
+**구현/상세**: `docs/design/M2.13-recurring-runner-operation-design.md`. 관련: [[D-23]], [[D-22]], [[D-21]].

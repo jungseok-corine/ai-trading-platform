@@ -462,7 +462,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.13 recurring runner 설계, M2.14 구현(명시 승인).
+- **다음(별도 단계, 미착수)**: M2.14 구현(명시 승인 — pair-scoped 반복 계획 + 마이그레이션 승인).
+
+**M2.13 — Recurring Paper Signal Runner Operation Design (`DONE`, docs-only)**: 상시(반복) 신호 운영을
+설계만 한다. **코드/런타임/마이그레이션 변경 없음 · 런너 미활성/미실행 · SignalLog/Trade/Order 미생성.**
+
+- 코드 검증: 전역 런너(`run_due_sessions`)는 `list_active()`(active 전체) 순회 · SignalLog만 · status 불변 ·
+  세션별 에러 격리 · candle dedupe + stale 가드. **`SchedulerControlService.run_now`는 enabled 플래그를 보지
+  않고 `job.func` 직접 실행** → 전역 1회 우회 가능(핵심 리스크).
+- 옵션 비교 A~E. **권장 = Option E (pair-scoped, `max_runs` 제한, SignalLog-only 반복 계획)**; 전역 런너 활성
+  (Option D)은 V1 부적절로 연기.
+- 제안: `POST /api/v1/paper-signal-recurring-runs` (+ `/stop`, GET status), 신규 테이블
+  `paper_signal_recurring_runs`(상태/페어/interval/max_runs/completed_runs/...), **단일 디스패처 잡**이 검증된
+  페어 1회 평가(M2.8/M2.10 게이트 재사용)를 시간축으로 반복. APScheduler 계획별 잡 생성은 비권장.
+- 산출물: `docs/design/M2.13-recurring-runner-operation-design.md`. 결정: **D-24**(전역 런너 V1 금지 ·
+  pair-scoped max-run SignalLog-only 우선).
+- **다음 결정 필요**: (1) Option E 설계 채택, (2) 신규 테이블/마이그레이션 수용 여부, (3) M2.14 구현 범위.
 
 **M2.12 — Paper Signal Comparison UX Cleanup (`DONE`, frontend-only)**: 비교/challenger 카드의 흐름을
 명확히 한다. **백엔드 변경 없음 · 새 엔드포인트 없음 · 마이그레이션 없음 · 스케줄러/잡 미활성 ·
