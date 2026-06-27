@@ -37,3 +37,20 @@ class PaperSignalRecurringRunRepository(BaseRepository[PaperSignalRecurringRun])
             )
         )
         return result.scalars().first()
+
+    async def find_active_for_pair(
+        self,
+        baseline_session_id: int,
+        challenger_session_id: int,
+        exclude_id: int | None = None,
+    ) -> PaperSignalRecurringRun | None:
+        """같은 페어에 대한 **active** 계획을 찾는다(활성화 시 중복 active 가드, 자기 제외)."""
+        stmt = select(PaperSignalRecurringRun).where(
+            PaperSignalRecurringRun.baseline_session_id == baseline_session_id,
+            PaperSignalRecurringRun.challenger_session_id == challenger_session_id,
+            PaperSignalRecurringRun.status == "active",
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(PaperSignalRecurringRun.id != exclude_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().first()

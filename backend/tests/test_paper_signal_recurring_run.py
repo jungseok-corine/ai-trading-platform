@@ -17,6 +17,9 @@ from app.domain.models.candidate_strategy_proposal import CandidateStrategyPropo
 from app.domain.models.enums import ProposalStatus, StrategyVersionStatus
 from app.domain.models.paper_signal_recurring_run import PaperSignalRecurringRun
 from app.domain.models.paper_signal_session import PaperSignalSession
+from app.domain.repositories.paper_signal_recurring_run import (
+    PaperSignalRecurringRunRepository,
+)
 from app.domain.models.scanner import ScannerRule, ScannerRuleVersion
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import Strategy, StrategyVersion
@@ -36,6 +39,7 @@ from app.services.paper_signal_recurring_run_service import (
     RecurringConfirmationRequiredError,
     RecurringInvalidIntervalError,
     RecurringInvalidMaxRunsError,
+    RecurringPlanNotActivatableError,
     RecurringPlanNotFoundError,
     RecurringPlanNotStoppableError,
 )
@@ -414,5 +418,241 @@ async def test_api_confirm_false_422_and_unknown_404(db_session: AsyncSession) -
             assert r.status_code == 422, r.text
             rg = await ac.get("/api/v1/paper-signal-recurring-runs/999999")
             assert rg.status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+# ============================================================================
+# M2.14B-1: activation/deactivation state management (no execution)
+# ============================================================================
+from app.domain.models.signal_log import SignalLog as _SL  # noqa: E402
+
+
+async def _activate(db, plan_id, **kw):
+    params = dict(confirmed=True, confirmed_by="u"); params.update(kw)
+    return await _svc(db).activate_plan(plan_id, **params)
+
+
+# --- activation gates --------------------------------------------------------
+async def test_activate_confirmed_false_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    with pytest.raises(RecurringConfirmationRequiredError):
+        await _activate(db_session, created["id"], confirmed=False)
+
+
+async def test_activate_missing_confirmed_by_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    with pytest.raises(RecurringConfirmationRequiredError):
+        await _activate(db_session, created["id"], confirmed_by=None)
+
+
+async def test_activate_unknown_404(db_session: AsyncSession) -> None:
+    with pytest.raises(RecurringPlanNotFoundError):
+        await _activate(db_session, 999999)
+
+
+async def test_activate_prepared_succeeds_and_sets_metadata(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c, interval_seconds=60)
+    result = await _activate(db_session, created["id"])
+    assert result["status"] == "active"
+    assert result["next_run_at"] is not None  # future dispatcher metadata
+    assert result["completed_runs"] == 0
+    assert result["last_run_at"] is None
+    assert result["orders_created"] == 0
+    assert result["trades_created"] == 0
+    assert any("no dispatcher" in w.lower() for w in result["warnings"])
+
+
+async def test_activate_creates_no_signal_or_trade(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    sl_before = await _count(db_session, _SL)
+    tr_before = await _count(db_session, Trade)
+    await _activate(db_session, created["id"])
+    assert await _count(db_session, _SL) == sl_before
+    assert await _count(db_session, Trade) == tr_before
+
+
+async def test_activate_does_not_mutate_sessions_versions_proposals(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, strat, sp, pc = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _activate(db_session, created["id"])
+    await db_session.refresh(b); await db_session.refresh(c)
+    await db_session.refresh(b_ver); await db_session.refresh(c_ver)
+    await db_session.refresh(sp); await db_session.refresh(pc)
+    assert b.status == "active" and c.status == "active"
+    assert b_ver.status == StrategyVersionStatus.DRAFT
+    assert c_ver.status == StrategyVersionStatus.DRAFT
+    assert sp.status == ProposalStatus.PENDING
+    assert pc.status == "approved"
+
+
+async def test_activate_already_active_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _activate(db_session, created["id"])
+    with pytest.raises(RecurringPlanNotActivatableError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_stopped_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _svc(db_session).stop_plan(created["id"], confirmed=True, confirmed_by="u")
+    with pytest.raises(RecurringPlanNotActivatableError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_real_trading_enabled_rejected(db_session: AsyncSession, monkeypatch) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    monkeypatch.setattr(run_once_mod, "get_settings", lambda: _FakeSettings(real=True))
+    with pytest.raises(RealTradingEnabledError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_runner_enabled_rejected(db_session: AsyncSession, monkeypatch) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    monkeypatch.setattr(run_once_mod, "get_settings", lambda: _FakeSettings(runner=True))
+    with pytest.raises(RunnerEnabledError):
+        await _activate(db_session, created["id"])
+
+
+# --- activation re-validation (state changed after create) -------------------
+async def test_activate_baseline_no_longer_active_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    b.status = "stopped"; await db_session.flush()
+    with pytest.raises(SessionNotActiveError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_challenger_no_longer_active_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    c.status = "stopped"; await db_session.flush()
+    with pytest.raises(SessionNotActiveError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_relationship_mismatch_rejected(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    c.source_type = "candidate_proposal"; await db_session.flush()
+    with pytest.raises(NotChallengerSessionError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_version_no_longer_draft_rejected(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    c_ver.status = StrategyVersionStatus.TESTING; await db_session.flush()
+    with pytest.raises(VersionNotDraftError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_auto_trade_enabled_rejected(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    c_ver.parameters = {**c_ver.parameters, "auto_trade_enabled": True}
+    await db_session.flush()
+    with pytest.raises(VersionAutoTradeError):
+        await _activate(db_session, created["id"])
+
+
+async def test_activate_duplicate_active_for_pair_rejected(db_session: AsyncSession) -> None:
+    # 같은 페어에 두 prepared 행을 직접 만들고(서비스 가드 우회) 둘 다 활성화 시도.
+    b, c, *_ = await _make_pair(db_session)
+    repo = PaperSignalRecurringRunRepository(db_session)
+    common = dict(scope_type="baseline_challenger_pair", baseline_session_id=b.id,
+                  challenger_session_id=c.id, interval_seconds=60, max_runs=10,
+                  completed_runs=0, created_by="u")
+    p1 = await repo.create(status="prepared", **common)
+    p2 = await repo.create(status="prepared", **common)
+    await db_session.commit()
+    await _activate(db_session, p1.id)  # first → active
+    with pytest.raises(DuplicateRecurringPlanError):
+        await _activate(db_session, p2.id)  # second → duplicate active
+
+
+# --- stop active -------------------------------------------------------------
+async def test_stop_active_succeeds_and_clears_next_run_at(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    activated = await _activate(db_session, created["id"])
+    assert activated["next_run_at"] is not None
+    stopped = await _svc(db_session).stop_plan(created["id"], confirmed=True, confirmed_by="u")
+    assert stopped["status"] == "stopped"
+    assert stopped["next_run_at"] is None
+    assert stopped["completed_runs"] == 0
+    assert stopped["last_run_at"] is None
+
+
+async def test_stop_active_creates_no_signal_or_trade_and_no_mutation(db_session: AsyncSession) -> None:
+    b, c, b_ver, c_ver, strat, sp, pc = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _activate(db_session, created["id"])
+    sl_before = await _count(db_session, _SL)
+    tr_before = await _count(db_session, Trade)
+    await _svc(db_session).stop_plan(created["id"], confirmed=True, confirmed_by="u")
+    assert await _count(db_session, _SL) == sl_before
+    assert await _count(db_session, Trade) == tr_before
+    await db_session.refresh(b); await db_session.refresh(c_ver); await db_session.refresh(sp)
+    assert b.status == "active"
+    assert c_ver.status == StrategyVersionStatus.DRAFT
+    assert sp.status == ProposalStatus.PENDING
+
+
+async def test_stopped_active_allows_new_prepared_for_same_pair(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _activate(db_session, created["id"])
+    await _svc(db_session).stop_plan(created["id"], confirmed=True, confirmed_by="u")
+    again = await _create(db_session, b, c)  # terminal plan no longer blocks
+    assert again["status"] == "prepared"
+
+
+# --- list active -------------------------------------------------------------
+async def test_list_status_active(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    created = await _create(db_session, b, c)
+    await _activate(db_session, created["id"])
+    active = await _svc(db_session).list_plans(status="active")
+    assert all(p["status"] == "active" for p in active)
+    assert any(p["id"] == created["id"] for p in active)
+
+
+# --- API smoke: activate + stop-active --------------------------------------
+async def test_api_activate_and_stop_active_flow(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    app.dependency_overrides[get_db] = _override(db_session)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://t") as ac:
+            r = await ac.post("/api/v1/paper-signal-recurring-runs", json={
+                "baseline_session_id": b.id, "challenger_session_id": c.id,
+                "interval_seconds": 60, "max_runs": 10,
+                "confirmed": True, "confirmed_by": "u"})
+            assert r.status_code == 201
+            pid = r.json()["id"]
+            ra = await ac.post(f"/api/v1/paper-signal-recurring-runs/{pid}/activate",
+                               json={"confirmed": True, "confirmed_by": "u"})
+            assert ra.status_code == 200, ra.text
+            body = ra.json()
+            assert body["status"] == "active" and body["next_run_at"] is not None
+            assert body["orders_created"] == 0 and body["trades_created"] == 0
+            # activating again → 422
+            ra2 = await ac.post(f"/api/v1/paper-signal-recurring-runs/{pid}/activate",
+                                json={"confirmed": True, "confirmed_by": "u"})
+            assert ra2.status_code == 422
+            # stop active → 200
+            rs = await ac.post(f"/api/v1/paper-signal-recurring-runs/{pid}/stop",
+                               json={"confirmed": True, "confirmed_by": "u"})
+            assert rs.status_code == 200 and rs.json()["status"] == "stopped"
+            assert rs.json()["next_run_at"] is None
     finally:
         app.dependency_overrides.pop(get_db, None)

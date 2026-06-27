@@ -462,7 +462,29 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
   active 전환 후 가능합니다." 단일 세션 run-once(M2.8)는 `<details>` 보조/디버그용으로 강등(페어가 기본 권장).
   라벨: "공정 비교용 · 기준/챌린저 각각 1회 · SignalLog만 · 주문 없음 · 거래 없음 · 자동매매 아님 · 반복 실행 아님".
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
-- **다음(별도 단계, 미착수)**: M2.14B 디스패처/활성화(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+- **다음(별도 단계, 미착수)**: M2.14B-2 디스패처(명시 승인), M2.14C UI(백엔드 안전 입증 후).
+
+**M2.14B-1 — Activate Recurring Signal Run Plans Without Execution (`DONE`, backend, no migration)**: 반복 계획에
+**상태 전환만** 추가한다(prepared→active, active→stopped). **활성화는 실행이 아니다**: 디스패처/잡/스케줄러 없음 ·
+SignalLog/Trade/Order 미생성 · `SignalService.generate_and_log_signal`/페어 평가/`run_due_sessions`/`run_now` 미호출.
+
+- **마이그레이션 없음.** 활성화 감사(audit)는 status 전환 + `updated_at`으로만 추적(별도 `activated_by/at` 컬럼
+  추가 안 함 — 불필요한 스키마 변경 회피, D-24 계열).
+- 서비스 `activate_plan(plan_id, confirmed, confirmed_by)`: confirmed+confirmed_by · 전역 게이트(실거래 OFF +
+  상시 런너 OFF) · 계획 prepared여야 함(아니면 422) · **활성화 시점 재검증**(생성 후 세션/버전 상태 변동 대비 —
+  `_load_and_validate_pair`로 M2.8/M2.10 검증 재사용) · 같은 페어 active 중복 거부(409). status="active" +
+  `next_run_at = now + interval_seconds`(미래 디스패처용 **메타데이터일 뿐**, 이 단계에선 아무도 읽지 않음).
+  completed_runs 0 / last_run_at null 유지.
+- 중지 확장: 이제 **prepared/active 모두** 중지 가능. 종료(stopped/completed/failed) 중지는 422. 중지 시
+  `next_run_at`=NULL로 비운다. 세션/버전/제안 불변.
+- 상태별 경고: prepared/active/terminal 각각 — active는 "no dispatcher exists in this phase / no SignalLogs by
+  activation / no orders or trades". 응답 `orders_created=0`/`trades_created=0` 항상.
+- API: `POST /paper-signal-recurring-runs/{id}/activate`(200). 404 미존재 · 422 비-prepared/재검증 실패 · 409 active
+  중복. **activate는 상태 전환만 — run/dispatcher/scheduler 엔드포인트 여전히 없음.**
+- 테스트 `tests/test_paper_signal_recurring_run.py`(53, +21): 활성화 게이트/재검증(세션·버전 상태 변동)/중복 active/
+  stop-active/list active + **활성화·중지 모두 SignalLog/Trade 0 · 세션/버전/제안 status 불변**. 전체 백엔드
+  1669 passed. M2.1/M2.8/M2.10/M2.14A 호환 유지. 결정: **D-25**(활성화 ≠ 실행).
+- **M2.14B-2(디스패처)는 별도 명시 승인 후에만.** active 계획은 별도 승인된 디스패처 없이는 절대 돌지 않는다.
 
 **M2.14A — Pair-Scoped Recurring Signal Run Plan Schema + Inert Plan Management (`DONE`, backend, migration 포함)**:
 pair-scoped 반복 신호 *계획*을 정의·관리만 한다(D-24, Option E의 1단계). **계획은 실행되지 않는다(inert):

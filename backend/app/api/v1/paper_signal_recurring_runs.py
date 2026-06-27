@@ -25,6 +25,7 @@ from app.services.paper_signal_recurring_run_service import (
     RecurringConfirmationRequiredError,
     RecurringInvalidIntervalError,
     RecurringInvalidMaxRunsError,
+    RecurringPlanNotActivatableError,
     RecurringPlanNotFoundError,
     RecurringPlanNotStoppableError,
 )
@@ -64,9 +65,14 @@ class StopRecurringRunRequest(BaseModel):
     confirmed_by: str | None = None
 
 
+class ActivateRecurringRunRequest(BaseModel):
+    confirmed: bool = False
+    confirmed_by: str | None = None
+
+
 class RecurringRunResponse(BaseModel):
     id: int
-    status: str  # prepared | stopped | (미래: active/completed/failed)
+    status: str  # prepared | active | stopped | (미래: completed/failed)
     scope_type: str
     baseline_session_id: int
     challenger_session_id: int
@@ -178,7 +184,7 @@ async def stop_recurring_run(
     payload: StopRecurringRunRequest,
     service: PaperSignalRecurringRunService = Depends(get_recurring_run_service),
 ) -> RecurringRunResponse:
-    """prepared 계획을 stopped로 바꾼다. 세션/버전/제안 불변 · SignalLog/주문/거래 없음."""
+    """prepared/active 계획을 stopped로 바꾼다. 세션/버전/제안 불변 · SignalLog/주문/거래 없음."""
     try:
         result = await service.stop_plan(
             plan_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
@@ -188,5 +194,37 @@ async def stop_recurring_run(
     except RecurringPlanNotFoundError as e:
         raise HTTPException(status_code=404, detail="recurring run plan not found") from e
     except RecurringPlanNotStoppableError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return RecurringRunResponse(**result)
+
+
+@router.post(
+    "/paper-signal-recurring-runs/{plan_id}/activate",
+    response_model=RecurringRunResponse,
+)
+async def activate_recurring_run(
+    plan_id: int,
+    payload: ActivateRecurringRunRequest,
+    service: PaperSignalRecurringRunService = Depends(get_recurring_run_service),
+) -> RecurringRunResponse:
+    """prepared 계획을 active로 전환한다(상태 전환만 — 실행 아님).
+
+    active 상태는 미래 디스패처의 후보 상태일 뿐입니다. 이 API는 SignalLog/주문/거래를 만들지 않습니다.
+    scheduler/job은 여전히 비활성이며 디스패처는 존재하지 않습니다(M2.14B-2 별도 승인). 자격 재검증 실패는
+    422, 같은 페어 active 중복은 409.
+    """
+    try:
+        result = await service.activate_plan(
+            plan_id, confirmed=payload.confirmed, confirmed_by=payload.confirmed_by
+        )
+    except RecurringConfirmationRequiredError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RecurringPlanNotFoundError as e:
+        raise HTTPException(status_code=404, detail="recurring run plan not found") from e
+    except RecurringPlanNotActivatableError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except DuplicateRecurringPlanError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except _VALIDATION_ERRORS as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return RecurringRunResponse(**result)
