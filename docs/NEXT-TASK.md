@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14F Manual Operation Trial (`DONE`, docs-only)**: 현재 수동 흐름(create→activate→tick→readiness→비교)이
+이해 가능·유용·안전한지 운영 관점에서 검증. **새 기능 없음 · 백엔드/프론트 런타임·마이그레이션 변경 없음 ·
+스케줄러/잡/API 실행/프론트 실행 컨트롤 없음 · 플래그 활성 없음 · Trade/Order/broker/KIS 없음.**
+
+- 산출물: `docs/reviews/M2.14F-manual-operation-trial.md`. 트라이얼 모드 **C(정적 워크스루) + 기존 e2e 테스트를
+  런타임 증거로 사용**(라이브 UI/독립 서버 비실용 — 브라우저 없음·dev Postgres 영속 미확인). 운영 API 경로
+  (create/activate/tick/readiness/dispatch-core) 커버 테스트 **60 passed**(플래그 미활성·트랜잭션 롤백·broker 미호출).
+- 결과: 흐름 **이해 가능·안전·유용**. prepared/active(수동 기록 가능)/tick/완료 명확, tick당 ≤2 SignalLog ·
+  Trade/Order 0 · broker 미호출 검증. 마찰: dispatcher status 패널 **정보 과밀** · 비교 카드 **집약(빽빽)** ·
+  비교표에 **표본수/신뢰도 표식 부재**.
+- 데이터 유용성: 수동 tick으로 충분히 수집 가능(페어당 ~30 tick이 비교 시작점, max_runs 기본 30과 정합).
+  **스케줄러는 지금 필수 아님** — 표본 가속일 뿐 새 분석 능력 추가 아님.
+- 권고: **3d 직행 안 함.** (1) 수동 tick 데이터 수집 지속 → (2) M2.14G(가칭) 소폭 UI 정리(status 핵심만 강조 +
+  비교 카드 그룹 분리 + 표본수 힌트) → (3) M2.14 문서 통합 → (4) 그 후 + 사람 명시 승인 시에만 M2.14B-3d(런북 §7
+  스모크). **M2.14B-3d는 이 트라이얼 후에도 미승인 유지** — 별도 명시 승인 필요. DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14B-3d Go/No-Go Checklist & Operator Runbook (`DONE`, docs-only)**: 스케줄러 통합 착수 여부 결정 전
 Go/No-Go 체크리스트 + 운영 런북. **스케줄러 통합 미구현 · 잡 미등록 · API 실행 엔드포인트 없음 · 프론트 실행
 컨트롤 없음 · 백엔드/프론트 런타임·마이그레이션 변경 없음.**
