@@ -464,6 +464,20 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14J Data Collection Prerequisite Checklist (`DONE`, docs/ops-only)**: 수동 tick 수집 *전* 환경/데이터 준비를
+확인하는 체크리스트(Session 1이 빈 DB에서 못 돈 원인 재발 방지). **런타임 변경 없음 · 마이그레이션 없음 ·
+합성 데이터/가짜 SignalLog 없음 · Trade/Order 없음 · 스케줄러/잡 없음 · 실행 엔드포인트 없음 · reset/purge 명령 없음.**
+
+- 산출물: `docs/runbooks/M2.14J-data-collection-prerequisite-checklist.md`(목적 · 빠른 판단 · 필요 환경 ·
+  필요 데이터 · 데이터 출처(실데이터 선호/합성은 라벨·거래증거 불가) · 빈 DB 진단 기록 · **읽기 전용** 준비
+  프로브(SELECT/count만) · Go/No-Go · M2.14H/부트스트랩/3d 관계).
+- Session 1 진단 캡처: `sessions=0 · signal_challenger=0 · active_challenger=0 · recurring_plans=0 ·
+  active_plans=0` → 정직하게 모을 표본 없음, **날조 금지**. Go는 유효 페어≥1 + 계획 가능 + 플래그 false +
+  시세 접근(유용 SignalLog 기대 시) + 운영자가 "단발 비교≠누적" 이해 시에만.
+- 다음 권장 행동: (1) M2.14J로 환경 준비 확인 → (2) 유효 페어 있으면 M2.14H 수동 tick 수집 → (3) 빈 DB가
+  지속되면 **실 상류 데이터 준비** 또는 **dev 전용 SYNTHETIC 부트스트랩(별도 명시 승인)** 중 택1 → (4) 3d는
+  아직 진행 안 함. **M2.14B-3d 여전히 미승인.** DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14H Manual Data Collection Quickstart (`DONE`, docs/ops-only)**: 스케줄러 자동화 결정 전 운영자가 수동
 tick으로 유용한 데이터를 모으는 한 장짜리 퀵스타트. **런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 ·
 API 실행 엔드포인트 없음 · 프론트 실행 컨트롤 없음 · 이 문서가 SignalLog/Trade/Order를 만들지 않음.**
