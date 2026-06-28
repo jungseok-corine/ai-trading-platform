@@ -24,6 +24,7 @@ import type {
   PaperSignalPairRunOnceResult,
   PaperSignalRecurringRun,
   PaperSignalRecurringTickResult,
+  RecurringDispatcherReadiness,
   PaperSignalRunOnceResult,
   PaperSignalSession,
   PipelineRun,
@@ -1356,6 +1357,14 @@ export async function stopPaperSignalRecurringRun(
   const { data } = await apiClient.post<PaperSignalRecurringRun>(
     `/paper-signal-recurring-runs/${id}/stop`,
     payload,
+  );
+  return data;
+}
+
+// M2.14B-3e — 디스패처 readiness/status 조회(읽기 전용 GET). 아무것도 실행하지 않는다.
+export async function getPaperSignalRecurringDispatcherReadiness(): Promise<RecurringDispatcherReadiness> {
+  const { data } = await apiClient.get<RecurringDispatcherReadiness>(
+    "/paper-signal-recurring-runs/dispatcher/readiness",
   );
   return data;
 }

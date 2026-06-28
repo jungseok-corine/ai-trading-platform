@@ -464,6 +464,26 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14B-3e — Read-only Frontend Dispatcher Status (`DONE`, frontend-only)**: 기존 readiness API를 프론트에
+**읽기 전용 상태**로 노출한다. **백엔드 런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 · API 실행
+엔드포인트 없음 · 실행/활성화/설정 토글 버튼 없음 · 자동 폴링 없음 · SignalLog/Trade/Order 없음.**
+
+- API 바인딩(`research.ts`): `getPaperSignalRecurringDispatcherReadiness()`(GET
+  `/paper-signal-recurring-runs/dispatcher/readiness`, **읽기 전용 GET만**). 타입(`research.ts`):
+  `RecurringDispatcherReadiness`/`...Config`/`...PlanCounts`/`...SafetyInvariants`.
+- UI(`StrategyProposalReportCard` > `ChallengerComparison` 내 `RecurringDispatcherStatusPanel`,
+  `<details> "디스패처 상태(읽기 전용)"`): 부제 "현재는 상태만 보여줍니다. 이 화면에서는 어떤 계획도 실행하지
+  않습니다." 안전 배지 8종(읽기 전용/실행 버튼 없음/스케줄러 없음/API 실행 엔드포인트 없음/SignalLog 생성 없음/
+  주문 없음/거래 없음/자동매매 아님). 상태 카드 7종(실행 가능 여부 can_execute=false+이유 · 서비스 코어
+  존재하나 미연결 · 스케줄러 잡 미등록 · 설정 플래그 **표시 전용 토글 없음** · 계획 카운트 "due여도 자동 실행
+  안 함" · 안전 불변식 · warnings). 컨트롤은 **"상태 새로고침"(수동 GET) 버튼 1개뿐.**
+- 무실행/무변경: 컴포넌트는 GET readiness만 호출(POST/PATCH/DELETE 0). create/activate/tick/stop/dispatch/
+  scheduler/config-toggle 호출 0. `useEffect`/`setInterval`/`setTimeout`/폴링 없음(페이지 로드 자동 호출 없음 —
+  수동 새로고침만). 금지 라벨(디스패처 시작/실행하기/잡 활성화 등) 부재. "자동 실행"은 전부 부정 카피.
+- 검증: `npm run build`(tsc+vite) 통과. 백엔드 무변경 — readiness contract 8 sanity 유지. 프론트 테스트
+  프레임워크 없음(미작성). DECISIONS 변경 없음(D-27 커버).
+- **M2.14B-3d(스케줄러 통합)는 여전히 미승인·미착수.** 이 UI는 컨트롤 표면이 아니라 상태 표면일 뿐.
+
 **M2.14 Midpoint Review (`DONE`, docs-only)**: M2.14A~B-3c 누적 상태를 중간 점검한다(스케줄러 통합 전).
 산출물 `docs/reviews/M2.14-midpoint-review.md`(현 상태·완료 단계·아키텍처·안전 경계·복잡도/드리프트·잔여
 작업·권고·non-goals·리스크 레지스터·최종 판정).

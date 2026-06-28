@@ -655,3 +655,49 @@ export interface PaperSignalRecurringTickResult extends PaperSignalRecurringRun 
   baseline: PaperSignalRecurringTickSide;
   challenger: PaperSignalRecurringTickSide;
 }
+
+// M2.14B-3b/3c/3e — 디스패처 readiness/status(읽기 전용). 이 응답은 아무것도 실행하지 않는다.
+export interface RecurringDispatcherConfig {
+  paper_signal_recurring_plan_dispatcher_enabled: boolean;
+  paper_signal_session_runner_enabled: boolean;
+  kis_real_trading_enabled: boolean;
+}
+
+export interface RecurringDispatcherPlanCounts {
+  total: number;
+  prepared: number;
+  active: number;
+  stopped: number;
+  completed: number;
+  failed: number;
+  due_active: number;
+  not_due_active: number;
+  active_missing_next_run_at: number;
+  active_exhausted: number;
+  with_last_error: number;
+}
+
+export interface RecurringDispatcherSafetyInvariants {
+  scans_recurring_runs_only: boolean;
+  global_runner_forbidden: boolean;
+  signal_log_only_future_requirement: boolean;
+  orders_forbidden: boolean;
+  trades_forbidden: boolean;
+  broker_kis_forbidden: boolean;
+}
+
+export interface RecurringDispatcherReadiness {
+  dispatcher_stage: string;
+  dispatcher_implemented: boolean;
+  service_core_implemented: boolean;
+  scheduler_dispatcher_implemented: boolean;
+  api_execution_endpoint_registered: boolean;
+  scheduler_job_registered: boolean;
+  can_execute: boolean;
+  execution_blocked_reason: string;
+  config: RecurringDispatcherConfig;
+  plan_counts: RecurringDispatcherPlanCounts;
+  readiness_blockers: string[];
+  safety_invariants: RecurringDispatcherSafetyInvariants;
+  warnings: string[];
+}

@@ -7,6 +7,7 @@ import {
   activatePaperSignalRecurringRun,
   comparePaperSignalSessions,
   createPaperSignalRecurringRun,
+  getPaperSignalRecurringDispatcherReadiness,
   getProposal,
   getStrategyTransitionPlan,
   listPaperSignalRecurringRuns,
@@ -25,6 +26,7 @@ import type {
   PaperSignalRecurringRun,
   PaperSignalRecurringTickResult,
   PaperSignalRunOnceResult,
+  RecurringDispatcherReadiness,
   ProposalStatus,
   SignalChallengerPreparation,
 } from "../../types/research";
@@ -513,6 +515,162 @@ function RecurringPlanControls({
   );
 }
 
+// M2.14B-3e — 디스패처 readiness/status를 읽기 전용으로 보여준다.
+// 실행/활성화/스케줄러/설정 토글 컨트롤 없음 · mutation 없음 · 자동 폴링 없음(수동 새로고침만).
+const DISPATCHER_STATUS_BADGES = [
+  "읽기 전용",
+  "실행 버튼 없음",
+  "스케줄러 없음",
+  "API 실행 엔드포인트 없음",
+  "SignalLog 생성 없음",
+  "주문 없음",
+  "거래 없음",
+  "자동매매 아님",
+];
+
+function flagText(label: string, value: boolean, safeWhenFalse = true): JSX.Element {
+  // safeWhenFalse=true면 false가 안전(초록), true가 경고(주황). 반대면 반대.
+  const safe = safeWhenFalse ? !value : value;
+  return (
+    <div style={{ color: safe ? "#16a34a" : "#b45309" }}>
+      {safe ? "✓" : "⚠"} {label}: {String(value)}
+    </div>
+  );
+}
+
+function RecurringDispatcherStatusPanel() {
+  const [status, setStatus] = useState<RecurringDispatcherReadiness | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  // 읽기 전용 조회만 — POST/PATCH/DELETE 없음. 사람이 누를 때만 호출(자동 폴링/useEffect 없음).
+  const load = useMutation({
+    mutationFn: () => getPaperSignalRecurringDispatcherReadiness(),
+    onSuccess: (d) => {
+      setErr(null);
+      setStatus(d);
+    },
+    onError: (e: unknown) => setErr(String(e)),
+  });
+
+  return (
+    <details style={{ marginTop: 6 }}>
+      <summary style={{ fontSize: "0.84em", fontWeight: 600, cursor: "pointer" }}>
+        디스패처 상태(읽기 전용)
+      </summary>
+      <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
+        현재는 상태만 보여줍니다. 이 화면에서는 어떤 계획도 실행하지 않습니다.
+      </div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+        {DISPATCHER_STATUS_BADGES.map((b) => (
+          <span
+            key={b}
+            className="muted"
+            style={{ fontSize: "0.7em", border: "1px solid #d1d5db", borderRadius: 4, padding: "0 4px" }}
+          >
+            {b}
+          </span>
+        ))}
+      </div>
+      <div className="form-row" style={{ marginTop: 4 }}>
+        <button disabled={load.isPending} onClick={() => load.mutate()}>
+          {load.isPending ? "불러오는 중…" : "상태 새로고침"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="muted" style={{ fontSize: "0.8em", color: "#b91c1c", marginTop: 4 }}>
+          상태 조회 실패 — 잠시 후 다시 시도하세요.
+        </div>
+      )}
+
+      {status && (
+        <div style={{ fontSize: "0.8em", marginTop: 6, display: "grid", gap: 6 }}>
+          {/* 1. 실행 가능 여부 */}
+          <div>
+            <div style={{ fontWeight: 600 }}>실행 가능 여부</div>
+            <div style={{ color: status.can_execute ? "#b45309" : "#16a34a" }}>
+              {status.can_execute ? "⚠" : "✓"} can_execute: {String(status.can_execute)} ·{" "}
+              {status.execution_blocked_reason}
+            </div>
+            <div className="muted">현재 UI/API에서는 디스패처를 실행할 수 없습니다.</div>
+          </div>
+
+          {/* 2. 서비스 코어 */}
+          <div>
+            <div style={{ fontWeight: 600 }}>서비스 코어</div>
+            <div className="muted">단계: {status.dispatcher_stage}</div>
+            {flagText("service_core_implemented", status.service_core_implemented, false)}
+            <div className="muted">
+              내부 코어는 존재하지만, 스케줄러나 API 실행 경로에 연결되어 있지 않습니다.
+            </div>
+          </div>
+
+          {/* 3. 스케줄러 */}
+          <div>
+            <div style={{ fontWeight: 600 }}>스케줄러</div>
+            {flagText("scheduler_job_registered", status.scheduler_job_registered)}
+            {flagText("scheduler_dispatcher_implemented", status.scheduler_dispatcher_implemented)}
+            {flagText("api_execution_endpoint_registered", status.api_execution_endpoint_registered)}
+            <div className="muted">스케줄러 잡이 등록되어 있지 않아 자동 실행되지 않습니다.</div>
+          </div>
+
+          {/* 4. 설정 플래그(토글 없음 — 표시 전용) */}
+          <div>
+            <div style={{ fontWeight: 600 }}>설정 플래그(표시 전용 · 토글 없음)</div>
+            {flagText(
+              "paper_signal_recurring_plan_dispatcher_enabled",
+              status.config.paper_signal_recurring_plan_dispatcher_enabled,
+            )}
+            {flagText(
+              "paper_signal_session_runner_enabled",
+              status.config.paper_signal_session_runner_enabled,
+            )}
+            {flagText("kis_real_trading_enabled", status.config.kis_real_trading_enabled)}
+          </div>
+
+          {/* 5. 계획 카운트 */}
+          <div>
+            <div style={{ fontWeight: 600 }}>계획 카운트</div>
+            <div className="muted">
+              total {status.plan_counts.total} · active {status.plan_counts.active} · due_active{" "}
+              {status.plan_counts.due_active} · not_due_active {status.plan_counts.not_due_active} ·
+              missing_next {status.plan_counts.active_missing_next_run_at} · exhausted{" "}
+              {status.plan_counts.active_exhausted} · with_last_error{" "}
+              {status.plan_counts.with_last_error}
+            </div>
+            <div className="muted" style={{ color: "#2563eb" }}>
+              due 계획이 있어도 현재는 자동 실행되지 않습니다.
+            </div>
+          </div>
+
+          {/* 6. 안전 불변식 */}
+          <div>
+            <div style={{ fontWeight: 600 }}>안전 불변식</div>
+            <div className="muted">
+              recurring만 스캔: {String(status.safety_invariants.scans_recurring_runs_only)} · 전역 런너
+              금지: {String(status.safety_invariants.global_runner_forbidden)} · 주문 금지:{" "}
+              {String(status.safety_invariants.orders_forbidden)} · 거래 금지:{" "}
+              {String(status.safety_invariants.trades_forbidden)} · broker/KIS 금지:{" "}
+              {String(status.safety_invariants.broker_kis_forbidden)}
+            </div>
+          </div>
+
+          {/* 7. warnings */}
+          {status.warnings.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 600 }}>안내</div>
+              {status.warnings.map((w) => (
+                <div key={w} className="muted">
+                  ℹ {w}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </details>
+  );
+}
+
 function SessionRunOnce({
   sessionId,
   challengerStatus,
@@ -652,6 +810,8 @@ function ChallengerComparison({
         challengerSessionId={challengerSessionId}
         challengerStatus={challengerStatus}
       />
+      {/* M2.14B-3e — 디스패처 상태(읽기 전용 · 실행 컨트롤 없음) */}
+      <RecurringDispatcherStatusPanel />
       {/* M2.8 — 단일 세션 1회 기록(고급/디버그용 보조 동작) */}
       <details style={{ marginTop: 4 }}>
         <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
