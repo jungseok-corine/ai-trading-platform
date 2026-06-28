@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14M Dev Synthetic Pair Creation (`DONE`, dev-DB ops, docs-only commit)**: M2.14L 스크립트를 dev DB에
+`--execute`로 **1회** 실행해 라벨된 SYNTHETIC/DEMO 페어 1개 + prepared 계획 1개를 생성. **코드 변경 없음 ·
+마이그레이션 없음 · SignalLog/Trade/Order 미생성 · broker/KIS 미호출 · 수동 tick 미실행 · 계획 활성화 안 함 ·
+스케줄러/디스패처 미활성 · M2.14B-3d 승인 아님.**
+
+- 생성된 데모 레코드(dev DB): Strategy #294 · StrategyVersion #327(baseline)/#328(challenger, DRAFT·
+  auto_trade off·moving_average_cross·`_synthetic`) · PaperSignalSession #10(baseline·active·candidate_proposal·
+  005930)/#11(challenger·active·signal_challenger·baseline #10 연결) · PaperSignalRecurringRun #1(**prepared**·
+  completed_runs 0·next_run_at null·interval 60·max_runs 30). 모든 레코드 라벨 5종(SYNTHETIC/DEMO/
+  NOT_TRADING_EVIDENCE/NOT_REAL_PERFORMANCE/DEV_ONLY)·`started_by=dev_synthetic_bootstrap`.
+- 안전 불변식 검증: 실행 전/후 SignalLog **80880 불변** · Trade **35 불변**(기존 이력, 부트스트랩이 안 건드림) ·
+  PaperSignalSession 0→2 · RecurringRun 0→1. 2회차 `--execute`는 **reused=true**(중복 0). 플래그 3종 false 유지.
+- **이 데이터는 거래/성과 증거가 아니다(DEMO).** 수익성 판단·M2.14B-3d 정당화·실 비교 증거로 쓰지 않는다.
+- **다음(별도 승인)**: M2.14N — 이 prepared 계획을 active 전환 + 데모 라벨된 수동 tick **1회** 시연(데모임을
+  명시). 실 수집은 여전히 실 상류 데이터+(모의)시세 필요. **M2.14B-3d 계속 미승인.** DECISIONS 변경 없음.
+
 **M2.14L Dev-only Synthetic Pair Bootstrap (Implementation) (`DONE`, dev-script + tests, no migration)**: M2.14K
 설계대로 **dev 전용 SYNTHETIC** 부트스트랩 스크립트 구현. **프론트 변경 없음 · 마이그레이션 없음 · SignalLog/
 Trade/Order 미생성 · broker/KIS 미호출 · 스케줄러/디스패처 미활성 · 실 dev DB에 영속 합성 데이터 미생성(--execute
