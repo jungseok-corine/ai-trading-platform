@@ -464,6 +464,23 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14N Demo Manual Tick One-time Run (`DONE`, dev-DB ops, docs-only commit)**: SYNTHETIC/DEMO 페어로 수동
+recurring-plan tick 흐름을 end-to-end 검증(prepared→active→tick-once→skip). **코드 변경 없음 · 마이그레이션
+없음 · Trade/Order 미생성 · broker 주문 미호출 · 스케줄러/디스패처 미활성 · tick 1회만 · M2.14B-3d 승인 아님 ·
+합성 결과는 거래/성과 증거 아님.**
+
+- 흐름: 계획 #1 활성화(`activate_plan`, confirmed) → status prepared→**active** · next_run_at 설정 ·
+  SignalLog/Trade 불변. 그 뒤 **수동 tick 1회**(`tick_plan_once` = 엔드포인트와 동일 경로, signal-only
+  SignalService 주입) → 양쪽 **skip**("no actionable strategy signal, stale/closed market, or duplicate candle").
+- 결과: 계획 #1 status **active** · completed_runs **0→1**(시도 카운트) · last_run_at 설정 · next_run_at +60s.
+  baseline/challenger 둘 다 signal_created=false(skip). **SignalLog 80880→80880(delta 0)** · **Trade 35→35** ·
+  orders_created 0 · trades_created 0. (KIS rate-limit은 **읽기 전용 캔들 시세** 조회에서 발생 → skip 흡수; 주문
+  경로 미호출.) 제3 세션 무영향(sessions 2 유지).
+- 안전: dispatcher readiness 여전히 비실행(can_execute false · scheduler_job_registered false ·
+  api_execution_endpoint_registered false) · 3 플래그 false 유지 · 스케줄러 잡 0 · 디스패처 활성 0 · 파일 변경 0.
+- **데모 흐름 검증일 뿐 — 수익성 판단·M2.14B-3d 정당화 불가.** 시세 가용 환경에서 반복 tick하면 SignalLog가
+  쌓이나, 그 역시 합성 페어라 거래 증거 아님. **M2.14B-3d 계속 미승인.** DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14M Dev Synthetic Pair Creation (`DONE`, dev-DB ops, docs-only commit)**: M2.14L 스크립트를 dev DB에
 `--execute`로 **1회** 실행해 라벨된 SYNTHETIC/DEMO 페어 1개 + prepared 계획 1개를 생성. **코드 변경 없음 ·
 마이그레이션 없음 · SignalLog/Trade/Order 미생성 · broker/KIS 미호출 · 수동 tick 미실행 · 계획 활성화 안 함 ·
