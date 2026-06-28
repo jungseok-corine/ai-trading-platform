@@ -1,6 +1,6 @@
 // C-2.30: AI 전략 제안 승인 전 리포트 카드.
 // 승인 전에 "무엇이 바뀌고, 무엇이 바뀌지 않는지"를 보여준다.
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   activateChallengerSession,
@@ -108,6 +108,35 @@ function LifecycleGuide({ currentIndex }: { currentIndex: number }) {
   );
 }
 
+// M2.14G — 운영자 명료성을 위한 섹션 그룹(표시 전용). 제목 + helper로 목적을 분리한다.
+function SectionGroup({
+  title,
+  helper,
+  children,
+}: {
+  title: string;
+  helper: string;
+  children: ReactNode;
+}) {
+  return (
+    <div style={{ marginTop: 8, borderLeft: "3px solid #e5e7eb", paddingLeft: 8 }}>
+      <div style={{ fontSize: "0.82em", fontWeight: 700 }}>{title}</div>
+      <div className="muted" style={{ fontSize: "0.75em", marginBottom: 2 }}>
+        {helper}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// M2.14G — 대략적인 참고용 표본 힌트(기존 카운트만 사용 · 새 백엔드 지표 계산 없음).
+// paired = min(baseline, challenger) 신호 수. <10 표본 부족 / 10~29 관찰 중 / >=30 비교 시작 가능.
+function sampleSizeHint(paired: number): { label: string; color: string } {
+  if (paired < 10) return { label: "표본 부족", color: "#b45309" };
+  if (paired < 30) return { label: "관찰 중", color: "#2563eb" };
+  return { label: "비교 시작 가능", color: "#16a34a" };
+}
+
 // M2.8 — 선택한 단일 active 세션에 신호 1회 기록(SignalLog만). 반복/스케줄러/주문/거래 없음.
 // M2.11 — 공정 비교용: baseline + challenger 두 active 세션을 각각 1회 신호 기록(SignalLog만).
 // 권장 동작(단일 세션보다 공정). 반복/스케줄러/주문/거래 아님.
@@ -149,11 +178,10 @@ function PairRunOnce({
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: "0.82em", fontWeight: 600 }}>
-        단발 비교용 페어 신호 1회 기록 (권장)
+        단발 비교용 1회 기록 (권장)
       </div>
       <div className="muted" style={{ fontSize: "0.78em" }}>
-        계획을 만들지 않고 기준/챌린저를 한 번씩 기록해 바로 비교할 때 사용합니다 (공정 비교용 · 기준/챌린저 각각
-        1회 · 누적 없음).
+        비교를 위해 현재 페어를 한 번 기록합니다. 계획의 completed_runs에는 누적되지 않습니다.
       </div>
       <label className="confirm-check" style={{ fontSize: "0.82em" }}>
         <input
@@ -583,88 +611,104 @@ function RecurringDispatcherStatusPanel() {
       )}
 
       {status && (
-        <div style={{ fontSize: "0.8em", marginTop: 6, display: "grid", gap: 6 }}>
-          {/* 1. 실행 가능 여부 */}
-          <div>
-            <div style={{ fontWeight: 600 }}>실행 가능 여부</div>
-            <div style={{ color: status.can_execute ? "#b45309" : "#16a34a" }}>
-              {status.can_execute ? "⚠" : "✓"} can_execute: {String(status.can_execute)} ·{" "}
-              {status.execution_blocked_reason}
-            </div>
-            <div className="muted">현재 UI/API에서는 디스패처를 실행할 수 없습니다.</div>
+        <div style={{ fontSize: "0.8em", marginTop: 6 }}>
+          {/* M2.14G — 정보 과밀 축소: 핵심 요약을 먼저, 원시 상세는 중첩 details로 접는다. */}
+          <div style={{ display: "grid", gap: 1 }}>
+            <div>실행 가능 여부: <b style={{ color: "#16a34a" }}>불가</b></div>
+            <div>스케줄러: 없음</div>
+            <div>API 실행 엔드포인트: 없음</div>
+            <div>프론트 실행 버튼: 없음</div>
+            <div>자동매매: 아님</div>
+          </div>
+          <div className="muted" style={{ color: "#2563eb", marginTop: 4 }}>
+            due 계획이 있어도 자동 실행되지 않습니다.
           </div>
 
-          {/* 2. 서비스 코어 */}
-          <div>
-            <div style={{ fontWeight: 600 }}>서비스 코어</div>
-            <div className="muted">단계: {status.dispatcher_stage}</div>
-            {flagText("service_core_implemented", status.service_core_implemented, false)}
-            <div className="muted">
-              내부 코어는 존재하지만, 스케줄러나 API 실행 경로에 연결되어 있지 않습니다.
-            </div>
-          </div>
-
-          {/* 3. 스케줄러 */}
-          <div>
-            <div style={{ fontWeight: 600 }}>스케줄러</div>
-            {flagText("scheduler_job_registered", status.scheduler_job_registered)}
-            {flagText("scheduler_dispatcher_implemented", status.scheduler_dispatcher_implemented)}
-            {flagText("api_execution_endpoint_registered", status.api_execution_endpoint_registered)}
-            <div className="muted">스케줄러 잡이 등록되어 있지 않아 자동 실행되지 않습니다.</div>
-          </div>
-
-          {/* 4. 설정 플래그(토글 없음 — 표시 전용) */}
-          <div>
-            <div style={{ fontWeight: 600 }}>설정 플래그(표시 전용 · 토글 없음)</div>
-            {flagText(
-              "paper_signal_recurring_plan_dispatcher_enabled",
-              status.config.paper_signal_recurring_plan_dispatcher_enabled,
-            )}
-            {flagText(
-              "paper_signal_session_runner_enabled",
-              status.config.paper_signal_session_runner_enabled,
-            )}
-            {flagText("kis_real_trading_enabled", status.config.kis_real_trading_enabled)}
-          </div>
-
-          {/* 5. 계획 카운트 */}
-          <div>
-            <div style={{ fontWeight: 600 }}>계획 카운트</div>
-            <div className="muted">
-              total {status.plan_counts.total} · active {status.plan_counts.active} · due_active{" "}
-              {status.plan_counts.due_active} · not_due_active {status.plan_counts.not_due_active} ·
-              missing_next {status.plan_counts.active_missing_next_run_at} · exhausted{" "}
-              {status.plan_counts.active_exhausted} · with_last_error{" "}
-              {status.plan_counts.with_last_error}
-            </div>
-            <div className="muted" style={{ color: "#2563eb" }}>
-              due 계획이 있어도 현재는 자동 실행되지 않습니다.
-            </div>
-          </div>
-
-          {/* 6. 안전 불변식 */}
-          <div>
-            <div style={{ fontWeight: 600 }}>안전 불변식</div>
-            <div className="muted">
-              recurring만 스캔: {String(status.safety_invariants.scans_recurring_runs_only)} · 전역 런너
-              금지: {String(status.safety_invariants.global_runner_forbidden)} · 주문 금지:{" "}
-              {String(status.safety_invariants.orders_forbidden)} · 거래 금지:{" "}
-              {String(status.safety_invariants.trades_forbidden)} · broker/KIS 금지:{" "}
-              {String(status.safety_invariants.broker_kis_forbidden)}
-            </div>
-          </div>
-
-          {/* 7. warnings */}
-          {status.warnings.length > 0 && (
-            <div>
-              <div style={{ fontWeight: 600 }}>안내</div>
-              {status.warnings.map((w) => (
-                <div key={w} className="muted">
-                  ℹ {w}
+          <details style={{ marginTop: 6 }}>
+            <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
+              원시 상태 자세히(표시 전용)
+            </summary>
+            <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
+              {/* 실행 가능 여부(원시) */}
+              <div>
+                <div style={{ fontWeight: 600 }}>실행 가능 여부</div>
+                <div style={{ color: status.can_execute ? "#b45309" : "#16a34a" }}>
+                  {status.can_execute ? "⚠" : "✓"} can_execute: {String(status.can_execute)} ·{" "}
+                  {status.execution_blocked_reason}
                 </div>
-              ))}
+                <div className="muted">현재 UI/API에서는 디스패처를 실행할 수 없습니다.</div>
+              </div>
+
+              {/* 서비스 코어 */}
+              <div>
+                <div style={{ fontWeight: 600 }}>서비스 코어</div>
+                <div className="muted">단계: {status.dispatcher_stage}</div>
+                {flagText("service_core_implemented", status.service_core_implemented, false)}
+                <div className="muted">
+                  내부 코어는 존재하지만, 스케줄러나 API 실행 경로에 연결되어 있지 않습니다.
+                </div>
+              </div>
+
+              {/* 스케줄러 */}
+              <div>
+                <div style={{ fontWeight: 600 }}>스케줄러</div>
+                {flagText("scheduler_job_registered", status.scheduler_job_registered)}
+                {flagText("scheduler_dispatcher_implemented", status.scheduler_dispatcher_implemented)}
+                {flagText("api_execution_endpoint_registered", status.api_execution_endpoint_registered)}
+                <div className="muted">스케줄러 잡이 등록되어 있지 않아 자동 실행되지 않습니다.</div>
+              </div>
+
+              {/* 설정 플래그(토글 없음 — 표시 전용) */}
+              <div>
+                <div style={{ fontWeight: 600 }}>설정 플래그(표시 전용 · 토글 없음)</div>
+                {flagText(
+                  "paper_signal_recurring_plan_dispatcher_enabled",
+                  status.config.paper_signal_recurring_plan_dispatcher_enabled,
+                )}
+                {flagText(
+                  "paper_signal_session_runner_enabled",
+                  status.config.paper_signal_session_runner_enabled,
+                )}
+                {flagText("kis_real_trading_enabled", status.config.kis_real_trading_enabled)}
+              </div>
+
+              {/* 계획 카운트 */}
+              <div>
+                <div style={{ fontWeight: 600 }}>계획 카운트</div>
+                <div className="muted">
+                  total {status.plan_counts.total} · active {status.plan_counts.active} · due_active{" "}
+                  {status.plan_counts.due_active} · not_due_active {status.plan_counts.not_due_active} ·
+                  missing_next {status.plan_counts.active_missing_next_run_at} · exhausted{" "}
+                  {status.plan_counts.active_exhausted} · with_last_error{" "}
+                  {status.plan_counts.with_last_error}
+                </div>
+              </div>
+
+              {/* 안전 불변식 */}
+              <div>
+                <div style={{ fontWeight: 600 }}>안전 불변식</div>
+                <div className="muted">
+                  recurring만 스캔: {String(status.safety_invariants.scans_recurring_runs_only)} · 전역 런너
+                  금지: {String(status.safety_invariants.global_runner_forbidden)} · 주문 금지:{" "}
+                  {String(status.safety_invariants.orders_forbidden)} · 거래 금지:{" "}
+                  {String(status.safety_invariants.trades_forbidden)} · broker/KIS 금지:{" "}
+                  {String(status.safety_invariants.broker_kis_forbidden)}
+                </div>
+              </div>
+
+              {/* warnings */}
+              {status.warnings.length > 0 && (
+                <div>
+                  <div style={{ fontWeight: 600 }}>안내</div>
+                  {status.warnings.map((w) => (
+                    <div key={w} className="muted">
+                      ℹ {w}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </details>
         </div>
       )}
     </details>
@@ -786,39 +830,46 @@ function ChallengerComparison({
           active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.
         </div>
       )}
-      {/* M2.14E — 세 가지 기록 동작의 목적을 구분하는 범례(표시 전용). */}
-      {challengerStatus === "active" && (
-        <div
-          className="muted"
-          style={{ fontSize: "0.74em", marginTop: 4, borderLeft: "2px solid #e5e7eb", paddingLeft: 6 }}
-        >
-          <div>· 단발 비교용: 계획 없이 한 번 기록해 바로 비교</div>
-          <div>· 계획 누적용: 선택한 계획에 사람이 1회씩 수동으로 쌓기</div>
-          <div>· 고급/디버그용: 한쪽 세션만 확인</div>
-        </div>
-      )}
-      {/* M2.11 — 권장: baseline+challenger 페어 1회 기록(단발 비교용) */}
-      <PairRunOnce
-        baselineSessionId={baselineSessionId}
-        challengerSessionId={challengerSessionId}
-        challengerStatus={challengerStatus}
-        onPairComplete={() => setPairRan(true)}
-      />
-      {/* M2.14C — pair-scoped 반복 신호 기록 계획(사람 클릭 전용 · dispatcher/scheduler 아님) */}
-      <RecurringPlanControls
-        baselineSessionId={baselineSessionId}
-        challengerSessionId={challengerSessionId}
-        challengerStatus={challengerStatus}
-      />
-      {/* M2.14B-3e — 디스패처 상태(읽기 전용 · 실행 컨트롤 없음) */}
-      <RecurringDispatcherStatusPanel />
-      {/* M2.8 — 단일 세션 1회 기록(고급/디버그용 보조 동작) */}
-      <details style={{ marginTop: 4 }}>
-        <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
-          고급/디버그용: 단일 세션만 기록
-        </summary>
-        <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
-      </details>
+      {/* M2.14G — 네 가지 영역을 목적별로 분리: 단발 비교 / 계획 누적 / 디스패처 상태(읽기) / 고급·디버그 */}
+      {/* 1. 단발 비교 — 계획 없이 현재 페어를 한 번 기록 */}
+      <SectionGroup
+        title="단발 비교"
+        helper="선택한 baseline/challenger 페어를 지금 한 번만 기록합니다. 반복 계획에는 누적되지 않습니다."
+      >
+        <PairRunOnce
+          baselineSessionId={baselineSessionId}
+          challengerSessionId={challengerSessionId}
+          challengerStatus={challengerStatus}
+          onPairComplete={() => setPairRan(true)}
+        />
+      </SectionGroup>
+      {/* 2. 계획 누적 — 반복 계획에 수동으로 1회씩 누적 */}
+      <SectionGroup
+        title="계획 누적"
+        helper="반복 계획에 기록을 누적합니다. 수동으로 누를 때만 1회 기록됩니다."
+      >
+        <RecurringPlanControls
+          baselineSessionId={baselineSessionId}
+          challengerSessionId={challengerSessionId}
+          challengerStatus={challengerStatus}
+        />
+      </SectionGroup>
+      {/* 3. 디스패처 상태 — 읽기 전용(실행 컨트롤 없음) */}
+      <SectionGroup
+        title="디스패처 상태(읽기 전용)"
+        helper="상태만 보여줍니다. 이 화면에서는 디스패처를 실행하지 않습니다."
+      >
+        <RecurringDispatcherStatusPanel />
+      </SectionGroup>
+      {/* 4. 고급/디버그 — 단일 세션 1회 기록(기본 접힘) */}
+      <SectionGroup title="고급/디버그" helper="일반 비교 흐름에서는 보통 사용하지 않습니다.">
+        <details style={{ marginTop: 4 }}>
+          <summary className="muted" style={{ fontSize: "0.78em", cursor: "pointer" }}>
+            단일 세션만 기록
+          </summary>
+          <SessionRunOnce sessionId={challengerSessionId} challengerStatus={challengerStatus} />
+        </details>
+      </SectionGroup>
       {pairRan && !result && (
         <div style={{ fontSize: "0.8em", fontWeight: 600, color: "#2563eb", marginTop: 4 }}>
           이제 ‘신호 성과 비교 보기’를 다시 눌러 결과를 확인하세요.
@@ -858,6 +909,19 @@ function ChallengerComparison({
               ℹ 통계 주의: {w}
             </div>
           ))}
+          {/* M2.14G — 대략적인 참고용 표본 힌트(paired = 두 세션 중 작은 신호 수). 통계 계산 아님. */}
+          {!bothZero &&
+            (() => {
+              const paired = Math.min(bSig, cSig);
+              const h = sampleSizeHint(paired);
+              return (
+                <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
+                  대략적인 참고용 표본 힌트:{" "}
+                  <b style={{ color: h.color }}>{h.label}</b> (paired≈{paired}) — 표본이 적을수록
+                  승률/성과 해석은 불안정합니다.
+                </div>
+              );
+            })()}
           <table className="signal-compare-table" style={{ fontSize: "0.8em", marginTop: 4 }}>
             <thead>
               <tr>

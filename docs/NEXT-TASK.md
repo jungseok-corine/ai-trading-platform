@@ -464,6 +464,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14G Small UI Cleanup for operator clarity (`DONE`, frontend-only)**: M2.14F가 찾은 UI 마찰을 줄이는
+프론트 명료화. **백엔드 런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 · API 실행 엔드포인트 없음 ·
+프론트 실행 버튼/config 토글 없음 · SignalLog/Trade/Order 거동 변경 없음 · 자동 폴링/useEffect mutation 없음.**
+
+- A 섹션 그룹화: `ChallengerComparison`의 기록/상태 영역을 4개 그룹으로 시각 분리(`SectionGroup` 헬퍼) —
+  **단발 비교**(PairRunOnce, "반복 계획에 누적 안 됨") / **계획 누적**(RecurringPlanControls, "수동으로 누를 때만
+  1회") / **디스패처 상태(읽기 전용)**(status 패널, "이 화면에서는 실행 안 함") / **고급·디버그**(단일 세션,
+  기본 접힘). 기존 M2.14E 인라인 범례 대체.
+- B 디스패처 status 과밀 축소: 상단에 **컴팩트 요약**(실행 가능 여부 불가 / 스케줄러 없음 / API 실행 엔드포인트
+  없음 / 프론트 실행 버튼 없음 / 자동매매 아님) + "due 계획이 있어도 자동 실행되지 않습니다" 노출, 원시 상세
+  (config 플래그·full plan_counts·safety_invariants·warnings)는 중첩 `<details> "원시 상태 자세히"`로 접음.
+  여전히 읽기 전용·GET만.
+- C 단발 vs 계획 tick 구분: PairRunOnce 제목 "단발 비교용 1회 기록" + helper "현재 페어를 한 번 기록…
+  completed_runs에는 누적되지 않습니다". recurring tick은 "계획 누적용 1회 기록"(기존) — 라벨 혼동 제거.
+- D 표본 힌트: 비교 결과에 **참고용 표본 힌트**(paired=min(baseline,challenger) 신호 수: <10 표본 부족 /
+  10~29 관찰 중 / ≥30 비교 시작 가능) + "표본이 적을수록 해석 불안정". **기존 카운트만 사용 — 새 백엔드 지표/
+  필드 없음.**
+- 무변경 증명: 기존 API 호출 동일(신규 POST/PATCH/DELETE 0 · dispatch/scheduler/config-toggle 호출 0) ·
+  `useEffect`/`setInterval`/`setTimeout` 0 · 백엔드/마이그레이션 0. 금지 라벨 부재, "자동 실행"은 부정 카피만.
+- 검증: `npm run build`(tsc+vite) 통과. 백엔드 무변경 — readiness contract 8 sanity 유지. DECISIONS 변경 없음.
+- **M2.14B-3d(스케줄러 통합)는 여전히 미승인·미착수.** 이 작업은 명료화만 — 실행 능력 추가 없음.
+
 **M2.14F Manual Operation Trial (`DONE`, docs-only)**: 현재 수동 흐름(create→activate→tick→readiness→비교)이
 이해 가능·유용·안전한지 운영 관점에서 검증. **새 기능 없음 · 백엔드/프론트 런타임·마이그레이션 변경 없음 ·
 스케줄러/잡/API 실행/프론트 실행 컨트롤 없음 · 플래그 활성 없음 · Trade/Order/broker/KIS 없음.**
