@@ -464,6 +464,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14B-3d Go/No-Go Checklist & Operator Runbook (`DONE`, docs-only)**: 스케줄러 통합 착수 여부 결정 전
+Go/No-Go 체크리스트 + 운영 런북. **스케줄러 통합 미구현 · 잡 미등록 · API 실행 엔드포인트 없음 · 프론트 실행
+컨트롤 없음 · 백엔드/프론트 런타임·마이그레이션 변경 없음.**
+
+- 산출물: `docs/runbooks/M2.14B-3d-dispatcher-go-no-go-runbook.md`(현 상태 · Go 체크리스트 A · No-Go
+  체크리스트 B/C · 미래 스케줄러 잡 계약 · 운영 런북 14항 · 필수 스모크 계획 · 최종 권고 · non-goals · D-28 제안).
+- Go 체크리스트 A: **17/17 GREEN**(3c/3e 스모크 통과, 코어 비활성, readiness 외부 실행 불가, 프론트 실행 버튼
+  없음, API 실행 엔드포인트 없음, autonomous run-now 미재사용, 전역 런너 거부, Trade/Order·broker 도달 불가,
+  3플래그 false, SignalLog-only 입증, row-lock/batch/max_runs/stop 테스트됨).
+- 미래 잡 계약: `recurring_plan_dispatcher`(기본 비활성, env_enabled=dispatcher 플래그), **잡 함수 첫 줄에서
+  플래그 검사**(run_now 우회 봉쇄), 코어 호출만(중복 평가 경로 신설 금지), `paper_signal_recurring_runs`만 선택,
+  API/프론트 노출 없음.
+- 판정: **GO-ABLE(조건부) — 즉시 착수 아님, 사람 명시 승인 게이트.** 승인 시 최소 범위(스케줄러 잡 1개·기본
+  비활성·신규 API/프론트/마이그레이션 없음·§7 스모크 전부 통과). 미승인 시(권장 기본) 일시 정지 + 수동 tick
+  데이터 수집/문서 통합/UI 단순화.
+- **이 런북은 프로덕션 활성을 승인하지 않는다.** 3d 구현/활성은 별도 사람 명시 승인 필요. DECISIONS 변경 없음
+  (D-27 커버); 3d 착수 승인 시 게이트 사양을 D-28로 기록 제안.
+
 **M2.14B-3e — Read-only Frontend Dispatcher Status (`DONE`, frontend-only)**: 기존 readiness API를 프론트에
 **읽기 전용 상태**로 노출한다. **백엔드 런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 · API 실행
 엔드포인트 없음 · 실행/활성화/설정 토글 버튼 없음 · 자동 폴링 없음 · SignalLog/Trade/Order 없음.**
