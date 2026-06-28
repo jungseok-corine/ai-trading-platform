@@ -464,6 +464,19 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14 Midpoint Review (`DONE`, docs-only)**: M2.14A~B-3c 누적 상태를 중간 점검한다(스케줄러 통합 전).
+산출물 `docs/reviews/M2.14-midpoint-review.md`(현 상태·완료 단계·아키텍처·안전 경계·복잡도/드리프트·잔여
+작업·권고·non-goals·리스크 레지스터·최종 판정).
+
+- 판정: **ON TRACK — 자동화 추가 전 human checkpoint 권고.** 안전 경계 견고(실거래/주문/거래/스케줄/노출 전부
+  도달 불가, 플래그 3종 기본 false, 디스패처 코어 비활성·비스케줄·비노출). 드리프트 없음(여전히 paper 신호
+  연구/비교 도구). 복잡도는 단계 수에서 오나 결합도/리스크 낮음.
+- **이 리뷰는 M2.14B-3d 스케줄러 통합을 승인하지 않는다.** 다음 작업은 **사람 검토 후 결정**. 권장 순서:
+  사람 검토 → (선택) M2.14B-3e 읽기전용 프론트 dispatcher status(실행 버튼 없음) → 그 다음에만 별도 명시
+  승인 + 엄격 게이트(기본 비활성·잡 첫 줄 플래그 검사·API 실행 라우트 없음·프론트 실행 버튼 없음·Trade/Order
+  불가·autonomous run-now 미재사용·킬스위치·스모크)로 M2.14B-3d.
+- DECISIONS 변경 없음(D-24/25/26/27이 커버). 3d 착수 승인 시 "스케줄러 통합 게이트 사양"을 D-28로 기록 고려.
+
 **M2.14B-3c — Disabled-by-default Recurring Dispatcher Service Core (`DONE`, backend, no migration)**: due active
 반복 계획을 1패스 처리하는 **디스패처 서비스 코어**를 추가한다. **기본 비활성 · 직접 테스트 호출 전용 ·
 스케줄러/잡 미등록 · API 실행 엔드포인트 없음 · 프론트 없음 · 마이그레이션 없음 · SignalLog는 기존 tick 경로로만 ·
