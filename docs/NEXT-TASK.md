@@ -464,6 +464,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14E — Recurring Plan UI Copy & Structure Cleanup (`DONE`, frontend-only)**: M2.14D가 찾은 UX 혼동을
+줄이도록 **프론트 라벨/구조만** 정리한다. **백엔드/마이그레이션/엔드포인트 변경 없음 · 디스패처/스케줄러/잡 없음 ·
+자동 호출 없음 · SignalLog/Trade/Order 거동 변경 없음.** API 계약·액션 게이팅·확인 체크 모두 유지.
+
+- 카피: "반복 신호 기록 계획"→**"수동 누적 신호 기록 계획"**; status 한글 부제 매핑(`statusLabel`)
+  prepared→준비됨/active→**수동 기록 가능**/stopped→중지됨/completed→완료됨/failed→실패(원시 status는
+  디버그용으로 괄호 병기). 버튼: "준비 상태 계획 만들기"→**"수동 누적 계획 만들기"**, "계획 active 전환"→**"수동
+  기록 가능 상태로 전환"**, "선택 계획 1회 신호 기록"→**"계획 누적용 1회 기록"**, "계획 중지" 유지.
+- next_run_at: tick 결과/목록에서 "next"→**"다음 기준 시각"** + "디스패처가 없어 자동 실행되지 않습니다(수동 기록
+  참고용 메타데이터)" 주석 — "예약됨" 오해 차단.
+- 구조: 세 기록 동작 목적 구분 범례 추가(단발 비교용=계획 없이 한 번 비교 / 계획 누적용=선택 계획에 1회씩 수동
+  누적 / 고급·디버그용=한쪽 세션만). PairRunOnce 제목→**"단발 비교용 페어 신호 1회 기록"** + helper("계획을
+  만들지 않고…바로 비교"). recurring tick helper("completed_runs 1회↑, 기준/챌린저 각 ≤1 SignalLog").
+- 배지 보강: 기존 7종 + **"자동 실행 없음"·"버튼 클릭 시에만"**, "dispatcher 없음"→"디스패처 없음",
+  "scheduler/job 없음"→"스케줄러/잡 없음".
+- 인간 게이트 유지: create/activate/tick/stop 확인 체크 그대로 · `useEffect`/`setInterval`/`setTimeout`/폴링
+  없음 · 자동 create/activate/tick/stop 없음 · 목록 갱신은 사용자 액션 후 또는 수동 새로고침만.
+- 검증: `npm run build`(tsc+vite) 통과. 백엔드 무변경. 금지어/위험 호출 검색 clean("자동 실행"은 전부 부정 카피).
+  DECISIONS 변경 없음(D-24/25/26 유지). M2.14D readiness 체크리스트 미충족 3건(active=실행 아님 인지 ·
+  next_run_at 메타데이터 · 두 "1회 기록" 구분) 본 작업으로 카피/구조에서 해소.
+- **다음**: M2.14B-3(디스패처)는 여전히 별도 명시 승인 + 설계 문서부터. 무인 반복 금지 유지.
+
 **M2.14D — Recurring Signal Plan End-to-End UX & Safety Review (`DONE`, docs-only)**: M2.14A~C로 완성된
 pair-scoped 반복 신호 *계획* 흐름 전체를 검토한다. **코드/마이그레이션/엔드포인트/디스패처 변경 없음.**
 

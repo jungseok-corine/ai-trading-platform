@@ -147,10 +147,11 @@ function PairRunOnce({
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: "0.82em", fontWeight: 600 }}>
-        공정 비교를 위해 먼저 기준/챌린저를 각각 1회 기록하세요 (권장).
+        단발 비교용 페어 신호 1회 기록 (권장)
       </div>
       <div className="muted" style={{ fontSize: "0.78em" }}>
-        같은 사람-트리거 흐름에서 두 세션을 각각 1회 평가합니다 (공정 비교용 · 기준/챌린저 각각 1회).
+        계획을 만들지 않고 기준/챌린저를 한 번씩 기록해 바로 비교할 때 사용합니다 (공정 비교용 · 기준/챌린저 각각
+        1회 · 누적 없음).
       </div>
       <label className="confirm-check" style={{ fontSize: "0.82em" }}>
         <input
@@ -199,24 +200,47 @@ function PairRunOnce({
   );
 }
 
-// M2.14C — pair-scoped 반복 신호 기록 *계획* 관리(생성/활성화/1회 tick/중지/조회).
+// M2.14C — pair-scoped 수동 누적 신호 기록 *계획* 관리(생성/활성화/1회 tick/중지/조회).
 // 모든 동작은 사람 클릭으로만 호출 — page-load 자동 호출/백그라운드 폴링/자동 tick 없음.
 // dispatcher/scheduler/job 아님 · 선택한 페어만 · tick은 최대 2 SignalLog · 주문/거래 없음.
+// M2.14E — "반복"→"수동 누적", active→"수동 기록 가능", next_run_at→"다음 기준 시각" 카피로 오해 축소.
 const RECURRING_BADGES = [
   "선택한 페어만",
   "SignalLog만",
   "주문 없음",
   "거래 없음",
   "자동매매 아님",
-  "dispatcher 없음",
-  "scheduler/job 없음",
+  "자동 실행 없음",
+  "디스패처 없음",
+  "스케줄러/잡 없음",
+  "버튼 클릭 시에만",
 ];
 
+// M2.14E — 백엔드 raw status를 사람이 읽는 한글 부제로 매핑(원시 status는 디버그용으로 함께 노출).
+// active를 "수동 기록 가능"으로 표시해 "실행 중"으로 오해하지 않게 한다.
+function statusLabel(status: string): string {
+  switch (status) {
+    case "prepared":
+      return "준비됨";
+    case "active":
+      return "수동 기록 가능";
+    case "stopped":
+      return "중지됨";
+    case "completed":
+      return "완료됨";
+    case "failed":
+      return "실패";
+    default:
+      return status;
+  }
+}
+
 function planLine(p: PaperSignalRecurringRun): string {
+  // next_run_at은 디스패처가 없어 "다음 기준 시각" 메모일 뿐(자동 실행 아님).
   return (
-    `#${p.id} · ${p.status} · ${p.interval_seconds}s · ` +
-    `${p.completed_runs}/${p.max_runs}회 · ` +
-    `last ${p.last_run_at ?? "없음"} · next ${p.next_run_at ?? "없음"}`
+    `#${p.id} · ${statusLabel(p.status)}(${p.status}) · 간격 ${p.interval_seconds}s · ` +
+    `${p.completed_runs}/${p.max_runs}회 기록 · ` +
+    `마지막 ${p.last_run_at ?? "없음"} · 다음 기준 ${p.next_run_at ?? "없음"}`
   );
 }
 
@@ -303,7 +327,7 @@ function RecurringPlanControls({
   if (challengerStatus !== "active") {
     return (
       <div className="muted" style={{ fontSize: "0.8em", marginTop: 6 }}>
-        반복 신호 기록 계획은 challenger 세션을 active로 전환한 뒤 만들 수 있습니다.
+        수동 누적 신호 기록 계획은 challenger 세션을 수동 기록 가능 상태(active)로 전환한 뒤 만들 수 있습니다.
       </div>
     );
   }
@@ -313,10 +337,11 @@ function RecurringPlanControls({
   return (
     <details style={{ marginTop: 6 }}>
       <summary style={{ fontSize: "0.84em", fontWeight: 600, cursor: "pointer" }}>
-        반복 신호 기록 계획
+        계획 누적용: 수동 누적 신호 기록 계획
       </summary>
       <div className="muted" style={{ fontSize: "0.78em", marginTop: 2 }}>
-        선택한 기준/챌린저 페어만, 사람이 누를 때만 SignalLog를 기록합니다.
+        선택한 기준/챌린저 페어만, 사람이 버튼을 누를 때만 SignalLog를 추가합니다. 자동 실행/디스패처/스케줄러는
+        없습니다.
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
         {RECURRING_BADGES.map((b) => (
@@ -360,7 +385,7 @@ function RecurringPlanControls({
             disabled={!createOk || createMut.isPending}
             onClick={() => createMut.mutate()}
           >
-            {createMut.isPending ? "만드는 중…" : "준비 상태 계획 만들기"}
+            {createMut.isPending ? "만드는 중…" : "수동 누적 계획 만들기"}
           </button>
           <button disabled={reload.isPending} onClick={() => reload.mutate()} style={{ marginLeft: 6 }}>
             계획 상태 새로고침
@@ -405,16 +430,17 @@ function RecurringPlanControls({
             <div style={{ marginTop: 4 }}>
               <label className="confirm-check" style={{ fontSize: "0.8em" }}>
                 <input type="checkbox" checked={activateOk} onChange={(e) => setActivateOk(e.target.checked)} />
-                active는 실행이 아니라, 향후 사람이 누르는 tick 또는 별도 승인 디스패처의 후보 상태입니다.
+                수동 기록 가능 상태입니다. 이 상태만으로는 아무 신호도 기록되지 않습니다. 사람이 누르는 tick의
+                후보가 될 뿐입니다(자동 실행/디스패처 아님).
               </label>
               <button
                 disabled={!activateOk || activateMut.isPending}
                 onClick={() => activateMut.mutate(selected.id)}
               >
-                {activateMut.isPending ? "전환 중…" : "계획 active 전환"}
+                {activateMut.isPending ? "전환 중…" : "수동 기록 가능 상태로 전환"}
               </button>
               <div className="muted" style={{ marginTop: 2 }}>
-                active 상태만으로는 아무 신호도 기록되지 않습니다.
+                전환해도 아무 신호도 기록되지 않습니다 — 아래에서 사람이 1회씩 눌러야 쌓입니다.
               </div>
             </div>
           )}
@@ -423,14 +449,15 @@ function RecurringPlanControls({
             <div style={{ marginTop: 4 }}>
               <label className="confirm-check" style={{ fontSize: "0.8em" }}>
                 <input type="checkbox" checked={tickOk} onChange={(e) => setTickOk(e.target.checked)} />
-                선택한 계획을 1회만 tick합니다. 기준/챌린저 각각 최대 1개, 총 최대 2개의 SignalLog만 생성됩니다.
+                선택한 계획의 completed_runs를 1회 늘리며, 기준/챌린저 각각 최대 1개(총 최대 2개)의 SignalLog를
+                추가합니다. 주문/거래는 생성하지 않습니다.
               </label>
               <button
                 className="primary"
                 disabled={!tickOk || tickMut.isPending}
                 onClick={() => tickMut.mutate(selected.id)}
               >
-                {tickMut.isPending ? "기록 중…" : "선택 계획 1회 신호 기록"}
+                {tickMut.isPending ? "기록 중…" : "계획 누적용 1회 기록"}
               </button>
             </div>
           )}
@@ -469,14 +496,17 @@ function RecurringPlanControls({
               : `skipped: ${tick.challenger.reason ?? "사유 없음"}`}
           </div>
           <div className="muted">
-            {tick.completed_runs}/{tick.max_runs}회 · {tick.status} · next{" "}
-            {tick.next_run_at ?? "없음(완료)"} · orders {tick.orders_created} · trades{" "}
-            {tick.trades_created}
+            {tick.completed_runs}/{tick.max_runs}회 기록 · {statusLabel(tick.status)}({tick.status}) · orders{" "}
+            {tick.orders_created} · trades {tick.trades_created}
+          </div>
+          <div className="muted" style={{ fontSize: "0.92em" }}>
+            다음 기준 시각 {tick.next_run_at ?? "없음(완료)"} — 디스패처가 없어 자동 실행되지 않습니다(수동 기록
+            참고용 메타데이터).
           </div>
           {tick.warnings.map((w) => (
             <div key={w} className="muted" style={{ color: "#b45309" }}>ℹ {w}</div>
           ))}
-          <div className="muted">결과 확인을 위해 신호 성과 비교를 다시 눌러보세요.</div>
+          <div className="muted">결과 확인을 위해 아래 ‘신호 성과 비교 보기’를 다시 눌러보세요.</div>
         </div>
       )}
     </details>
@@ -598,7 +628,18 @@ function ChallengerComparison({
           active 상태지만 runner가 꺼져 있으면 새 신호는 생성되지 않습니다.
         </div>
       )}
-      {/* M2.11 — 권장: baseline+challenger 페어 1회 기록(공정 비교용) */}
+      {/* M2.14E — 세 가지 기록 동작의 목적을 구분하는 범례(표시 전용). */}
+      {challengerStatus === "active" && (
+        <div
+          className="muted"
+          style={{ fontSize: "0.74em", marginTop: 4, borderLeft: "2px solid #e5e7eb", paddingLeft: 6 }}
+        >
+          <div>· 단발 비교용: 계획 없이 한 번 기록해 바로 비교</div>
+          <div>· 계획 누적용: 선택한 계획에 사람이 1회씩 수동으로 쌓기</div>
+          <div>· 고급/디버그용: 한쪽 세션만 확인</div>
+        </div>
+      )}
+      {/* M2.11 — 권장: baseline+challenger 페어 1회 기록(단발 비교용) */}
       <PairRunOnce
         baselineSessionId={baselineSessionId}
         challengerSessionId={challengerSessionId}
