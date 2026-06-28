@@ -464,6 +464,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14K Dev-only Synthetic Pair Bootstrap (Design) (`DONE`, docs/design-only)**: 빈 dev DB에서 수동 tick UI
+흐름을 시연할 최소 baseline/challenger/계획 레코드를 만드는 **dev 전용 SYNTHETIC** 부트스트랩의 **계약 설계**.
+**스크립트 미구현 · DB 데이터 미생성 · 런타임/마이그레이션 변경 없음 · 가짜 SignalLog/Trade/Order 없음 ·
+broker/KIS 없음 · 스케줄러/디스패처 활성 없음 · M2.14B-3d 승인 아님.**
+
+- 산출물: `docs/design/M2.14K-dev-synthetic-pair-bootstrap-design.md`(검증이 요구하는 최소 레코드 · 부트스트랩
+  계약 · hard guards · 라벨링 · idempotency · cleanup · 검증 기대 · 리스크/완화 · 권고 · non-goals).
+- 검증 최소 레코드(코드 확인): Strategy ×1 + StrategyVersion ×2(DRAFT·strategy_type=moving_average_cross·
+  symbol·auto_trade off) + PaperSignalSession ×2(active·같은 종목·challenger=signal_challenger·baseline 연결·
+  버전 연결) + 반복 계획(서비스 `create_prepared_pair_plan`로 prepared). 스캐너/후보/제안은 nullable FK라
+  **검증엔 선택**(제안 카드 UI 진입 필요 시만 최소 추가). **SignalLog/Trade/Order/스케줄러 잡 절대 미생성.**
+- 제안 스크립트(미구현): `backend/scripts/dev_seed_synthetic_signal_pair.py` — 기본 dry-run·`--confirm` 필수·
+  APP_ENV/DB URL/3 플래그/스케줄러 잡 hard guard · 모든 레코드에 SYNTHETIC/DEMO/NOT_TRADING_EVIDENCE/
+  NOT_REAL_PERFORMANCE/DEV_ONLY 라벨 · idempotent(`--force-new`) · 라벨된 합성만 cleanup(reset/purge 없음).
+- 권고: **구현 가치 있음(dev 데모 언블록 한정)** — 별도 작업 M2.14L(가칭)로 명시 승인 후 작게·강하게 가드.
+  구현 뒤 **데모 라벨된 M2.14H 시연 1회**. 실 수동 수집은 여전히 실 상류 데이터 + (모의)시세 필요.
+  **M2.14B-3d 계속 미승인** — 합성 데이터는 자동화를 정당화하지 못함. DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14J Data Collection Prerequisite Checklist (`DONE`, docs/ops-only)**: 수동 tick 수집 *전* 환경/데이터 준비를
 확인하는 체크리스트(Session 1이 빈 DB에서 못 돈 원인 재발 방지). **런타임 변경 없음 · 마이그레이션 없음 ·
 합성 데이터/가짜 SignalLog 없음 · Trade/Order 없음 · 스케줄러/잡 없음 · 실행 엔드포인트 없음 · reset/purge 명령 없음.**
