@@ -464,6 +464,30 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14L Dev-only Synthetic Pair Bootstrap (Implementation) (`DONE`, dev-script + tests, no migration)**: M2.14K
+설계대로 **dev 전용 SYNTHETIC** 부트스트랩 스크립트 구현. **프론트 변경 없음 · 마이그레이션 없음 · SignalLog/
+Trade/Order 미생성 · broker/KIS 미호출 · 스케줄러/디스패처 미활성 · 실 dev DB에 영속 합성 데이터 미생성(--execute
+미실행) · M2.14B-3d 승인 아님.**
+
+- 스크립트: `backend/scripts/dev_seed_synthetic_signal_pair.py`(import 가능·테스트 가능). 기본 **dry-run**(읽기
+  전용·계획 출력). 쓰기에는 `--confirm-dev-synthetic-bootstrap` + `--execute` 둘 다 + hard guard 통과 필요.
+  hard guard(`evaluate_guards`): APP_ENV production 거부 · confirm/execute 누락 거부 · KIS real/runner/dispatcher
+  플래그 true면 거부 · DB URL 비-local/dev/test 거부. 실패 시 **롤백**(부분 데이터 없음).
+- 생성(execute·서비스 경유): Strategy ×1 + StrategyVersion ×2(DRAFT·strategy_type=moving_average_cross·
+  symbol·auto_trade off·`_synthetic` 등 메타) + PaperSignalSession ×2(active·같은 종목·challenger=signal_challenger·
+  baseline 연결·`started_by=dev_synthetic_bootstrap`) + 반복 계획 ×1(`create_prepared_pair_plan`로 **prepared**).
+  스캐너/후보/제안 미생성(검증상 불필요). **SignalLog/Trade/Order/스케줄러 잡 절대 미생성 · tick 안 함.**
+- 라벨 5종(SYNTHETIC/DEMO/NOT_TRADING_EVIDENCE/NOT_REAL_PERFORMANCE/DEV_ONLY)을 name/description/note/버전
+  params/started_by에. 출력에 "거래 증거 아님·수익성 판단 불가·3d 정당화 불가" 명시. idempotent(라벨/started_by/
+  symbol로 재사용, `--force-new`로 분리). cleanup **미구현**(미래엔 라벨된 합성만·reset/purge 없음).
+- 테스트: `backend/tests/test_dev_seed_synthetic_signal_pair.py`(11) — 가드(confirm/execute/production/플래그/
+  DB URL)·테스트 DB seed(허용 레코드만·라벨·도메인 유효·계획 prepared·SignalLog/Trade 0)·idempotent·force-new·
+  빈 DB find None. **전체 백엔드 1721 passed.** dry-run 스모크(dev DB, --execute 없음): DB 무변경(sessions=0 유지).
+- **사용법**: dry-run `python -m scripts.dev_seed_synthetic_signal_pair`(읽기 전용). 쓰기(DEV/DEMO 전용, 명시
+  승인 없이 실행 금지) `... --confirm-dev-synthetic-bootstrap --execute`. **출력은 거래 증거 아님.**
+- **다음(별도 승인)**: 환경에서 `--execute`로 데모 페어 생성 후 데모 라벨된 M2.14H 수동 tick 시연. 실 수집은
+  여전히 실 상류 데이터+(모의)시세 필요. **M2.14B-3d 계속 미승인.** DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14K Dev-only Synthetic Pair Bootstrap (Design) (`DONE`, docs/design-only)**: 빈 dev DB에서 수동 tick UI
 흐름을 시연할 최소 baseline/challenger/계획 레코드를 만드는 **dev 전용 SYNTHETIC** 부트스트랩의 **계약 설계**.
 **스크립트 미구현 · DB 데이터 미생성 · 런타임/마이그레이션 변경 없음 · 가짜 SignalLog/Trade/Order 없음 ·
