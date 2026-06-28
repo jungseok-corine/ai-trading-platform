@@ -29,13 +29,27 @@ from app.services.paper_signal_pair_run_once_service import (
     NotChallengerSessionError,
     SymbolMismatchError,
 )
-from app.services.paper_signal_run_once_service import PaperSignalSessionRunOnceService
+from app.services.paper_signal_run_once_service import (
+    MissingSymbolError,
+    MissingVersionError,
+    PaperSignalSessionRunOnceService,
+    RealTradingEnabledError,
+    RunnerEnabledError,
+    SessionNotActiveError,
+    UnsupportedStrategyTypeError,
+    VersionAutoTradeError,
+    VersionNotDraftError,
+)
 
 # 허용 범위 (문서화된 값). interval은 과도한 폴링·과소 누적을 피하는 구간, max_runs는 누적 상한.
 MIN_INTERVAL_SECONDS = 60
 MAX_INTERVAL_SECONDS = 3600
 MIN_MAX_RUNS = 1
 MAX_MAX_RUNS = 390  # 정규장 1분봉 1세션 분량 상한 근사(범위 상한 가드).
+
+# 디스패처 1패스 batch 상한(M2.14B-3c). 무인 폭주 방지용 하드 캡 — 요청값은 [1, MAX]로 clamp된다.
+MAX_DISPATCH_BATCH = 50
+DEFAULT_DISPATCH_BATCH = 10
 
 # 상태별 경고 — 어떤 단계도 SignalLog/주문/거래를 만들지 않음을 명시(표시 전용).
 _PREPARED_WARNINGS = [
@@ -389,7 +403,116 @@ class PaperSignalRecurringRunService:
         plans = await self._repo.list_filtered(status=status, limit=limit, offset=offset)
         return [self._to_dict(p) for p in plans]
 
-    # --- read-only dispatcher readiness (M2.14B-3b) -------------------------
+    # --- dispatcher core (M2.14B-3c: 직접 호출 전용 · 잡/API 미연결) ---------
+
+    @staticmethod
+    def _dispatch_result(
+        *, config_enabled: bool, can_execute: bool, requested: int, effective: int,
+        blocked_reason: str | None = None, selected: list[int] | None = None,
+        processed: list[int] | None = None, completed: list[int] | None = None,
+        failed: list[int] | None = None, skipped: list[int] | None = None,
+        signals: int = 0, warnings: list[str] | None = None,
+    ) -> dict:
+        selected = selected or []
+        processed = processed or []
+        return {
+            "dispatcher_stage": "service_core_direct_invocation_only",
+            "scheduler_job_registered": False,
+            "api_execution_endpoint_registered": False,
+            "config_enabled": config_enabled,
+            "can_execute": can_execute,
+            "requested_batch_limit": requested,
+            "effective_batch_limit": effective,
+            "selected_plan_ids": selected,
+            "processed_plan_ids": processed,
+            "completed_plan_ids": completed or [],
+            "failed_plan_ids": failed or [],
+            "skipped_plan_ids": skipped or [],
+            "blocked_reason": blocked_reason,
+            "plans_selected": len(selected),
+            "plans_processed": len(processed),
+            "signals_created": signals,
+            "orders_created": 0,  # 항상 0 — 주문 경로 없음
+            "trades_created": 0,  # 항상 0 — 거래 경로 없음
+            "warnings": warnings or [],
+        }
+
+    async def dispatch_due_recurring_plans_once(
+        self,
+        now: datetime | None = None,
+        batch_limit: int = DEFAULT_DISPATCH_BATCH,
+        triggered_by: str = "dispatcher_test",
+    ) -> dict:
+        """due active 반복 계획을 1패스 처리하는 **디스패처 코어**(M2.14B-3c).
+
+        **스케줄러/잡/API/프론트에 연결되지 않는다 — 서비스 테스트가 직접 호출할 때만 동작한다.**
+        기본 비활성: `paper_signal_recurring_plan_dispatcher_enabled=false`면 즉시 no-op(선택/실행 0).
+        실거래 ON 또는 전역 런너 ON이면도 차단한다(D-27). 실행 시에는 **M2.14B-2 tick 코어를 재사용**해
+        선택된 due 계획만 각각 1회 tick한다(SignalLog만 · 주문/거래 없음 · 전체 active 세션 스캔 아님).
+        """
+        settings = get_settings()
+        config_enabled = bool(
+            getattr(settings, "paper_signal_recurring_plan_dispatcher_enabled", False)
+        )
+        real_enabled = bool(settings.kis_real_trading_enabled)
+        runner_enabled = bool(settings.paper_signal_session_runner_enabled)
+        requested = batch_limit
+        effective = max(1, min(int(batch_limit), MAX_DISPATCH_BATCH))
+
+        # --- 안전 게이트(선택/실행 전에 검사) -------------------------------
+        if not config_enabled:
+            return self._dispatch_result(
+                config_enabled=False, can_execute=False, requested=requested,
+                effective=effective, blocked_reason="dispatcher_disabled")
+        if real_enabled:
+            return self._dispatch_result(
+                config_enabled=True, can_execute=False, requested=requested,
+                effective=effective, blocked_reason="real_trading_enabled")
+        if runner_enabled:
+            return self._dispatch_result(
+                config_enabled=True, can_execute=False, requested=requested,
+                effective=effective, blocked_reason="global_runner_enabled")
+
+        # --- due active 선택(paper_signal_recurring_runs만 · row-lock) ------
+        now = now or datetime.now(timezone.utc)
+        due = await self._repo.select_due_for_dispatch(now, effective)
+        selected = [p.id for p in due]
+        processed: list[int] = []
+        completed: list[int] = []
+        failed: list[int] = []
+        skipped: list[int] = []
+        signals = 0
+        warnings: list[str] = []
+
+        for plan in due:
+            try:
+                # M2.14B-2 선택-계획 tick 코어 재사용(신호 생성 로직 중복 없음).
+                r = await self.tick_plan_once(
+                    plan.id, confirmed=True, confirmed_by=triggered_by
+                )
+            except (RecurringPlanNotTickableError, RecurringPlanExhaustedError,
+                    RecurringPlanNotFoundError) as e:
+                skipped.append(plan.id)
+                warnings.append(f"plan {plan.id} skipped: {e}")
+                continue
+            except (NotChallengerSessionError, BaselineMismatchError, SymbolMismatchError,
+                    SessionNotActiveError, MissingVersionError, VersionNotDraftError,
+                    VersionAutoTradeError, UnsupportedStrategyTypeError, MissingSymbolError,
+                    RealTradingEnabledError, RunnerEnabledError) as e:
+                failed.append(plan.id)
+                warnings.append(f"plan {plan.id} validation failed: {e}")
+                continue
+            processed.append(plan.id)
+            signals += int(r["baseline"]["signal_created"]) + int(r["challenger"]["signal_created"])
+            if r["status"] == "completed":
+                completed.append(plan.id)
+
+        return self._dispatch_result(
+            config_enabled=True, can_execute=True, requested=requested, effective=effective,
+            blocked_reason=None, selected=selected, processed=processed, completed=completed,
+            failed=failed, skipped=skipped, signals=signals, warnings=warnings)
+
+    # --- read-only dispatcher readiness (M2.14B-3b/3c) ----------------------
 
     async def dispatcher_readiness(self) -> dict:
         """디스패처 readiness/status를 **읽기 전용**으로 보고한다(M2.14B-3b).
@@ -399,14 +522,23 @@ class PaperSignalRecurringRunService:
         """
         settings = get_settings()
         counts = await self._repo.readiness_counts(datetime.now(timezone.utc))
-        # 디스패처 실행 미구현 + 스케줄러 잡 미등록 → 영구 차단(이 단계 불변).
-        blockers = ["dispatcher_execution_not_implemented", "scheduler_job_not_registered"]
+        # 서비스 코어(3c)는 존재하지만 스케줄러/API 미연결 → 외부/스케줄 실행은 여전히 차단.
+        blockers = [
+            "scheduler_dispatcher_not_implemented",
+            "api_execution_endpoint_not_registered",
+            "scheduler_job_not_registered",
+        ]
         return {
-            "dispatcher_stage": "readiness_api_only",
+            "dispatcher_stage": "service_core_direct_invocation_only",
+            # service_core_implemented=True지만, 스케줄/노출 디스패처는 미구현 → dispatcher_implemented=False.
             "dispatcher_implemented": False,
+            "service_core_implemented": True,
+            "scheduler_dispatcher_implemented": False,
+            "api_execution_endpoint_registered": False,
             "scheduler_job_registered": False,
+            # 외부(API)/스케줄 실행 가능 여부 — 코어가 있어도 노출/스케줄 경로가 없으므로 False.
             "can_execute": False,
-            "execution_blocked_reason": "dispatcher_execution_not_implemented",
+            "execution_blocked_reason": "scheduler_and_api_execution_not_implemented",
             "config": {
                 "paper_signal_recurring_plan_dispatcher_enabled": bool(
                     getattr(settings, "paper_signal_recurring_plan_dispatcher_enabled", False)

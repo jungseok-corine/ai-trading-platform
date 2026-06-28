@@ -464,6 +464,36 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14B-3c — Disabled-by-default Recurring Dispatcher Service Core (`DONE`, backend, no migration)**: due active
+반복 계획을 1패스 처리하는 **디스패처 서비스 코어**를 추가한다. **기본 비활성 · 직접 테스트 호출 전용 ·
+스케줄러/잡 미등록 · API 실행 엔드포인트 없음 · 프론트 없음 · 마이그레이션 없음 · SignalLog는 기존 tick 경로로만 ·
+Trade/Order 불가.**
+
+- 서비스 `dispatch_due_recurring_plans_once(now=None, batch_limit=10, triggered_by="dispatcher_test")` —
+  스케줄러/잡/API/프론트에 **미연결**(테스트가 직접 호출할 때만 동작). batch_limit은 `[1, MAX_DISPATCH_BATCH=50]`로
+  clamp. 게이트(선택/실행 전): `paper_signal_recurring_plan_dispatcher_enabled=false`→no-op(`dispatcher_disabled`),
+  `KIS_REAL_TRADING_ENABLED=true`→`real_trading_enabled`, `paper_signal_session_runner_enabled=true`→
+  `global_runner_enabled`. 차단 시 선택/실행 0 · SignalLog/Trade/Order 0.
+- 선택: repo `select_due_for_dispatch(now, limit)` — **`paper_signal_recurring_runs`만** 스캔(D-27,
+  PaperSignalSession.active 미스캔). due = active AND next_run_at≤now AND completed_runs<max_runs. prepared/
+  stopped/completed/failed/next_run_at null/미래/소진 제외. `ORDER BY next_run_at ASC, id ASC` LIMIT ·
+  **row-lock `with_for_update(skip_locked=True)`**(동시 패스 중복 처리 방지, 무마이그레이션). `running`/`locked_at`
+  컬럼 미추가.
+- 실행: 선택된 계획마다 **M2.14B-2 `tick_plan_once` 코어 재사용**(신호 생성 로직 중복 0 — 디스패처가 직접
+  SignalLog/evaluate_session 호출 안 함). D-26 의미론 유지(completed_runs=시도 횟수, max_runs→completed +
+  next_run_at null, 선택 페어만 ≤2 SignalLog, 제3 세션 무영향). 결과 객체: dispatcher_stage/can_execute/
+  blocked_reason/selected·processed·completed·failed·skipped_plan_ids/plans_selected/plans_processed/
+  signals_created/orders_created=0/trades_created=0/warnings.
+- readiness API 갱신: `dispatcher_stage="service_core_direct_invocation_only"` + `service_core_implemented=true`
+  · `scheduler_dispatcher_implemented=false` · `api_execution_endpoint_registered=false` · `can_execute=false`
+  (외부/스케줄 실행 불가 유지) · 여전히 읽기 전용(실행 안 함).
+- 테스트(+13, 파일 94): 비활성 no-op · real/runner 차단 · due 선택(적격만·batch·정렬) · row-lock SQL(FOR UPDATE
+  SKIP LOCKED) · 직접 실행(≤2 SignalLog·completed_runs++·max_runs→completed·제3 세션 무영향·batch clamp) ·
+  선택 소스=recurring repo만(list_active 미호출 스파이) · 순차 호출 중복 tick 없음 · readiness 읽기 전용 유지.
+  **전체 백엔드 1710 passed.**
+- 미구현(유지): 스케줄러 통합 · API 실행 라우트 · 프론트 컨트롤 · 프로덕션 디스패처 활성. 결정 변경 없음(D-27 커버).
+- **다음(별도 명시 승인)**: M2.14B-3d(플래그 뒤 스케줄러 통합, 기본 false) → 3e(읽기전용 프론트 status).
+
 **M2.14B-3b — Read-only Recurring Dispatcher Status/Readiness API (`DONE`, backend read-only, no migration)**:
 디스패처 readiness/status를 **읽기 전용**으로 노출한다. **디스패처 실행/코어 미구현 · 스케줄러/잡 미등록 ·
 마이그레이션 없음 · 프론트 없음 · SignalLog/Trade/Order 없음 · row-lock 미도입.**

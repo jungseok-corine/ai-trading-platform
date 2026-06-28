@@ -959,13 +959,17 @@ async def test_readiness_endpoint_200_shape(db_session: AsyncSession) -> None:
     r = await _get_readiness(db_session)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["dispatcher_stage"] == "readiness_api_only"
+    assert body["dispatcher_stage"] == "service_core_direct_invocation_only"
+    # 서비스 코어(3c)는 존재하지만 스케줄/노출 디스패처는 미구현 → 외부 실행 불가.
     assert body["dispatcher_implemented"] is False
+    assert body["service_core_implemented"] is True
+    assert body["scheduler_dispatcher_implemented"] is False
+    assert body["api_execution_endpoint_registered"] is False
     assert body["scheduler_job_registered"] is False
     assert body["can_execute"] is False
-    assert body["execution_blocked_reason"] == "dispatcher_execution_not_implemented"
-    assert "dispatcher_execution_not_implemented" in body["readiness_blockers"]
+    assert body["execution_blocked_reason"] == "scheduler_and_api_execution_not_implemented"
     assert "scheduler_job_not_registered" in body["readiness_blockers"]
+    assert "api_execution_endpoint_not_registered" in body["readiness_blockers"]
     # 안전 불변식 표식
     inv = body["safety_invariants"]
     assert inv["scans_recurring_runs_only"] is True
@@ -990,7 +994,7 @@ async def test_readiness_route_not_shadowed_by_plan_id(db_session: AsyncSession)
     # 정적 dispatcher/readiness 라우트가 /{plan_id}(int)로 파싱되지 않아야 한다.
     r = await _get_readiness(db_session)
     assert r.status_code == 200, r.text
-    assert r.json()["dispatcher_stage"] == "readiness_api_only"
+    assert r.json()["dispatcher_stage"] == "service_core_direct_invocation_only"
     # 참고: 단일 세그먼트 /dispatcher는 {plan_id:int} 파싱 실패로 422 (별 라우트임을 방증).
     app.dependency_overrides[get_db] = _override(db_session)
     try:
@@ -1087,6 +1091,235 @@ async def test_readiness_flag_true_still_non_executing(
     # 플래그는 True로 보고되지만 실행은 여전히 불가.
     assert body["config"]["paper_signal_recurring_plan_dispatcher_enabled"] is True
     assert body["can_execute"] is False
-    assert body["execution_blocked_reason"] == "dispatcher_execution_not_implemented"
+    assert body["execution_blocked_reason"] == "scheduler_and_api_execution_not_implemented"
     assert await _count(db_session, SignalLog) == before_signals
     assert await _count(db_session, Trade) == before_trades
+
+
+# ============================================================================
+# M2.14B-3c: disabled-by-default dispatcher service core (direct invocation only)
+# ============================================================================
+from sqlalchemy.dialects import postgresql as _pg  # noqa: E402
+from app.services.paper_signal_recurring_run_service import (  # noqa: E402
+    MAX_DISPATCH_BATCH,
+)
+
+
+def _disp_settings(dispatcher=False, real=False, runner=False):
+    return _FakeSettings(real=real, runner=runner, dispatcher=dispatcher)
+
+
+async def _due_active(db, b, c, *, next_offset=-60, completed_runs=0, max_runs=5):
+    """due active 계획을 직접 삽입(next_run_at = now+next_offset초)."""
+    return await _insert_plan(
+        db, b, c, status="active",
+        next_run_at=datetime.now(timezone.utc) + _td(seconds=next_offset),
+        completed_runs=completed_runs, max_runs=max_runs)
+
+
+# --- A. disabled-by-default / blocked ---------------------------------------
+async def test_dispatch_disabled_by_default_noop(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    plan = await _due_active(db_session, b, c)
+    sl_before = await _count(db_session, SignalLog)
+    snap = (plan.status, plan.completed_runs, plan.last_run_at, plan.next_run_at)
+
+    res = await _svc(db_session).dispatch_due_recurring_plans_once()
+    assert res["config_enabled"] is False
+    assert res["can_execute"] is False
+    assert res["blocked_reason"] == "dispatcher_disabled"
+    assert res["selected_plan_ids"] == [] and res["processed_plan_ids"] == []
+    assert res["plans_selected"] == 0 and res["plans_processed"] == 0
+    assert res["signals_created"] == 0
+    assert res["orders_created"] == 0 and res["trades_created"] == 0
+    # 무변경
+    assert await _count(db_session, SignalLog) == sl_before
+    await db_session.refresh(plan)
+    assert (plan.status, plan.completed_runs, plan.last_run_at, plan.next_run_at) == snap
+
+
+# --- B. config true but safe gates ------------------------------------------
+async def test_dispatch_blocked_real_trading(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings",
+                        lambda: _disp_settings(dispatcher=True, real=True))
+    b, c, *_ = await _make_pair(db_session)
+    await _due_active(db_session, b, c)
+    sl_before = await _count(db_session, SignalLog)
+    res = await _svc(db_session).dispatch_due_recurring_plans_once()
+    assert res["config_enabled"] is True and res["can_execute"] is False
+    assert res["blocked_reason"] == "real_trading_enabled"
+    assert res["plans_selected"] == 0 and res["signals_created"] == 0
+    assert await _count(db_session, SignalLog) == sl_before
+    assert await _count(db_session, Trade) == 0
+
+
+async def test_dispatch_blocked_runner_enabled(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings",
+                        lambda: _disp_settings(dispatcher=True, runner=True))
+    b, c, *_ = await _make_pair(db_session)
+    await _due_active(db_session, b, c)
+    sl_before = await _count(db_session, SignalLog)
+    res = await _svc(db_session).dispatch_due_recurring_plans_once()
+    assert res["blocked_reason"] == "global_runner_enabled"
+    assert res["can_execute"] is False and res["plans_selected"] == 0
+    assert await _count(db_session, SignalLog) == sl_before
+    assert await _count(db_session, Trade) == 0
+
+
+# --- C. due plan selection (repo, paper_signal_recurring_runs only) ----------
+async def test_select_due_only_eligible(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    now = datetime.now(timezone.utc)
+    await _insert_plan(db_session, b, c, status="prepared")
+    await _insert_plan(db_session, b, c, status="stopped")
+    await _insert_plan(db_session, b, c, status="completed")
+    await _insert_plan(db_session, b, c, status="failed")
+    await _insert_plan(db_session, b, c, status="active", next_run_at=now + _td(hours=1))  # not due
+    await _insert_plan(db_session, b, c, status="active", next_run_at=None)  # missing next
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=now - _td(seconds=60), completed_runs=5, max_runs=5)  # exhausted
+    due = await _insert_plan(db_session, b, c, status="active", next_run_at=now - _td(seconds=60))
+    repo = PaperSignalRecurringRunRepository(db_session)
+    rows = await repo.select_due_for_dispatch(now, 10)
+    assert [r.id for r in rows] == [due.id]
+
+
+async def test_select_due_batch_limit_and_order(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    now = datetime.now(timezone.utc)
+    p_old = await _insert_plan(db_session, b, c, status="active", next_run_at=now - _td(seconds=300))
+    p_mid = await _insert_plan(db_session, b, c, status="active", next_run_at=now - _td(seconds=120))
+    p_new = await _insert_plan(db_session, b, c, status="active", next_run_at=now - _td(seconds=10))
+    repo = PaperSignalRecurringRunRepository(db_session)
+    rows = await repo.select_due_for_dispatch(now, 2)
+    # next_run_at asc → 가장 오래 due된 둘만(batch limit 준수).
+    assert [r.id for r in rows] == [p_old.id, p_mid.id]
+    assert p_new.id not in [r.id for r in rows]
+
+
+async def test_select_due_uses_row_lock(db_session: AsyncSession, monkeypatch) -> None:
+    repo = PaperSignalRecurringRunRepository(db_session)
+    captured = {}
+    orig = db_session.execute
+
+    async def _spy(stmt, *a, **k):
+        try:
+            captured["sql"] = str(stmt.compile(dialect=_pg.dialect()))
+        except Exception:
+            captured["sql"] = ""
+        return await orig(stmt, *a, **k)
+
+    monkeypatch.setattr(db_session, "execute", _spy)
+    await repo.select_due_for_dispatch(datetime.now(timezone.utc), 10)
+    sql = captured["sql"].upper()
+    assert "FOR UPDATE" in sql and "SKIP LOCKED" in sql
+
+
+# --- D. direct invocation execution (dispatcher enabled) --------------------
+async def test_dispatch_executes_due_plan(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    b, c, *_ = await _make_pair(db_session)
+    plan = await _due_active(db_session, b, c, max_runs=5)
+    sl_before = await _count(db_session, SignalLog)
+    res = await _tick_svc(db_session).dispatch_due_recurring_plans_once()
+    assert res["can_execute"] is True and res["blocked_reason"] is None
+    assert res["plans_selected"] == 1 and res["plans_processed"] == 1
+    assert res["selected_plan_ids"] == [plan.id] and res["processed_plan_ids"] == [plan.id]
+    assert res["signals_created"] == 2
+    assert res["orders_created"] == 0 and res["trades_created"] == 0
+    assert await _count(db_session, SignalLog) == sl_before + 2
+    await db_session.refresh(plan)
+    assert plan.completed_runs == 1
+    assert plan.last_run_at is not None
+    assert plan.status == "active" and plan.next_run_at is not None
+
+
+async def test_dispatch_max_runs_completes(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    b, c, *_ = await _make_pair(db_session)
+    plan = await _due_active(db_session, b, c, completed_runs=0, max_runs=1)
+    res = await _tick_svc(db_session).dispatch_due_recurring_plans_once()
+    assert res["completed_plan_ids"] == [plan.id]
+    await db_session.refresh(plan)
+    assert plan.status == "completed" and plan.next_run_at is None and plan.completed_runs == 1
+
+
+async def test_dispatch_third_session_untouched(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    b, c, b_ver, c_ver, strat, sp, pc = await _make_pair(db_session)
+    other_base = await _session(db_session, await _version(db_session, strat, 3),
+                                source_type="candidate_proposal")
+    other_chal = await _session(db_session, await _version(db_session, strat, 4),
+                                source_type="signal_challenger", baseline_id=other_base.id, sp_id=sp.id)
+    await _due_active(db_session, b, c, max_runs=5)
+    await _tick_svc(db_session).dispatch_due_recurring_plans_once()
+    await db_session.refresh(other_chal)
+    assert other_chal.signal_count == 0
+
+
+async def test_dispatch_batch_limit_clamped(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    res = await _svc(db_session).dispatch_due_recurring_plans_once(batch_limit=999)
+    assert res["requested_batch_limit"] == 999
+    assert res["effective_batch_limit"] == MAX_DISPATCH_BATCH
+    res0 = await _svc(db_session).dispatch_due_recurring_plans_once(batch_limit=0)
+    assert res0["effective_batch_limit"] == 1
+
+
+# --- E. no global/duplicate execution paths ---------------------------------
+async def test_dispatch_selection_source_is_recurring_repo(
+    db_session: AsyncSession, monkeypatch
+) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    b, c, *_ = await _make_pair(db_session)
+    await _due_active(db_session, b, c, max_runs=5)
+    svc = _tick_svc(db_session)
+    calls = {"select_due": 0}
+    orig = svc._repo.select_due_for_dispatch
+
+    async def _spy(now, limit):
+        calls["select_due"] += 1
+        return await orig(now, limit)
+
+    monkeypatch.setattr(svc._repo, "select_due_for_dispatch", _spy)
+    # PaperSignalSession 스캔(list_active)은 디스패처가 호출하면 안 된다 — 존재하면 폭파시켜 증명.
+    if hasattr(svc._session_repo, "list_active"):
+        monkeypatch.setattr(svc._session_repo, "list_active",
+                            lambda *a, **k: (_ for _ in ()).throw(AssertionError("list_active called")))
+    res = await svc.dispatch_due_recurring_plans_once()
+    assert calls["select_due"] == 1  # 선택 소스는 recurring repo만
+    assert res["plans_processed"] == 1
+
+
+# --- F. sequential dispatch does not double-tick (next_run_at advanced) ------
+async def test_dispatch_sequential_no_double_tick(db_session: AsyncSession, monkeypatch) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _disp_settings(dispatcher=True))
+    b, c, *_ = await _make_pair(db_session)
+    plan = await _due_active(db_session, b, c, max_runs=5)
+    svc = _tick_svc(db_session)
+    fixed_now = datetime.now(timezone.utc)
+    res1 = await svc.dispatch_due_recurring_plans_once(now=fixed_now)
+    assert res1["processed_plan_ids"] == [plan.id]
+    # 같은 now로 즉시 재호출 — next_run_at이 미래로 밀려 더 이상 due 아님 → 중복 tick 없음.
+    res2 = await svc.dispatch_due_recurring_plans_once(now=fixed_now)
+    assert res2["plans_selected"] == 0 and res2["processed_plan_ids"] == []
+    await db_session.refresh(plan)
+    assert plan.completed_runs == 1  # 단 1회만 증가
+
+
+# --- G. readiness endpoint stays read-only after core added -----------------
+async def test_readiness_reports_service_core_but_not_executable(
+    db_session: AsyncSession
+) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    await _due_active(db_session, b, c)
+    sl_before = await _count(db_session, SignalLog)
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service_core_implemented"] is True
+    assert body["scheduler_dispatcher_implemented"] is False
+    assert body["api_execution_endpoint_registered"] is False
+    assert body["can_execute"] is False
+    # readiness가 디스패처를 실행하지 않음(무변경).
+    assert await _count(db_session, SignalLog) == sl_before

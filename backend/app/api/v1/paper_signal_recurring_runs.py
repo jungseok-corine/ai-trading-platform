@@ -161,6 +161,9 @@ class DispatcherSafetyInvariants(BaseModel):
 class DispatcherReadinessResponse(BaseModel):
     dispatcher_stage: str
     dispatcher_implemented: bool
+    service_core_implemented: bool
+    scheduler_dispatcher_implemented: bool
+    api_execution_endpoint_registered: bool
     scheduler_job_registered: bool
     can_execute: bool
     execution_blocked_reason: str

@@ -70,6 +70,31 @@ class PaperSignalRecurringRunRepository(BaseRepository[PaperSignalRecurringRun])
         row = (await self.session.execute(stmt)).one()
         return {k: int(v) for k, v in row._mapping.items()}
 
+    async def select_due_for_dispatch(
+        self, now: datetime, limit: int
+    ) -> list[PaperSignalRecurringRun]:
+        """디스패처용 **due active** 계획을 선택한다(M2.14B-3c). `paper_signal_recurring_runs`만 스캔.
+
+        due = status=active AND next_run_at IS NOT NULL AND next_run_at <= now AND
+              completed_runs < max_runs. PaperSignalSession.active를 스캔하지 않는다(D-27).
+        동시 디스패처 패스가 같은 row를 중복 처리하지 않도록 row-lock(FOR UPDATE SKIP LOCKED)을 건다.
+        """
+        m = PaperSignalRecurringRun
+        stmt = (
+            select(m)
+            .where(
+                m.status == "active",
+                m.next_run_at.is_not(None),
+                m.next_run_at <= now,
+                m.completed_runs < m.max_runs,
+            )
+            .order_by(m.next_run_at.asc(), m.id.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def find_active_for_pair(
         self,
         baseline_session_id: int,
