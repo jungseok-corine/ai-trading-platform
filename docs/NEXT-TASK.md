@@ -464,6 +464,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14D — Recurring Signal Plan End-to-End UX & Safety Review (`DONE`, docs-only)**: M2.14A~C로 완성된
+pair-scoped 반복 신호 *계획* 흐름 전체를 검토한다. **코드/마이그레이션/엔드포인트/디스패처 변경 없음.**
+
+- 산출물: `docs/design/M2.14-recurring-plan-flow-review.md`(현 흐름 요약 · 안전 불변식 전수 확인 · UX 명확성
+  리뷰 · 혼동 라벨 · 중복/중첩 동작 · 정리 권고 · 디스패처 readiness 체크리스트 · 명시 권고).
+- 안전 검토 결과: create/activate/stop=SignalLog 0 · tick=≤2 SignalLog(선택 계획만) · 스케줄러/잡/디스패처/전역
+  런너/Trade/Order 부재 · `run_due_sessions`/autonomous run-now/`run_now`/`list_active` 실행 경로 미사용 ·
+  `KIS_REAL_TRADING_ENABLED`·`paper_signal_session_runner_enabled` false 유지 — 전수 충족.
+- UX 발견: (a) "반복" 단어가 자동 실행로 오해 여지, (b) `active` 라벨이 "켜짐"으로 읽힘, (c) `next_run_at`이
+  디스패처 없는데도 "예약됨"으로 보임, (d) PairRunOnce("페어 신호 1회 기록", 단발 비교용)와 recurring
+  tick("선택 계획 1회 신호 기록", 계획 누적용)이 둘 다 "1회 기록"이라 혼동 — 기능 중복 아님(목적 다름).
+- 권고: **디스패처 착수 전 소폭 UI 카피/구조 정리(Option B+C) 먼저**, 그동안 수동 tick 데이터 수집(Option E).
+  디스패처(M2.14B-3)는 **계속 blocked** — readiness 체크리스트 미충족 3건(active=실행 아님 인지 · next_run_at
+  메타데이터 명확 · 두 "1회 기록" 구분)이 모두 카피/구조 정리로 닫힌 뒤 + 별도 명시 승인 시에만.
+- **다음 안전 작업 후보**: M2.14E(가칭) — Recurring Plan UI Copy/Structure Cleanup(frontend-only). 그 후
+  체크리스트 재확인 → 통과 시 M2.14B-3는 **설계 문서 only**부터(구현 아님).
+- DECISIONS 변경 없음 — D-24/25/26이 "디스패처는 막아둔다"를 이미 커버(본 검토는 운영 확인 + UX 후속).
+
 **M2.14C — Frontend UI for Pair-Scoped Recurring Signal Run Plans (`DONE`, frontend-only)**: M2.14A/B-1/B-2
 백엔드 API를 비교 카드 UI로 연결한다. **백엔드/마이그레이션 변경 없음 · 디스패처/스케줄러/잡 없음 · 모든 동작
 사람 클릭 전용(page-load 자동 호출·백그라운드 폴링·자동 tick 없음) · 주문/거래 없음.**
