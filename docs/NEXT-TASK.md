@@ -464,6 +464,19 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14H Manual Data Collection Quickstart (`DONE`, docs/ops-only)**: 스케줄러 자동화 결정 전 운영자가 수동
+tick으로 유용한 데이터를 모으는 한 장짜리 퀵스타트. **런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 ·
+API 실행 엔드포인트 없음 · 프론트 실행 컨트롤 없음 · 이 문서가 SignalLog/Trade/Order를 만들지 않음.**
+
+- 산출물: `docs/runbooks/M2.14H-manual-data-collection-quickstart.md`(~95줄 · 세션 준비 · tick 루틴 · 최소 표본
+  가이드 · tick별 기록 항목 · 판단 기준 · 안전 정지 기준 · 3d 재고 기준 · 가벼운 마크다운 로그 템플릿).
+- 핵심: 데이터 수집은 **"계획 누적용 1회 기록"**으로(단발 비교는 누적 안 됨). 표본 <10 부족 / 10~29 관찰 /
+  ≥30 비교 시작. 페어 1~3개 × ~30 tick 권장. 안전 정지(Trade/Order/broker 등장 · 수동 tick 없이 SignalLog/
+  completed_runs 증가 · 플래그/잡/엔드포인트/버튼 출현). 로그는 마크다운 표일 뿐(DB/CSV/export 아님).
+- **다음 권장 행동: 퀵스타트로 실제 수동 tick 데이터를 모은다**(페어 1~3개 × ~30 tick). 유용한 표본이 쌓이고
+  3d 재고 기준이 모두 충족된 **뒤에만**, 사람 명시 승인 + 런북 §7 스모크로 M2.14B-3d 재고. **M2.14B-3d는
+  여전히 미승인·미착수.** DECISIONS 변경 없음(D-24~27 커버).
+
 **M2.14G Small UI Cleanup for operator clarity (`DONE`, frontend-only)**: M2.14F가 찾은 UI 마찰을 줄이는
 프론트 명료화. **백엔드 런타임 변경 없음 · 마이그레이션 없음 · 스케줄러/잡 없음 · API 실행 엔드포인트 없음 ·
 프론트 실행 버튼/config 토글 없음 · SignalLog/Trade/Order 거동 변경 없음 · 자동 폴링/useEffect mutation 없음.**
