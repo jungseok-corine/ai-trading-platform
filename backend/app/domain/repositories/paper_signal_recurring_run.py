@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import and_, func, select
 
 from app.domain.models.paper_signal_recurring_run import PaperSignalRecurringRun
 from app.domain.repositories.base import BaseRepository
@@ -37,6 +39,36 @@ class PaperSignalRecurringRunRepository(BaseRepository[PaperSignalRecurringRun])
             )
         )
         return result.scalars().first()
+
+    async def readiness_counts(self, now: datetime) -> dict[str, int]:
+        """디스패처 readiness용 **읽기 전용** 집계(M2.14B-3b). 어떤 row도 변경하지 않는다.
+
+        active 하위 분류(exhausted / missing_next / due / not_due)는 상호 배타적이다.
+        due = active AND next_run_at IS NOT NULL AND next_run_at <= now AND completed_runs < max_runs.
+        """
+        m = PaperSignalRecurringRun
+        active = m.status == "active"
+        not_exhausted = m.completed_runs < m.max_runs
+        exhausted = m.completed_runs >= m.max_runs
+        has_next = m.next_run_at.is_not(None)
+        due = and_(active, not_exhausted, has_next, m.next_run_at <= now)
+        not_due = and_(active, not_exhausted, has_next, m.next_run_at > now)
+        missing_next = and_(active, not_exhausted, m.next_run_at.is_(None))
+        stmt = select(
+            func.count().label("total"),
+            func.count().filter(m.status == "prepared").label("prepared"),
+            func.count().filter(active).label("active"),
+            func.count().filter(m.status == "stopped").label("stopped"),
+            func.count().filter(m.status == "completed").label("completed"),
+            func.count().filter(m.status == "failed").label("failed"),
+            func.count().filter(due).label("due_active"),
+            func.count().filter(not_due).label("not_due_active"),
+            func.count().filter(missing_next).label("active_missing_next_run_at"),
+            func.count().filter(and_(active, exhausted)).label("active_exhausted"),
+            func.count().filter(m.last_error.is_not(None)).label("with_last_error"),
+        )
+        row = (await self.session.execute(stmt)).one()
+        return {k: int(v) for k, v in row._mapping.items()}
 
     async def find_active_for_pair(
         self,

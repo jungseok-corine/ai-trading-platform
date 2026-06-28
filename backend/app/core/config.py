@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     paper_signal_session_runner_enabled: bool = False
     paper_signal_session_runner_interval_seconds: int = 60
 
+    # Recurring plan dispatcher (M2.14B-3) — 기본 비활성. **디스패처 실행은 아직 미구현이며**
+    # 이 플래그는 readiness API 보고용일 뿐 어떤 잡/실행에도 연결되지 않는다(D-27). True여도
+    # 실행되지 않는다 — 전역 paper_signal_session_runner_enabled와 분리 유지.
+    paper_signal_recurring_plan_dispatcher_enabled: bool = False
+
     # 통합 trading state sync 스케줄러 (order sync + position reconciliation)
     # order_sync_job과 중복 KIS 호출을 막기 위해 기본값은 False.
     # order_sync_job을 비활성화하고 이 job만 활성화하거나, 독립 주기로 운영한다.

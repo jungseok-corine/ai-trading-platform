@@ -464,6 +464,26 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14B-3b — Read-only Recurring Dispatcher Status/Readiness API (`DONE`, backend read-only, no migration)**:
+디스패처 readiness/status를 **읽기 전용**으로 노출한다. **디스패처 실행/코어 미구현 · 스케줄러/잡 미등록 ·
+마이그레이션 없음 · 프론트 없음 · SignalLog/Trade/Order 없음 · row-lock 미도입.**
+
+- 신규 엔드포인트 `GET /api/v1/paper-signal-recurring-runs/dispatcher/readiness`(읽기 전용, body 없음,
+  confirm 불필요 — 변경 없음). **정적 라우트를 `/{plan_id}`보다 먼저 등록**(plan_id로 파싱되지 않음 — 테스트로 보장).
+- 신규 config 플래그 `paper_signal_recurring_plan_dispatcher_enabled: bool = False`(기본 OFF, 잡/실행에 미연결,
+  readiness 보고용일 뿐). `paper_signal_session_runner_enabled`/`KIS_REAL_TRADING_ENABLED` 기본값 불변.
+- 응답: `dispatcher_stage=readiness_api_only` · `dispatcher_implemented=false` · `scheduler_job_registered=false`
+  · `can_execute=false`(플래그 True여도 false) · `execution_blocked_reason=dispatcher_execution_not_implemented`
+  · `config`(3 플래그) · `plan_counts`(total/prepared/active/stopped/completed/failed/due_active/not_due_active/
+  active_missing_next_run_at/active_exhausted/with_last_error) · `readiness_blockers` · `safety_invariants` ·
+  `warnings`(read-only/no tick/no SignalLog·Trade·Order).
+- 읽기 전용 보장: repo `readiness_counts(now)`는 `count(*) FILTER(...)` 집계만(row 변경 0, row-lock/FOR UPDATE
+  미사용). 서비스 `dispatcher_readiness()`는 tick/evaluate_session/generate_and_log_signal/scheduler 미호출.
+- 테스트(+7, 총 81 in file): 200 shape · 기본 플래그 안전 · 라우트 순서(plan_id 미파싱, `/dispatcher`→422) ·
+  카운트 정확(8 plans, active 4종 배타) · **무변경**(plan/SignalLog/Trade 불변) · **무실행 경로**(tick_plan_once
+  스파이 미호출) · 플래그 True여도 can_execute=false. **전체 백엔드 1697 passed.**
+- 결정 변경 없음(D-27이 커버). **디스패처 실행 구현(3c~)은 여전히 별도 명시 승인 필요.**
+
 **M2.14B-3a — Pair-Scoped Recurring Signal Dispatcher Design (`DONE`, docs-only)**: 무인 디스패처 설계 문서.
 **구현 미착수 · 백엔드/마이그레이션/엔드포인트/잡/프론트 변경 없음 · SignalLog/Trade/Order 없음.**
 

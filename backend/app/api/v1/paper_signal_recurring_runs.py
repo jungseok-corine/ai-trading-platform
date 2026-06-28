@@ -128,6 +128,49 @@ class RecurringTickResponse(RecurringRunResponse):
     challenger: RecurringTickSide
 
 
+# --- read-only dispatcher readiness (M2.14B-3b) -----------------------------
+class DispatcherConfig(BaseModel):
+    paper_signal_recurring_plan_dispatcher_enabled: bool
+    paper_signal_session_runner_enabled: bool
+    kis_real_trading_enabled: bool
+
+
+class DispatcherPlanCounts(BaseModel):
+    total: int
+    prepared: int
+    active: int
+    stopped: int
+    completed: int
+    failed: int
+    due_active: int
+    not_due_active: int
+    active_missing_next_run_at: int
+    active_exhausted: int
+    with_last_error: int
+
+
+class DispatcherSafetyInvariants(BaseModel):
+    scans_recurring_runs_only: bool
+    global_runner_forbidden: bool
+    signal_log_only_future_requirement: bool
+    orders_forbidden: bool
+    trades_forbidden: bool
+    broker_kis_forbidden: bool
+
+
+class DispatcherReadinessResponse(BaseModel):
+    dispatcher_stage: str
+    dispatcher_implemented: bool
+    scheduler_job_registered: bool
+    can_execute: bool
+    execution_blocked_reason: str
+    config: DispatcherConfig
+    plan_counts: DispatcherPlanCounts
+    readiness_blockers: list[str]
+    safety_invariants: DispatcherSafetyInvariants
+    warnings: list[str]
+
+
 # validate_session/check_global_gates(M2.8) + 페어 관계(M2.10)에서 오는 자격 실패는 모두 422.
 _VALIDATION_ERRORS = (
     NotChallengerSessionError,
@@ -195,6 +238,23 @@ async def list_recurring_runs(
 ) -> list[RecurringRunResponse]:
     plans = await service.list_plans(status=status, limit=limit, offset=offset)
     return [RecurringRunResponse(**p) for p in plans]
+
+
+@router.get(
+    "/paper-signal-recurring-runs/dispatcher/readiness",
+    response_model=DispatcherReadinessResponse,
+)
+async def get_dispatcher_readiness(
+    service: PaperSignalRecurringRunService = Depends(get_recurring_run_service),
+) -> DispatcherReadinessResponse:
+    """디스패처 readiness/status를 **읽기 전용**으로 보고한다(M2.14B-3b).
+
+    아무 계획도 tick하지 않고, 어떤 row도 변경하지 않으며, SignalLog/주문/거래를 만들지 않는다.
+    디스패처 실행은 미구현 · 스케줄러 잡 미등록 → can_execute=false(플래그 True여도 동일, D-27).
+    이 정적 라우트는 `/{plan_id}`보다 **먼저** 등록되어 plan_id로 파싱되지 않는다.
+    """
+    result = await service.dispatcher_readiness()
+    return DispatcherReadinessResponse(**result)
 
 
 @router.get(

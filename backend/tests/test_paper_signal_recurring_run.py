@@ -63,9 +63,10 @@ async def _count(s, m):
 
 
 class _FakeSettings:
-    def __init__(self, real=False, runner=False):
+    def __init__(self, real=False, runner=False, dispatcher=False):
         self.kis_real_trading_enabled = real
         self.paper_signal_session_runner_enabled = runner
+        self.paper_signal_recurring_plan_dispatcher_enabled = dispatcher
 
 
 async def _version(db, strat, no, *, status=StrategyVersionStatus.DRAFT, auto=False,
@@ -922,3 +923,170 @@ async def test_api_tick_once_flow(db_session: AsyncSession) -> None:
     finally:
         app.dependency_overrides.pop(get_db, None)
         app.dependency_overrides.pop(rr_api.get_recurring_run_tick_service, None)
+
+
+# --- M2.14B-3b: read-only dispatcher readiness API ---------------------------
+from datetime import timedelta as _td  # noqa: E402
+import app.services.paper_signal_recurring_run_service as _rr_svc_mod  # noqa: E402
+
+_READINESS_URL = "/api/v1/paper-signal-recurring-runs/dispatcher/readiness"
+
+
+async def _insert_plan(db, b, c, *, status, next_run_at=None, completed_runs=0,
+                       max_runs=30, last_error=None):
+    """readiness 카운트 테스트용 row 직접 삽입(서비스 우회 — 다양한 상태를 만들기 위함)."""
+    row = PaperSignalRecurringRun(
+        status=status, scope_type="baseline_challenger_pair",
+        baseline_session_id=b.id, challenger_session_id=c.id,
+        interval_seconds=60, max_runs=max_runs, completed_runs=completed_runs,
+        next_run_at=next_run_at, last_error=last_error, created_by="t")
+    db.add(row); await db.flush()
+    return row
+
+
+async def _get_readiness(db_session):
+    app.dependency_overrides[get_db] = _override(db_session)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://t") as ac:
+            r = await ac.get(_READINESS_URL)
+        return r
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+async def test_readiness_endpoint_200_shape(db_session: AsyncSession) -> None:
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dispatcher_stage"] == "readiness_api_only"
+    assert body["dispatcher_implemented"] is False
+    assert body["scheduler_job_registered"] is False
+    assert body["can_execute"] is False
+    assert body["execution_blocked_reason"] == "dispatcher_execution_not_implemented"
+    assert "dispatcher_execution_not_implemented" in body["readiness_blockers"]
+    assert "scheduler_job_not_registered" in body["readiness_blockers"]
+    # 안전 불변식 표식
+    inv = body["safety_invariants"]
+    assert inv["scans_recurring_runs_only"] is True
+    assert inv["global_runner_forbidden"] is True
+    assert inv["orders_forbidden"] is True and inv["trades_forbidden"] is True
+    assert inv["broker_kis_forbidden"] is True
+    # 읽기 전용/무실행 경고
+    joined = " ".join(body["warnings"]).lower()
+    assert "read-only" in joined
+    assert "no signallog" in joined or "no plans are ticked" in joined
+
+
+async def test_readiness_default_flags_safe(db_session: AsyncSession) -> None:
+    r = await _get_readiness(db_session)
+    cfg = r.json()["config"]
+    assert cfg["paper_signal_recurring_plan_dispatcher_enabled"] is False
+    assert cfg["paper_signal_session_runner_enabled"] is False
+    assert cfg["kis_real_trading_enabled"] is False
+
+
+async def test_readiness_route_not_shadowed_by_plan_id(db_session: AsyncSession) -> None:
+    # 정적 dispatcher/readiness 라우트가 /{plan_id}(int)로 파싱되지 않아야 한다.
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200, r.text
+    assert r.json()["dispatcher_stage"] == "readiness_api_only"
+    # 참고: 단일 세그먼트 /dispatcher는 {plan_id:int} 파싱 실패로 422 (별 라우트임을 방증).
+    app.dependency_overrides[get_db] = _override(db_session)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://t") as ac:
+            r2 = await ac.get("/api/v1/paper-signal-recurring-runs/dispatcher")
+        assert r2.status_code == 422
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+async def test_readiness_counts_correct(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    now = datetime.now(timezone.utc)
+    await _insert_plan(db_session, b, c, status="prepared")
+    await _insert_plan(db_session, b, c, status="stopped")
+    await _insert_plan(db_session, b, c, status="completed")
+    await _insert_plan(db_session, b, c, status="failed", last_error="boom")
+    # active 4종(상호 배타): due / not_due / missing_next / exhausted
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=now - _td(seconds=60), completed_runs=0)          # due
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=now + _td(hours=1), completed_runs=0,
+                       last_error="warn")                                            # not_due
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=None, completed_runs=0)                           # missing_next
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=now - _td(seconds=60), completed_runs=30,
+                       max_runs=30)                                                  # exhausted
+    r = await _get_readiness(db_session)
+    pc = r.json()["plan_counts"]
+    assert pc["total"] == 8
+    assert pc["prepared"] == 1 and pc["stopped"] == 1
+    assert pc["completed"] == 1 and pc["failed"] == 1
+    assert pc["active"] == 4
+    assert pc["due_active"] == 1
+    assert pc["not_due_active"] == 1
+    assert pc["active_missing_next_run_at"] == 1
+    assert pc["active_exhausted"] == 1
+    assert pc["with_last_error"] == 2
+
+
+async def test_readiness_no_mutation(db_session: AsyncSession) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    now = datetime.now(timezone.utc)
+    plan = await _insert_plan(db_session, b, c, status="active",
+                              next_run_at=now - _td(seconds=60), completed_runs=3)
+    before_plans = await _count(db_session, PaperSignalRecurringRun)
+    before_signals = await _count(db_session, SignalLog)
+    before_trades = await _count(db_session, Trade)
+    snap = (plan.status, plan.completed_runs, plan.last_run_at, plan.next_run_at, plan.last_error)
+
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200
+
+    await db_session.refresh(plan)
+    assert (plan.status, plan.completed_runs, plan.last_run_at, plan.next_run_at,
+            plan.last_error) == snap
+    assert await _count(db_session, PaperSignalRecurringRun) == before_plans
+    assert await _count(db_session, SignalLog) == before_signals
+    assert await _count(db_session, Trade) == before_trades
+
+
+async def test_readiness_no_execution_path(db_session: AsyncSession, monkeypatch) -> None:
+    b, c, *_ = await _make_pair(db_session)
+    await _insert_plan(db_session, b, c, status="active",
+                       next_run_at=datetime.now(timezone.utc) - _td(seconds=60))
+
+    def _boom(*a, **k):
+        raise AssertionError("execution path must not be called by readiness")
+
+    # readiness가 어떤 실행 경로도 호출하지 않음을 보장(스파이).
+    monkeypatch.setattr(_rr_svc_mod.PaperSignalRecurringRunService, "tick_plan_once", _boom)
+    before_signals = await _count(db_session, SignalLog)
+    before_trades = await _count(db_session, Trade)
+
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200
+    assert r.json()["can_execute"] is False
+    assert await _count(db_session, SignalLog) == before_signals
+    assert await _count(db_session, Trade) == before_trades
+
+
+async def test_readiness_flag_true_still_non_executing(
+    db_session: AsyncSession, monkeypatch
+) -> None:
+    monkeypatch.setattr(_rr_svc_mod, "get_settings", lambda: _FakeSettings(dispatcher=True))
+    before_signals = await _count(db_session, SignalLog)
+    before_trades = await _count(db_session, Trade)
+
+    r = await _get_readiness(db_session)
+    assert r.status_code == 200
+    body = r.json()
+    # 플래그는 True로 보고되지만 실행은 여전히 불가.
+    assert body["config"]["paper_signal_recurring_plan_dispatcher_enabled"] is True
+    assert body["can_execute"] is False
+    assert body["execution_blocked_reason"] == "dispatcher_execution_not_implemented"
+    assert await _count(db_session, SignalLog) == before_signals
+    assert await _count(db_session, Trade) == before_trades

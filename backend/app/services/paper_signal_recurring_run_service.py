@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.domain.repositories.paper_signal_recurring_run import (
     PaperSignalRecurringRunRepository,
 )
@@ -387,6 +388,50 @@ class PaperSignalRecurringRunService:
     ) -> list[dict]:
         plans = await self._repo.list_filtered(status=status, limit=limit, offset=offset)
         return [self._to_dict(p) for p in plans]
+
+    # --- read-only dispatcher readiness (M2.14B-3b) -------------------------
+
+    async def dispatcher_readiness(self) -> dict:
+        """디스패처 readiness/status를 **읽기 전용**으로 보고한다(M2.14B-3b).
+
+        아무 계획도 tick하지 않고, row를 변경하지 않으며, SignalLog/Trade/Order를 만들지 않는다.
+        디스패처 실행은 미구현이므로 dispatcher 플래그가 True여도 can_execute는 항상 False다(D-27).
+        """
+        settings = get_settings()
+        counts = await self._repo.readiness_counts(datetime.now(timezone.utc))
+        # 디스패처 실행 미구현 + 스케줄러 잡 미등록 → 영구 차단(이 단계 불변).
+        blockers = ["dispatcher_execution_not_implemented", "scheduler_job_not_registered"]
+        return {
+            "dispatcher_stage": "readiness_api_only",
+            "dispatcher_implemented": False,
+            "scheduler_job_registered": False,
+            "can_execute": False,
+            "execution_blocked_reason": "dispatcher_execution_not_implemented",
+            "config": {
+                "paper_signal_recurring_plan_dispatcher_enabled": bool(
+                    getattr(settings, "paper_signal_recurring_plan_dispatcher_enabled", False)
+                ),
+                "paper_signal_session_runner_enabled": bool(
+                    settings.paper_signal_session_runner_enabled
+                ),
+                "kis_real_trading_enabled": bool(settings.kis_real_trading_enabled),
+            },
+            "plan_counts": counts,
+            "readiness_blockers": blockers,
+            "safety_invariants": {
+                "scans_recurring_runs_only": True,
+                "global_runner_forbidden": True,
+                "signal_log_only_future_requirement": True,
+                "orders_forbidden": True,
+                "trades_forbidden": True,
+                "broker_kis_forbidden": True,
+            },
+            "warnings": [
+                "This endpoint is read-only.",
+                "No plans are ticked by this endpoint.",
+                "No SignalLog, Trade, or Order is created.",
+            ],
+        }
 
     # --- serialization ------------------------------------------------------
 
