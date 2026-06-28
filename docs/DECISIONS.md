@@ -735,3 +735,35 @@ M2.14B-2에서 active 반복 계획을 사람이 1회 실행하는 `tick-once` �
 
 **구현/상세**: M2.14B-2 (`paper_signal_recurring_run_service.tick_plan_once`,
 `POST /paper-signal-recurring-runs/{id}/tick-once`). 관련: [[D-25]], [[D-24]], [[D-23]], [[D-22]].
+
+---
+
+## D-27. 반복 디스패처는 recurring_runs만 스캔한다 — 전역 런너 활성은 V1 영구 금지
+
+**경위**:
+M2.14B-3 설계(`docs/design/M2.14B-3-recurring-plan-dispatcher-design.md`)에서 무인 디스패처의 범위·금지선을
+명문화한다. 기존 전역 `paper_signal_session_runner`는 모든 active PaperSignalSession을 실행하며,
+`SchedulerControlService.run_now`가 enabled 플래그를 우회(`await job.func(app)`)하는 위험이 있어 재사용 불가.
+
+**결정 내용**:
+
+1. **디스패처를 구현한다면 `paper_signal_recurring_runs`만 스캔한다.** `PaperSignalSession.active` 직접 스캔,
+   `run_due_sessions`(전체 active 세션 실행), 전역 `paper_signal_session_runner` 사용/활성, `run_now`,
+   autonomous-jobs run-now, `list_active` 실행 경로는 **영구 금지**. 선택 조건은 `status='active' AND
+   next_run_at<=now AND completed_runs<max_runs` + bounded batch.
+2. **전역 런너 활성(Option D)은 첫 recurring V1로 영구 거부.** 너무 광범하고 D-24에 위배된다.
+3. **디스패처 구현은 별도 비활성 기본 플래그 + 명시 승인이 있어야 한다.** 신규
+   `paper_signal_recurring_plan_dispatcher_enabled=false`(기본 OFF, 잡 함수 첫 줄에서 검사 — run_now로
+   강제돼도 no-op). 기존 `paper_signal_session_runner_enabled`는 분리·false 유지. 디스패처 tick도
+   `KIS_REAL_TRADING_ENABLED=false` 불변 · SignalLog-only · Trade/Order/`broker.place_order` 도달 불가.
+4. **디스패처 tick 의미론은 D-26(수동 tick)과 동일.** `tick_plan_once` 코어 재사용 — 새 평가 경로 신설 금지.
+   completed_runs=시도 횟수, max_runs→completed, 실행 시점 재검증, row-lock(`FOR UPDATE SKIP LOCKED`)으로
+   디스패처↔수동 race 방지(무마이그레이션). `running`/`locked_at`/실패카운트 컬럼은 선택적 후속 마이그레이션
+   (별도 승인).
+
+**이유**:
+- 파일-스코프 스캔은 범위가 자명하고 멈춤(stop/max_runs)·킬스위치(플래그 OFF)가 명확하다.
+- 전역 런너 재사용은 우회 위험·과범위라 안전 모델을 깨뜨린다. 코어 재사용은 검증 드리프트를 막는다.
+- 설계 readiness(13/13)는 수동 UX 명확성 기준이며, 디스패처 구현 승인과는 별개다.
+
+**구현/상세**: 설계 문서만(M2.14B-3a). 구현 미착수. 관련: [[D-26]], [[D-25]], [[D-24]].

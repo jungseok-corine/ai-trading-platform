@@ -464,6 +464,25 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14B-3a — Pair-Scoped Recurring Signal Dispatcher Design (`DONE`, docs-only)**: 무인 디스패처 설계 문서.
+**구현 미착수 · 백엔드/마이그레이션/엔드포인트/잡/프론트 변경 없음 · SignalLog/Trade/Order 없음.**
+
+- 산출물: `docs/design/M2.14B-3-recurring-plan-dispatcher-design.md`(현 상태 · non-goals · 리스크 15종 ·
+  옵션 비교 · 권장 아키텍처 · 선택/잠금 · tick 의미론 · 에러/backoff · API/UI 함의 · 테스트 계획 · 단계 ·
+  블로커 · 최종 권고).
+- 권장: **Option C**(=`paper_signal_recurring_runs`만 스캔하는 파일-스코프 디스패처)만, 별도 명시 승인 후.
+  **Option D(전역 런너 활성)는 영구 거부.** `tick_plan_once` 코어 재사용(새 평가 경로 금지), 선택 조건
+  `active AND next_run_at<=now AND completed_runs<max_runs` + bounded batch, 기존
+  `ix_psrr_status_next_run_at` 인덱스 활용. 동시성은 **row-lock `FOR UPDATE SKIP LOCKED`로 무마이그레이션**
+  가능(`running`/`locked_at`/실패카운트는 선택적 후속 마이그레이션 — 별도 승인).
+- 필수 미래 플래그: 신규 `paper_signal_recurring_plan_dispatcher_enabled=false`(잡 첫 줄 검사 → `run_now`
+  우회돼도 no-op). 기존 `paper_signal_session_runner_enabled` 분리·false 유지. 디스패처 tick도
+  `KIS_REAL_TRADING_ENABLED=false` 불변 · SignalLog-only · Trade/Order 도달 불가.
+- 단계: 3a(설계, 본 작업) → 3b(읽기 status API only) → 3c(비활성 코어 + 테스트 직접 호출, 잡 없음) →
+  3d(플래그 뒤 스케줄러 통합) → 3e(읽기전용 프론트 status). 각 단계 별도 승인 + push-후 스모크.
+- 결정: **D-27**(디스패처는 recurring_runs만 스캔 · 전역 런너 V1 영구 금지 · 비활성 기본 플래그 + 명시 승인).
+- **다음**: 설계 리뷰 또는 최소 안전 단계(M2.14B-3b 읽기 status API)만 — 디스패처 실행 구현은 명시 승인 전 금지.
+
 **M2.14E — Recurring Plan UI Copy & Structure Cleanup (`DONE`, frontend-only)**: M2.14D가 찾은 UX 혼동을
 줄이도록 **프론트 라벨/구조만** 정리한다. **백엔드/마이그레이션/엔드포인트 변경 없음 · 디스패처/스케줄러/잡 없음 ·
 자동 호출 없음 · SignalLog/Trade/Order 거동 변경 없음.** API 계약·액션 게이팅·확인 체크 모두 유지.
