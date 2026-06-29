@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-9 Five-Symbol Daily Candle Execute-Pilot (`DONE`, dev DB, no migration)**: 신규 4종
+(000660·035420·005380·051910)을 KIS read-only 일봉으로 dev DB `market_data` `1d`에 **종목별 순차 멱등 적재**(005930은
+control 유지·재실행 안 함). **20/110/전체 미실행 · 마이그레이션 없음 · 런타임 코드/프론트 변경 없음 ·
+SignalLog/Trade/Order 미생성 · KIS 주문/place_order 미호출 · 스케줄러/디스패처 없음 · production 미접촉 · M2.14B-3d 미승인.**
+
+- 실행: 000660→035420→005380→051910 각 1회(`--execute --confirm-daily-candle-collection`, count=252), 매 종목 후
+  검증 + sleep 5s. 결과 4/4 success, 각 fetched=252/inserted=252/conflicts=0. EGW00201 미관측.
+- DB: `1d` 252→**1,260**(5×252), distinct symbols 1→5, 각 신규 252, 비선정 0, 중복 0, null 0. **005930 체크섬
+  `3789bed6…` 불변**(재실행 안 함). 본 작업 일봉 insert 1,008(=4×252). **SignalLog 본작업 0 · Trade 35 불변**
+  (절대수 증가는 무관 백그라운드).
+- coverage(post): 5종 전부 `daily_candles=252`, `has_20/50/120/252=True`, `ready_for_52w=True`. 52주 메트릭(read-only,
+  미저장) 5종 모두 계산 가능·부분/의심 데이터 없음 → **M2.15C 메트릭 계산기 준비 완료**.
+- 산출물: `docs/reports/M2.15B-9-five-symbol-daily-candle-execute-pilot.md`. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15C — 주도주 추세추종 메트릭 계산기/스캐너 readiness**(저장 5종 252봉으로 52주 지표·조건 A/B
+  read-only 계산). 20/110/전체 확장은 미승인(확장 전 M2.15B-8a CLI 스로틀 권장). DECISIONS 변경 없음.
+
 **M2.15B-8 Five-Symbol Daily Candle Execute-Pilot Plan (`DONE`, docs/design only, no execution)**: 다음 단계
 (M2.15B-9, 별도 승인)의 5종목 일봉 execute-pilot 설계. **실행 0 · 추가 종목 미수집 · DB write 0 · 마이그레이션 없음 ·
 런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 · KIS 주문/place_order 미호출 · 스케줄러/디스패처 없음 ·
