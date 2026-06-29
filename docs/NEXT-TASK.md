@@ -464,6 +464,23 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-8 Five-Symbol Daily Candle Execute-Pilot Plan (`DONE`, docs/design only, no execution)**: 다음 단계
+(M2.15B-9, 별도 승인)의 5종목 일봉 execute-pilot 설계. **실행 0 · 추가 종목 미수집 · DB write 0 · 마이그레이션 없음 ·
+런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 · KIS 주문/place_order 미호출 · 스케줄러/디스패처 없음 ·
+M2.14B-3d 미승인.**
+
+- 선정 5종(모두 watchlist 110종에 실재 + 인트라데이 데이터 확인): **005930(control, 이미 252)** + 신규 4종
+  `000660·035420·005380·051910`(대형·고유동 KOSPI; 일봉 0). 최종 리스트 `005930,000660,035420,005380,051910`.
+- 실행정책: dev DB only · count=252 · adjusted=False · overwrite=False · **순차(concurrency=1)** · 종목 간 sleep ·
+  stop-on-failure. CLI 갭 확인: `--sleep`/`--end-date`/오케스트레이션 stop 미지원, `_collect_one`이 종목별 예외
+  흡수 → **권장(A) 종목별 순차 수동 실행 + 매 종목 검증**(코드 변경 불필요). 대안(B) 다종목 단일 명령은 8a 이후.
+- 당일봉 정책: 확정봉 immutable, 당일봉 drift는 overwrite=False로 conflict 보고·무덮어쓰기(정상). overwrite 미구현.
+- 기대: `1d` 252→**1,260**(5×252), `symbols_with_daily=5`, 각 `ready_for_52w=true`. 252 미만 반환 종목은 정직히
+  `ready_for_52w=false` 기록. EGW00201은 provider backoff로 복구, 반복 시 중단·보고.
+- 산출물: `docs/reports/M2.15B-8-five-symbol-execute-pilot-plan.md`. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15B-9 — 5종목 execute-pilot 실행**(권장 A). 또는 **M2.15B-8a — 안전 CLI 옵션(sleep/end-date/
+  stop-on-error)+테스트**(20종+ 확장 시 우선). 5종목 execute-pilot은 미승인. DECISIONS 변경 없음.
+
 **M2.15B-7 Daily Candle Idempotency / Post-Persistence Smoke — 005930 (`DONE`, 1 re-execute, dev DB, no migration)**:
 이미 적재된 005930 일봉(252봉)에 execute 경로를 1회 재실행해 멱등성 검증. **추가 종목 미수집 · 마이그레이션 없음 ·
 런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 · KIS 주문/place_order 미호출 · 스케줄러/디스패처 없음 ·
