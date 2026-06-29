@@ -84,7 +84,8 @@ def test_invalid_nonpositive_price():
     rows[10] = FakeCandle(_ts(10), 0, 0, 0, 0, 100)
     m = compute_metrics("I", rows)
     assert m.candidate_bucket == "invalid_data"
-    assert any("nonpositive" in w for w in m.data_quality_warnings)
+    assert any("nonpositive" in w for w in m.hard_errors)
+    assert not m.is_data_valid
     assert not m.operationally_safe_for_classification
 
 
@@ -94,7 +95,7 @@ def test_invalid_high_lt_low():
     rows[5] = FakeCandle(_ts(5), 100, 90, 110, 100, 100)  # high<low, close outside
     m = compute_metrics("H", rows)
     assert m.candidate_bucket == "invalid_data"
-    assert any("high_lt_low" in w for w in m.data_quality_warnings)
+    assert any("high_lt_low" in w for w in m.hard_errors)
 
 
 # --- 8. duplicate date ---------------------------------------------------------
@@ -103,7 +104,7 @@ def test_invalid_duplicate_date():
     rows[3] = FakeCandle(_ts(2), 100, 100, 100, 100, 100)  # 같은 날짜 중복
     m = compute_metrics("D", rows)
     assert m.candidate_bucket == "invalid_data"
-    assert any("duplicate_date" in w for w in m.data_quality_warnings)
+    assert any("duplicate_date" in w for w in m.hard_errors)
 
 
 # --- 9/10/11. MA20/MA50/recent_20d_high/volume_20d_avg ------------------------
@@ -117,29 +118,34 @@ def test_moving_averages_and_recent_high():
     assert m.volume_20d_avg == 2000
 
 
-# --- 12. range ratio 경고 → B에 review 라벨 ------------------------------------
-def test_warn_price_range_ratio():
-    # low_52w=100, high_52w=500 (ratio 5>4), 점진 상승로 gain 큼 → 경고 + 후보
+# --- 12. range ratio (M2.15C-4: 전략-극단 비차단) → 운영 B 유지 ----------------
+def test_range_ratio_is_strategy_extreme_non_blocking():
+    # low_52w=100, high_52w≈490 (ratio>4), 점진 상승 → 전략-극단 경고이나 운영 B 유지
     rows = []
     for i in range(252):
         base = 100 * (480 / 100) ** (i / 251)
         rows.append((base, base * 1.02, base * 0.99, base, 1000))
     m = compute_metrics("R", _rows(rows))
-    assert any("price_range_ratio_high" in w for w in m.data_quality_warnings)
-    assert not m.operationally_safe_for_classification
-    assert m.candidate_bucket.endswith("_raw_needs_adjusted_review")
+    assert any("price_range_ratio_high" in w for w in m.strategy_extreme_warnings)
+    assert m.is_strategy_extreme and not m.is_adjustment_suspect
+    assert m.raw_candidate_b
+    assert m.candidate_bucket_operational == "B"        # 비차단
+    assert m.candidate_bucket_research == "B"
+    assert m.operationally_safe_for_classification      # 전략-극단은 안전 차단 안 함
 
 
-# --- 13. 극단 gain 경고 --------------------------------------------------------
-def test_warn_extreme_gain():
-    # 100 → 700 (gain 600>500)
+# --- 13. 극단 gain (M2.15C-4: 전략-극단 비차단) → 운영 B 유지 -------------------
+def test_extreme_gain_is_strategy_extreme_non_blocking():
+    # 100 → 700 (gain ~600>500) → 전략-극단 경고이나 운영 B 유지
     rows = []
     for i in range(252):
         base = 100 * (700 / 100) ** (i / 251)
         rows.append((base, base * 1.01, base * 0.995, base, 1000))
     m = compute_metrics("G", _rows(rows))
-    assert any("low_52w_gain_extreme" in w for w in m.data_quality_warnings)
-    assert m.candidate_bucket.endswith("_raw_needs_adjusted_review")
+    assert any("low_52w_gain_extreme" in w for w in m.strategy_extreme_warnings)
+    assert m.is_strategy_extreme and not m.is_adjustment_suspect
+    assert m.candidate_bucket_operational == "B"
+    assert m.operationally_safe_for_classification
 
 
 # --- 14. 큰 일일 점프 경고 -----------------------------------------------------

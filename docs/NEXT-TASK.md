@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15C-4 Leader Trend Layered Warning Model (`DONE`, read-only scanner refactor + tests, no migration)**: 스캐너
+경고/분류를 **3계층**(hard_errors / adjustment_warnings / strategy_extreme_warnings)으로 분리(D-28). **스캐너 읽기 전용
+유지 · DB write 0 · 라이브 KIS 0 · 후보 영속화 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 0 · 마이그레이션 0 ·
+프론트 0 · M2.14B-3d 미승인.** 후보는 매수 신호 아님.
+
+- 정책: hard(nonpositive/high<low/close범위밖/null/중복일)→`invalid_data`; **분할 의심(일일점프>50%)만 운영 차단**
+  (`*_raw_needs_adjusted_review`, safe=False); **range>4·gain>500%는 비차단 `strategy_extreme`**(is_strategy_extreme만).
+  `operationally_safe = is_data_valid AND ready_for_52w AND not is_adjustment_suspect`. 연구/운영 버킷 분리,
+  `candidate_bucket`은 운영 별칭(하위호환).
+- 5종 read-only 재스캔: **000660·005930 → 운영 `B`(safe=True, strategy_extreme, adj_suspect=False)**,
+  035420/005380/051910 → none. 운영 후보 0→2개(둘 다 high-extension). DB 불변(1d 1,260·005930 체크섬·Trade 35).
+- 테스트: c1 갱신(hard_errors/전략-극단 비차단) + `test_m2_15c4_...`(16). **전체 백엔드 1784 passed**. DECISIONS **D-28** 추가.
+- 산출물: `docs/reports/M2.15C-4-layered-warning-scanner.md` + `leader_trend_scanner.py`/CLI/테스트. 스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15D — 후보 읽기 전용 노출(API/UI) 또는 CandidateEvent 재사용 영속화**(승인 없는 자동 제안
+  없음·주문/배치 없음), 또는 데이터 현실성/백테스트 점검. 종목 확장은 미승인.
+
 **M2.15C-3 Leader Trend Threshold / Strategy-Intent Review (`DONE`, docs-only decision)**: 스캐너가 대형 52주
 gain/range 경고를 어떻게 다뤄야 하는지 정책 리뷰. **런타임 코드/임계값 미변경 · 테스트 미변경 · 후보 영속화 0 ·
 라이브 KIS 0 · DB write 0 · 마이그레이션 0 · SignalLog/Trade/Order 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.**

@@ -34,10 +34,13 @@ async def _run(args) -> int:
         print(payload["note"])
         for m in results:
             print(
-                f"{m.symbol} bucket={m.candidate_bucket} close={m.current_close} "
-                f"gain%={m.low_52w_gain_pct} dd%={m.drawdown_from_52w_high_pct} "
-                f"A={m.raw_candidate_a} B={m.raw_candidate_b} safe={m.operationally_safe_for_classification} "
-                f"warn={m.data_quality_warnings}"
+                f"{m.symbol} research={m.candidate_bucket_research} "
+                f"operational={m.candidate_bucket_operational} "
+                f"close={m.current_close} gain%={m.low_52w_gain_pct} dd%={m.drawdown_from_52w_high_pct} "
+                f"safe={m.operationally_safe_for_classification} "
+                f"extreme={m.is_strategy_extreme} adj_suspect={m.is_adjustment_suspect} "
+                f"hard_errors={m.hard_errors} adj_warn={m.adjustment_warnings} "
+                f"extreme_warn={m.strategy_extreme_warnings}"
             )
     return 0
 

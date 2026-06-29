@@ -767,3 +767,33 @@ M2.14B-3 설계(`docs/design/M2.14B-3-recurring-plan-dispatcher-design.md`)에�
 - 설계 readiness(13/13)는 수동 UX 명확성 기준이며, 디스패처 구현 승인과는 별개다.
 
 **구현/상세**: 설계 문서만(M2.14B-3a). 구현 미착수. 관련: [[D-26]], [[D-25]], [[D-24]].
+
+## D-28. Leader Trend 스캐너 경고는 3계층 — 전략-극단(큰 gain/range)은 비차단
+
+**경위**:
+M2.15C-1 스캐너는 `range_ratio>4`·`gain>500%`·`일일점프>50%`를 한 통의 경고로 묶어 모두
+`operationally_safe=False`로 차단했다. M2.15C-2(라이브 adjusted=True 프로브)는 5종 모두 high_52w·low_52w가
+**raw와 정확히 일치**(수정주가 아티팩트 아님)함을, M2.15C-3는 차단된 005930·000660이 **일일점프 ≤19.1%·저가 다일
+연속·OHLCV 완전**(데이터 무결)임을 확인했다. 즉 대형 gain/range는 **데이터 결함이 아니라 강한 주도주의 실제
+특성**이며, Candidate B(`gain>=200`)는 본래 큰 gain을 노린다 → 단일 임계로 하드 차단하면 전략 의도와 충돌.
+
+**결정 내용**:
+1. **경고를 3계층으로 분리한다.** ① `hard_errors`(nonpositive·high<low·close 범위밖·null·중복일) → `invalid_data`,
+   분류 불가. ② `adjustment_warnings`(미설명 일일 종가 점프 >50%) → **운영 차단**, 후보면 `*_raw_needs_adjusted_review`,
+   `operationally_safe=False`. ③ `strategy_extreme_warnings`(`range_ratio>4`·`gain>500%`) → **비차단**,
+   `is_strategy_extreme=True`만 표시.
+2. **`range_ratio`·`gain` 단독으로는 운영 분류를 하드 차단하지 않는다.** 깨끗한 데이터의 강한 주도주(Candidate B)는
+   운영 후보로 노출하되 high-extension/high-risk로 표기.
+3. **연구/운영 버킷 분리.** `candidate_bucket_research`(경고 무관 A/B)와 `candidate_bucket_operational`(위 규칙 반영).
+   `operationally_safe = is_data_valid AND ready_for_52w AND not is_adjustment_suspect`(전략-극단 무관).
+4. **여전히 후보일 뿐 매수 신호 아님.** 스캐너는 읽기 전용 · 영속화 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 도달
+   불가. 후보 영속화는 별도(M2.15D).
+
+**이유**:
+- 데이터 무결성 결함과 전략-극단(강한 추세)은 성격이 다르다 — 한 통에 묶으면 진짜 주도주를 버린다.
+- adjusted=True가 경고를 해소하지 못함을 라이브로 증명(M2.15C-2) → 수정주가 채택 실익 없음. 차단 명분은 데이터
+   무결성 증거(분할 같은 점프)로 한정해야 한다.
+
+**구현/상세**: `leader_trend_scanner.py`(M2.15C-4) + 테스트(c1 갱신·c4 신규). 5종 read-only 재스캔으로
+005930·000660이 운영 `B`(safe=True, strategy_extreme)로, 035420/005380/051910이 `none`으로 확인. DB write 0 ·
+마이그레이션 0. 관련: [[D-24]].
