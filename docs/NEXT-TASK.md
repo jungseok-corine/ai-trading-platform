@@ -464,6 +464,23 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-5 Daily Candle Live Read-Only Pagination Probe (`DONE`, live read-only probe + docs)**: M2.15B-4
+페이지네이션을 실제 KIS read-only로 1종목(005930) 검증. **DB 쓰기 0 · execute-pilot 미실행 · 일봉 row 미삽입
+(1d 0 유지) · SignalLog/Trade/Order 미생성 · KIS 주문 API/place_order 미호출 · 마이그레이션 없음 · 런타임 코드
+변경 없음 · 스케줄러/디스패처 없음 · 시크릿 미출력 · 3 플래그 false · M2.14B-3d 미승인.**
+
+- 방법: 일회성 인라인 호출로 `get_daily_candles("005930", count=252, adjusted=False)` 1회(collector execute/upsert
+  미경유, 결과 미영속). `_fetch_daily_page` 래핑으로 페이지 호출 수 계측.
+- 결과: **252봉 요청 → 252봉 반환**, provider_page_calls=**3**, business_date 중복 **0**, 최신일 우선 정렬 ✅,
+  OHLCV/volume/trading_value 완전. 기간 20250618~20260629(252 영업일 ≈ 1년) → **52주 지표 부트스트랩 충분**.
+- rate-limit: `EGW00201` 1회 관측 → `_request` 내장 backoff가 자동 재시도하여 복구(최종 성공, 데이터 손실 없음).
+- adjusted=False(원주가 `FID_ORG_ADJ_PRC=0`)로 호출 — 수정주가 채택 여부는 M2.15B-6에서 결정.
+- DB 불변: market_data `1d` 0→0, Trade 35→35. total/SignalLog 소폭 증가는 무관한 백그라운드 작업(프로브는 read-only
+  HTTP만, 어떤 쓰기도 없음).
+- 산출물: `docs/reports/M2.15B-5-daily-candle-live-pagination-probe.md`. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15B-6 execute-pilot — 우선 1종목 → 이후 1~5종목**으로 라이브 read-only 수집 결과를
+  `market_data timeframe="1d"`에 멱등 적재. M2.15B-5a(페이지네이션 수정)는 불필요(실패 없음). DECISIONS 변경 없음.
+
 **M2.15B-4 Daily Candle Pagination Implementation (`DONE`, backend, no migration)**: KIS 1회 ~100봉 한도를 넘어
 최대 252봉을 모으도록 `get_daily_candles`에 **end-date 페이지네이션 + business_date dedupe** 추가. **라이브 KIS
 미호출 · execute-pilot 미실행 · 일봉 row 미삽입(1d 0 유지) · 마이그레이션 없음 · 프론트/스케줄러/API 없음 ·
