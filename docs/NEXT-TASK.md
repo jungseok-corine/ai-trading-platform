@@ -464,6 +464,23 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15D-2 Leader Trend Real-Market Reference Comparison (`DONE`, read-only review + docs)**: 저장 paper/dev 일봉을
+**KIS 실전(production) 도메인 read-only 시세**(`get_current_price`, `real_trading_enabled=False`)와 대조. **주문 TR 0 ·
+place_order 0 · DB write 0 · 레퍼런스/후보 영속화 0 · 스캐너 런타임 변경 0 · 마이그레이션 0 · 스케줄러/디스패처 0 ·
+`KIS_REAL_TRADING_ENABLED` 미변경(false) · M2.14B-3d 미승인.** 후보는 매수 신호 아님.
+
+- 결과: **5종 현재가가 실전 도메인 시세와 ≤0.7% 일치**(전부 `matches_reference`): 005930 323,000=323,000, 000660
+  2,610,000 vs 2,628,000(-0.7%), 035420/005380/051910 ≤0.7%. → D-1 스케일 우려는 **현재가 한정으로 완화**, 운영 B는
+  paper-only 아티팩트 아님.
+- 한계(정직): ① 비교는 **현재가만**(실전 get_current_price는 당일 시세) — **52주 저점/이력 미검증**(B 분류 핵심
+  드라이버); ② **KIS 외 독립 소스 부재**(pykrx/yfinance 미설치) → 실전 도메인이 진짜 production인지 dev와 동일
+  데이터 공유인지 독립 확인 불가; ③ 모델 cutoff(2026-01) < sim(2026-06-29).
+- 권고: **Option B — research-only 노출 + 강한 데이터 출처 경고**(현재가 검증·52주/독립성 미검증). Option C(차단)
+  기각(실전과 일치), A(클린) 미채택. DB 불변(1d 1,260·005930 체크섬·Trade 35). 산출물:
+  `docs/reports/M2.15D-2-real-market-reference-comparison.md`. DECISIONS 미갱신. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15D-3 — (3A) 실전 read-only 과거 일봉으로 52주 실측 대조, 또는 (3B) research-only 후보
+  읽기 전용 노출(출처 경고+"매수 신호 아님" 라벨, 주문/자동제안 없음).** 종목 확장은 미승인.
+
 **M2.15D-1 Leader Trend Data Realism / Scale Consistency Review (`DONE`, read-only review + docs)**: 5종 가격 스케일
 일관성(1d ↔ 5m ↔ 라이브 현재가) 검토. **DB write 0 · 후보 영속화 0 · API/UI 노출 0 · 스캐너 런타임 변경 0 ·
 SignalLog/Trade/Order 0 · KIS 주문/place_order 0 · 마이그레이션 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.**
