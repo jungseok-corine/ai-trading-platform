@@ -464,6 +464,21 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-3 Daily Candle Live Read-Only Probe (`DONE`, read-only probe + docs)**: `get_daily_candles`가 실제 KIS
+read-only로 일봉을 가져오는지 005930 1종목만 검증. **DB 쓰기 0 · execute-pilot 미실행 · 일봉 row 미삽입 ·
+SignalLog/Trade/Order 미생성 · KIS 주문 API 미호출 · 마이그레이션 없음 · 스케줄러/디스패처 없음 · 시크릿 미출력 ·
+M2.14B-3d 미승인.**
+
+- 산출물: `docs/reports/M2.15B-3-daily-candle-live-readonly-probe.md`.
+- **프로브 성공**: 엔드포인트 `inquire-daily-itemchartprice`(TR `FHKST03010100`) 동작 확인. count=20→20봉
+  (20260601~0629), count=252→**100봉**(20260129~0629, KIS 1회 ~100봉 한도) · OHLCV 완전 · volume·**trading_value
+  존재** · rate-limit 미관측 · 코드 TODO(엔드포인트 재확인) **실증 완료**.
+- **252봉엔 페이지네이션 필요**(1회 100봉 한도 — M2.15B-1 예상 갭 확인). DB 검증: market_data `1d` **0→0(프로브
+  쓰기 0)** · Trade 35 불변(total/SignalLog 소폭 증가는 무관한 백그라운드 작업).
+- **다음(별도 승인): M2.15B-4 — `get_daily_candles` 페이지네이션 추가(252봉 다중 호출/dedupe) + 테스트**, 그 뒤
+  execute-pilot(1~5종목, 라이브 read-only 수집→`1d` 적재)도 별도 승인 시. 수정주가/trading_value 컬럼은 4단계 설계.
+  **execute-pilot 여전히 미승인.** DECISIONS 변경 없음.
+
 **M2.15B-2 Daily Candle Collector Implementation (`DONE`, backend, no migration)**: M2.15B-1 설계대로 일봉
 수집기 1차 구현. **dry-run 기본 · 라이브 KIS 미호출 · dev DB execute 미실행(일봉 0 유지) · 마이그레이션 없음 ·
 프론트 없음 · API 실행 엔드포인트 없음 · 스케줄러/잡 없음 · SignalLog/Trade/Order 미생성 · 주문 TR/place_order
