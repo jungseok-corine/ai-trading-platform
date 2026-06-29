@@ -36,9 +36,22 @@ M2.15D-1~3A에서 pilot_5(005930/000660/035420/005380/051910)의 저장 일봉�
 
 ---
 
-## 4. Reference fixture 작성 방법
+## 3-1. 두 파일의 역할 분리 (M2.15F-2)
 
-위치: `backend/tests/fixtures/non_kis_52w_reference_pilot5.json`.
+| 파일 | 역할 | 누가 채우나 |
+|------|------|------|
+| `backend/app/data/reference/non_kis_52w_reference_pilot5.manual.json` | **runtime manual snapshot** — API가 기본으로 읽는 실제 검증용 기준값 | **사람**(non-KIS 출처 수동 입력) |
+| `backend/tests/fixtures/non_kis_52w_reference_pilot5.json` | **테스트용 fixture** — 분류 로직 검증용 | 테스트(명시 주입) |
+
+- **runtime 기본 reference path = `app/data/reference/...manual.json`.** validation service/endpoint는 더 이상
+  `tests/fixtures`에 의존하지 않는다(운영 코드가 테스트 디렉토리에 의존하지 않음).
+- 테스트는 synthetic dict 또는 `tests/fixtures`를 **명시 주입**해 격리 검증한다.
+- 두 파일 모두 현재 placeholder(0) → API 기본 결과는 `placeholder_reference`(또는 DB 없으면 `missing_db_data`).
+
+## 4. Reference 작성 방법 (manual snapshot)
+
+위치(runtime): `backend/app/data/reference/non_kis_52w_reference_pilot5.manual.json`.
+(테스트 fixture: `backend/tests/fixtures/non_kis_52w_reference_pilot5.json` — 형식 동일.)
 
 ```json
 {
@@ -60,6 +73,15 @@ M2.15D-1~3A에서 pilot_5(005930/000660/035420/005380/051910)의 저장 일봉�
 3. `as_of_date`를 실제 기준일로 바꾼다.
 4. placeholder(0 또는 note에 "placeholder")가 남아 있으면 해당 종목은 `placeholder_reference`로 분류되어 검증되지
    않는다.
+
+**manual snapshot 작성 규칙(반드시 지킬 것):**
+- **기준 날짜(`as_of_date`)** 를 명시한다.
+- **출처**를 `source_url_or_note`에 명시한다(어느 단말/공시/페이지인지).
+- **종가/현재가 기준**을 명시한다(장중 현재가인지 당일 종가인지 — 본 검증의 DB값은 최신 일봉 종가).
+- **52주 high/low 기준 기간**을 명시한다(정확히 최근 52주/252거래일인지).
+- **수정주가 여부**를 메모한다(원주가 vs 수정주가 — 분할/배당 반영 차이).
+- **KIS가 아닌 출처**여야 한다(KIS 단말/시세 사용 금지 — 독립성 목적).
+- **매매 판단에 쓰지 말 것.**
 
 ---
 
@@ -106,8 +128,20 @@ M2.15D-1~3A에서 pilot_5(005930/000660/035420/005380/051910)의 저장 일봉�
 1. 위 §4대로 fixture에 실제 non-KIS 값을 채운다(커밋 별도 판단).
 2. `GET /api/v1/leader-trend/validation/non-kis-52w` 호출(읽기 전용).
 3. summary에서 `matched`/`minor_diff`/`major_diff` 분포를 본다.
-4. `major_diff`가 있으면 저장 일봉이 실세계와 크게 어긋남 → 데이터 출처/적재 재검토(여전히 매매 결정 아님).
+4. `major_diff`가 있으면 저장 일봉이 실세계와 크게 어긋남 → **DB를 바로 고치지 말고 원인을 먼저 분류**한다(아래 §8-1).
 5. 대부분 `matched`/`minor_diff`면 데이터 품질이 실세계와 부합한다는 보조 근거.
+
+### 8-1. `major_diff` 원인 분류 (DB 수정 전 반드시 분류)
+
+`major_diff`가 나와도 **즉시 DB를 수정하지 않는다.** 먼저 다음 중 무엇인지 분류한다:
+- **단위 문제**: 통화/스케일(예 원 vs 천원) 불일치.
+- **수정주가 문제**: 한쪽은 수정주가, 한쪽은 원주가(분할/배당 반영 차이).
+- **날짜 범위 차이**: 52주 윈도우/기준일이 서로 다름.
+- **종가 vs 현재가 기준 차이**: 레퍼런스가 장중 현재가, DB가 당일 종가 등.
+- **데이터 누락**: DB 일봉에 빠진 거래일(고/저 누락).
+- **source 자체 차이**: 출처별 정정/거래소 차이.
+
+원인을 분류·기록한 뒤에만(그리고 별도 승인 하에만) 데이터 적재/출처를 재검토한다. **검증은 매매 결정이 아니다.**
 
 ---
 

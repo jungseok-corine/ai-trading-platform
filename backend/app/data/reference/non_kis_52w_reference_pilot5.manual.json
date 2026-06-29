@@ -1,0 +1,48 @@
+{
+  "source_name": "manual_non_kis_reference",
+  "source_note": "MANUAL REFERENCE REQUIRED. Values must be collected MANUALLY from non-KIS sources (e.g. KRX, exchange disclosures, a securities HTS, public market data). This is the runtime manual validation snapshot — NOT a test fixture. Placeholder values (0) below are NOT real data. Do not use this file for trading decisions.",
+  "as_of_date": "PLACEHOLDER",
+  "timeframe": "1d",
+  "symbols": [
+    {
+      "symbol": "005930",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+    },
+    {
+      "symbol": "000660",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+    },
+    {
+      "symbol": "035420",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+    },
+    {
+      "symbol": "005380",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+    },
+    {
+      "symbol": "051910",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+    }
+  ]
+}

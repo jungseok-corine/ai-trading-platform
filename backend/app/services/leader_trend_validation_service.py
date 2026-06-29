@@ -25,8 +25,11 @@ DAILY_TIMEFRAME = "1d"
 MINOR_DIFF_PCT = 0.7   # |diff| <= 0.7% → matched
 MAJOR_DIFF_PCT = 2.0   # 0.7% < |diff| <= 2.0% → minor_diff, > 2.0% → major_diff
 
+# Runtime 기본 = 사람이 채우는 manual snapshot(app/data/reference). 테스트 디렉토리에 의존하지 않는다.
+# (테스트는 synthetic dict 또는 test fixture를 명시 주입한다.)
 _DEFAULT_REFERENCE_PATH = (
-    Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "non_kis_52w_reference_pilot5.json"
+    Path(__file__).resolve().parents[1]
+    / "data" / "reference" / "non_kis_52w_reference_pilot5.manual.json"
 )
 
 
