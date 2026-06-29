@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15C-3 Leader Trend Threshold / Strategy-Intent Review (`DONE`, docs-only decision)**: 스캐너가 대형 52주
+gain/range 경고를 어떻게 다뤄야 하는지 정책 리뷰. **런타임 코드/임계값 미변경 · 테스트 미변경 · 후보 영속화 0 ·
+라이브 KIS 0 · DB write 0 · 마이그레이션 0 · SignalLog/Trade/Order 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.**
+
+- 진단(read-only): **5종 모두 max 일일 종가 점프 ≤19.1%**(분할 같은 불연속 없음), 차단된 005930·000660 저가 구간은
+  다일 연속(21·33일 near-low), OHLCV 완전, adjusted=raw(M2.15C-2). → **데이터 무결성 결함 0건**; 현 차단은 100%
+  range/gain **전략-극단 임계값** 탓. Candidate B는 의도적으로 큰 gain 허용 → 큰 gain 단독으로 invalid 처리하면 전략 무력화.
+- 권고: **Option B(데이터 무결성 ↔ 전략-극단 분리)** — 하드 invalid는 엄격 유지하되 range>4·gain>500%는 데이터가
+  깨끗하면 **비차단 `strategy_extreme` 경고로 강등**(005930·000660이 `B`로 노출, safe=true). 구현은 **Option C의 필드
+  분리**(`is_data_valid`/`is_adjustment_suspect`/`is_strategy_extreme`/`candidate_bucket_research`/
+  `candidate_bucket_operational`)로 M2.15C-4에서. Option A(현 하드 블록) 기각, Option D(프로파일) 보류.
+- DB 불변(1d 1,260·005930 체크섬·Trade 35). 산출물: `docs/reports/M2.15C-3-threshold-strategy-intent-review.md`.
+  DECISIONS 미갱신(C-4 구현·검증 후 기록). 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15C-4 — 스캐너 경고 모델 계층화 리팩터(읽기 전용 유지) + 테스트 + 5종 재스캔 검증.** 종목
+  확장·후보 영속화는 미승인.
+
 **M2.15C-2 Adjusted Daily Candle Read-Only Probe / Price Policy Decision (`DONE`, live read-only probe + docs)**:
 5종 파일럿에 `adjusted=True`(`FID_ORG_ADJ_PRC=1`) 라이브 read-only 프로브 + 인메모리 메트릭 계산 + raw 대조.
 **adjusted 봉 미적재 · raw 봉 미덮어쓰기 · DB write 0 · 마이그레이션 없음 · 후보 영속화 없음 ·
