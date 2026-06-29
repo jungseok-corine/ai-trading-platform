@@ -464,6 +464,27 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.14O US Market Refresh FRED 500 Hardening (`DONE`, backend, no migration)**: FRED 5xx/transient 실패가
+미국장 갱신/자동잡 흐름 전체를 깨고 **API 키를 예외/로그/DB에 노출**하던 문제를 수정. **거래/주문/스케줄러
+무관 · 마이그레이션 없음 · 프론트 변경 없음 · 플래그 불변(false) · M2.14B-3d 승인 아님.**
+
+- 근본원인: `FredProvider._series`의 `resp.raise_for_status()`가 500에서 `httpx.HTTPStatusError`를 던지고,
+  `fetch_snapshot`이 `f"FRED request failed: {e}"`로 감싸면서 **URL의 `api_key` 값이 그대로** 예외 메시지에
+  들어감 → 잡의 `except`가 이를 로그·`app.state.us_market_refresh_last_error`·`scheduler_runs` 요약에 저장
+  (키 누출). 또한 단일 시리즈 5xx가 갱신 전체를 hard-fail.
+- 수정: (1) **`redact_api_key()`** 로 `api_key=<값>`→`api_key=***REDACTED***` 마스킹, 모든 예외 메시지에 적용
+  (방어적으로 refresh 결과 reason도 재마스킹). (2) `UsMarketProviderError(transient=...)` 분류 + `_series`에
+  **bounded 재시도**(5xx/429/timeout/네트워크만, 최대 3회, 소폭 backoff; 4xx는 재시도 안 함). (3)
+  `UsMarketRefreshService.refresh()`가 `UsMarketProviderError`를 잡아 **degraded RefreshResult**(updated=False·
+  degraded=True·transient·stale_session_date) 반환 — 잡을 FAILED로 만들지 않고 **기존 캐시 스냅샷 보존**(upsert
+  안 함 → 좋은 값을 null로 덮어쓰지 않음). 키 없음(`FRED_API_KEY` 미설정)도 안전 degraded.
+- 테스트(+10): redact 마스킹 · 500 transient(재시도 3회·키 미노출) · 429 transient · timeout transient ·
+  4xx non-transient(재시도 0·키 미노출·상태코드 포함) · 키 없음 degraded · "."/빈 observations 처리 · refresh
+  500 degraded+stale 캐시 보존 · 캐시 없을 때 degraded · 정상 시 upsert 유지. 실 FRED/실 키 미사용(MockTransport).
+  **전체 백엔드 1731 passed.**
+- 운영 노트: **로그/채팅/출력에 FRED API 키가 노출됐다면 즉시 키를 회전(rotate)할 것.** FRED 5xx는 외부 provider
+  저하로 취급(전략 실패 아님). 안전: place_order/Trade/Order/스케줄러 토큰 없음 · 실 키 미커밋 · 플래그 false 유지.
+
 **M2.14N Demo Manual Tick One-time Run (`DONE`, dev-DB ops, docs-only commit)**: SYNTHETIC/DEMO 페어로 수동
 recurring-plan tick 흐름을 end-to-end 검증(prepared→active→tick-once→skip). **코드 변경 없음 · 마이그레이션
 없음 · Trade/Order 미생성 · broker 주문 미호출 · 스케줄러/디스패처 미활성 · tick 1회만 · M2.14B-3d 승인 아님 ·

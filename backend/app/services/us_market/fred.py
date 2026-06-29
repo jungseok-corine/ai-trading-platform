@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -9,6 +11,19 @@ from app.services.us_market.base import UsMarketProvider
 from app.services.us_market.schemas import UsMarketProviderError, UsMarketSnapshotData
 
 FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
+
+# 일시적(transient) 외부 장애로 분류해 재시도/저하 대상이 되는 HTTP 상태.
+_TRANSIENT_STATUS = frozenset({429, 500, 502, 503, 504})
+_MAX_ATTEMPTS = 3  # 1회 + 재시도 2회 (무한 재시도 금지).
+_BACKOFF_BASE_SECONDS = 0.2
+
+# api_key 쿼리 파라미터 값을 마스킹하기 위한 패턴(로그/예외/UI에 키가 새지 않게 한다).
+_API_KEY_RE = re.compile(r"(api_key=)[^&\s\"']+", re.IGNORECASE)
+
+
+def redact_api_key(text: str) -> str:
+    """문자열 내 `api_key=<값>`을 `api_key=***REDACTED***`로 마스킹한다(비밀 노출 방지)."""
+    return _API_KEY_RE.sub(r"\1***REDACTED***", text)
 
 # 우리 스냅샷 필드 ← FRED 시리즈 매핑.
 #   레벨(value 그대로): VIX, 10년물 금리
@@ -85,24 +100,51 @@ class FredProvider(UsMarketProvider):
         return "fred_twelvedata" if self._sox_provider is not None else "fred"
 
     async def _series(self, client: httpx.AsyncClient, series_id: str) -> list[dict]:
-        resp = await client.get(
-            FRED_BASE_URL,
-            params={
-                "series_id": series_id,
-                "api_key": self._api_key,
-                "file_type": "json",
-                "sort_order": "desc",
-                "limit": 5,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json().get("observations", [])
+        """단일 FRED 시리즈를 조회한다. 일시적 장애(5xx/429/timeout/네트워크)는 bounded 재시도.
+
+        실패 시 **API 키를 마스킹한** `UsMarketProviderError`를 던진다(원본 httpx 메시지·URL에는
+        api_key가 포함되므로 절대 그대로 노출하지 않는다).
+        """
+        params = {
+            "series_id": series_id,
+            "api_key": self._api_key,
+            "file_type": "json",
+            "sort_order": "desc",
+            "limit": 5,
+        }
+        last_exc: Exception | None = None
+        transient = False
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            try:
+                resp = await client.get(FRED_BASE_URL, params=params)
+                resp.raise_for_status()
+                return resp.json().get("observations", [])
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                transient = status in _TRANSIENT_STATUS
+                last_exc = e
+                if not transient:
+                    # 4xx(인증/잘못된 시리즈 등)는 재시도해도 무의미 — 즉시 마스킹 후 raise.
+                    raise UsMarketProviderError(
+                        f"FRED series {series_id} client error [{status}]", transient=False
+                    ) from e
+            except (httpx.TimeoutException, httpx.TransportError) as e:
+                transient = True
+                last_exc = e
+            if attempt < _MAX_ATTEMPTS:
+                await asyncio.sleep(_BACKOFF_BASE_SECONDS * attempt)
+
+        detail = redact_api_key(str(last_exc)) if last_exc is not None else "unknown error"
+        raise UsMarketProviderError(
+            f"FRED series {series_id} transient failure after {_MAX_ATTEMPTS} attempts: {detail}",
+            transient=transient,
+        ) from last_exc
 
     async def fetch_snapshot(
         self, session_date: date | None = None
     ) -> UsMarketSnapshotData | None:
         if not self._api_key:
-            raise UsMarketProviderError("FRED_API_KEY is not set")
+            raise UsMarketProviderError("FRED_API_KEY is not set", transient=False)
 
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         owns_client = self._client is None
@@ -111,8 +153,12 @@ class FredProvider(UsMarketProvider):
             nq = await self._series(client, SERIES_NASDAQ)
             vix = await self._series(client, SERIES_VIX)
             dgs10 = await self._series(client, SERIES_TREASURY_10Y)
-        except httpx.HTTPError as e:
-            raise UsMarketProviderError(f"FRED request failed: {e}") from e
+        except UsMarketProviderError:
+            raise  # 이미 마스킹·분류됨.
+        except httpx.HTTPError as e:  # 방어적 backstop — 항상 마스킹.
+            raise UsMarketProviderError(
+                f"FRED request failed: {redact_api_key(str(e))}", transient=True
+            ) from e
         finally:
             if owns_client:
                 await client.aclose()

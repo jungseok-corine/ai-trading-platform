@@ -6,7 +6,15 @@ from decimal import Decimal
 
 
 class UsMarketProviderError(Exception):
-    """미국장 데이터 조회 실패(네트워크/인증/rate limit 등)."""
+    """미국장 데이터 조회 실패(네트워크/인증/rate limit 등).
+
+    `transient=True`면 일시적 외부 장애(5xx/429/timeout/네트워크) — 재시도/저하(degraded) 대상.
+    메시지는 호출 전에 반드시 API 키를 마스킹해 전달해야 한다(비밀 노출 금지).
+    """
+
+    def __init__(self, message: str, *, transient: bool = False) -> None:
+        super().__init__(message)
+        self.transient = transient
 
 
 @dataclass
