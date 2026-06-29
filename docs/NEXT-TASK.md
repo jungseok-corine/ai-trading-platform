@@ -464,6 +464,28 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-1 Daily Candle Collector Design (`DONE`, docs/design-only)**: M2.15B(NOT_READY) 이후 52주 분석용 일봉
+수집을 안전·rate-limit 인지로 설계. **수집기 구현 없음 · 마이그레이션 없음 · 라이브 KIS 호출 없음 · broker/KIS
+주문 없음 · SignalLog/Trade/Order 없음 · 스케줄러/디스패처 없음 · M2.14B-3d 승인 아님.**
+
+- 산출물: `docs/design/M2.15B-1-daily-candle-collector-design.md`(저장·trading_value 결정·KIS 일봉 API 계약·
+  파일럿 유니버스·rate-limit/retry/캐시·운영 모드·구현 배치·테스트·M2.15C readiness gate·open questions).
+- 저장: 기존 `market_data`에 **`timeframe="1d"`로 무마이그레이션 적재**(PK `(symbol, timeframe, ts)` 멱등 upsert,
+  인트라데이 행과 분리·미덮어쓰기, ts=거래일). 스키마 한계상 `trading_value`/`source`/수정주가 컬럼 없음.
+- trading_value: **옵션 A(권장)** — 첫 수집기는 OHLCV만, 유동성은 volume(+close×volume 근사); 정밀 거래대금
+  컬럼/마이그레이션은 별도 승인 보류.
+- KIS 일봉: 신규 read-only `get_daily_candles(symbol, ..., count=252)` 메서드 필요(분봉 `inquire-time-itemchartprice`
+  대응 일봉 `inquire-daily-itemchartprice`/`FHKST03010100` **추정 — 구현 시 확정**). M2.14O 하드닝(transient 분류·
+  bounded 재시도·마스킹·degraded·가짜 데이터 금지) 재사용. 페이지네이션(252봉 분할) 필요.
+- 파일럿: WatchlistSymbol 단계(5→20→110), 전체 시장은 rate-limit 검증 후. 초기 스케줄러/전체 루프/API 실행 없음.
+- 운영 모드: dry-run(기본·무쓰기) / execute-pilot(--confirm, 일봉만 멱등 upsert) / coverage report(읽기) /
+  repair(미래·승인). 구현 배치: KIS 메서드 + `market_data_daily_collector` 서비스 + `scripts/collect_daily_candles.py`
+  (M2.14L 가드 패턴). 프론트/스케줄러/API 실행 없음.
+- **M2.15C gate**: 일부 종목 252 일봉 + OHLCV 완전성 + 중복통제 + coverage report + Trade/Order/주문 거동 0 일 때만.
+  20~50봉뿐이면 52주 스캐너 금지(단기 프로토타입만).
+- **다음 권장(별도 승인): M2.15B-2 일봉 수집기 구현**(KIS read-only 메서드+서비스+스크립트, dry-run 기본).
+  DECISIONS 변경 없음(컬럼 마이그레이션 필요 시 그때 별도 승인).
+
 **M2.15B Leader Trend Following Data Readiness Diagnostic (`DONE`, read-only + docs)**: 주도주 추세추종 V1
 구현 전 데이터 준비도를 읽기 전용으로 진단. **스캐너/전략 구현 없음 · SignalLog/Trade/Order 없음 · broker/KIS
 주문 미호출(라이브 프로브 생략) · 마이그레이션 없음 · 런타임 변경 없음 · 플래그 false 유지 · M2.14B-3d 미승인.**
