@@ -464,6 +464,25 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15A Leader Trend Following Strategy Design (`DONE`, docs/design-only)**: 주도주 추세추종 paper 연구 전략군의
+설계. **백엔드/프론트 구현 없음 · 마이그레이션 없음 · SignalLog/Trade/Order 없음 · broker/KIS 없음 · 스케줄러/
+디스패처 없음 · 실거래 없음 · M2.14B-3d 승인 아님 · paper SignalLog-only(궁극).**
+
+- 산출물: `docs/design/M2.15A-leader-trend-following-strategy-design.md`(아키텍처 적합성·개념 정식화·V1 스캐너·
+  V1 추세추종 신호·연구 리스크·데이터 요건/갭·단계 통합 계획·M2.14 루프 적합·안전 제약).
+- 두 부분 분리: (1) **주도주 스캐너**(신규 scanner facts/condition로 52주 지표 계산 → CandidateEvent;
+  현 facts엔 52주 high/low 없음 — 신규 필요), (2) **추세추종 신호**(신규 `Strategy` 서브클래스
+  `leader_trend_following`을 registry 등록 → 기존 paper 경로로 **SignalLog만**). 후보 필터(Condition A/B)와
+  진입/청산 신호를 분리.
+- 개념: `low_52w_gain_pct=(price/low52-1)*100`, `drawdown_from_52w_high_pct=(high52-price)/high52*100`.
+  A: gain≤200 & drawdown≤10 / B: gain≥200 & drawdown≤20. **후보 필터일 뿐 매수 신호 아님.**
+- 데이터 갭: 종목별 **일봉 ~252개**(52주 high/low)가 핵심 — 현 SignalLog 경로는 분봉 중심이라 일봉 대량 수집·
+  rate-limit이 변수. **V1 신규 마이그레이션 불필요**(MarketData/ScannerRule/StrategyVersion/Theme 재사용);
+  후보 영속 전용 테이블이 필요해지면 별도 승인.
+- 단계: A(설계)→B(데이터 준비 진단)→C(스캐너 지표, SignalLog 없음)→D(후보 영속/읽기)→E(추세추종 paper 전략,
+  SignalLog-only)→F(UI 읽기)→G(baseline 비교)→H(수동 tick 수집)→이후 자동화는 충분한 실 표본+별도 승인.
+- **다음 권장: M2.15B 데이터 준비 진단**(일봉 252·52주 가용성·KIS rate-limit, 읽기 전용). DECISIONS 변경 없음.
+
 **M2.14O US Market Refresh FRED 500 Hardening (`DONE`, backend, no migration)**: FRED 5xx/transient 실패가
 미국장 갱신/자동잡 흐름 전체를 깨고 **API 키를 예외/로그/DB에 노출**하던 문제를 수정. **거래/주문/스케줄러
 무관 · 마이그레이션 없음 · 프론트 변경 없음 · 플래그 불변(false) · M2.14B-3d 승인 아님.**
