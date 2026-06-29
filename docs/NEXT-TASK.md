@@ -464,6 +464,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-4 Daily Candle Pagination Implementation (`DONE`, backend, no migration)**: KIS 1회 ~100봉 한도를 넘어
+최대 252봉을 모으도록 `get_daily_candles`에 **end-date 페이지네이션 + business_date dedupe** 추가. **라이브 KIS
+미호출 · execute-pilot 미실행 · 일봉 row 미삽입(1d 0 유지) · 마이그레이션 없음 · 프론트/스케줄러/API 없음 ·
+SignalLog/Trade/Order 없음 · 주문 TR/place_order 미사용 · M2.14B-3d 미승인.**
+
+- 구현: `_fetch_daily_page`(단일 윈도우 조회)로 분리 + `get_daily_candles`가 cur_end를 뒤로 옮기며 페이징
+  (윈도우 `DAILY_PAGE_LOOKBACK_DAYS=200`). dedupe(business_date), 최종 **business_date 내림차순(최신일 우선)**,
+  **무한 루프 가드**(빈 페이지·진척 없음(oldest 미이동)·`MAX_DAILY_PAGES=8`), 요청 count 상한 `MAX_DAILY_COUNT=400`.
+  여전히 read-only quotations · 주문 무관 · 결측 행 skip · trading_value DTO 보존.
+- collector/script 무변경(페이지네이션은 provider 내부 투명; dry_run_plan est_requests가 ceil(count/100)으로 이미
+  페이지 수 반영 — 252×2종 = 6). dry-run 기본·coverage 읽기·execute 가드 유지.
+- 테스트(+9, `test_m2_15b4_daily_candle_pagination.py`): 단일 페이지 20 · 252 다중 페이지 합산/dedupe/정렬 ·
+  count cap · 빈 페이지 중단 · 진척 없음 중단(무한 루프 방지) · MAX_PAGES 호출 상한 · 결측 행 skip · trading_value
+  보존 · 후속 페이지 500 안전 raise. MockTransport(실 KIS/실 키 미사용). B-2 14 + **전체 백엔드 1754 passed.**
+  수동 스모크: dry-run/coverage-only만 → **market_data 1d 0 유지·Trade 35 불변**.
+- **다음(별도 승인): M2.15B-5 라이브 read-only 페이지네이션 프로브(005930, DB 쓰기 0)** → 그 뒤 별도로 M2.15B-6
+  execute-pilot(1~5종목). DECISIONS 변경 없음.
+
 **M2.15B-3 Daily Candle Live Read-Only Probe (`DONE`, read-only probe + docs)**: `get_daily_candles`가 실제 KIS
 read-only로 일봉을 가져오는지 005930 1종목만 검증. **DB 쓰기 0 · execute-pilot 미실행 · 일봉 row 미삽입 ·
 SignalLog/Trade/Order 미생성 · KIS 주문 API 미호출 · 마이그레이션 없음 · 스케줄러/디스패처 없음 · 시크릿 미출력 ·

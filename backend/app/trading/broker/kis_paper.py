@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from app.domain.models.enums import OrderStatus, TradeSide
@@ -42,6 +42,11 @@ TR_ID_INQUIRE_DAILY_CCLD = "VTTC0081R"
 # tr_id: 주식일별주문체결조회 (실전, 3개월 이내) — KIS 문서 TTTC0081R
 # 향후 KISRealBrokerClient 구현 시 이 상수를 사용한다.
 TR_ID_INQUIRE_DAILY_CCLD_REAL = "TTTC0081R"
+
+# 일봉 페이지네이션(M2.15B-4). KIS 1회 ~100봉 한도 → end-date를 뒤로 옮기며 여러 페이지 호출.
+MAX_DAILY_COUNT = 400          # 요청 count 방어적 상한(252+여유).
+MAX_DAILY_PAGES = 8            # 페이지 수 하드 캡(무한 루프 방지).
+DAILY_PAGE_LOOKBACK_DAYS = 200 # 페이지당 조회 윈도우(달력일). KIS가 윈도우 내 최신 ~100봉 반환.
 
 # 결측/미체결 표기. KIS 일봉 결측은 "" 또는 "0"으로 올 수 있다.
 _DAILY_MISSING = ("", None, ".")
@@ -155,6 +160,33 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             for row in data["output2"]
         ]
 
+    async def _fetch_daily_page(
+        self, symbol_code: str, start: datetime, end: datetime, adjusted: bool
+    ) -> list[DailyCandle]:
+        """단일 일봉 페이지([start, end] 윈도우)를 read-only로 조회·파싱한다.
+
+        KIS는 1회 호출당 ~100봉(최신일 우선)만 반환한다. 결측/비정상 행은 skip. 주문 TR/place_order 미사용.
+        """
+        data = await self._request(
+            "GET",
+            "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
+            tr_id=TR_ID_INQUIRE_DAILY_ITEMCHARTPRICE,
+            params={
+                "FID_COND_MRKT_DIV_CODE": self._market_div_code,
+                "FID_INPUT_ISCD": symbol_code,
+                "FID_INPUT_DATE_1": start.strftime("%Y%m%d"),
+                "FID_INPUT_DATE_2": end.strftime("%Y%m%d"),
+                "FID_PERIOD_DIV_CODE": "D",  # 일봉
+                "FID_ORG_ADJ_PRC": "1" if adjusted else "0",  # 1=수정주가 0=원주가
+            },
+        )
+        out: list[DailyCandle] = []
+        for row in (data.get("output2") or []):
+            candle = _parse_daily_row(row)
+            if candle is not None:
+                out.append(candle)
+        return out
+
     async def get_daily_candles(
         self,
         symbol_code: str,
@@ -163,35 +195,42 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
         count: int = 252,
         adjusted: bool = False,
     ) -> list[DailyCandle]:
-        """일봉 OHLCV를 조회한다 (M2.15B-2, **read-only 시세 조회 — 주문 무관**).
+        """일봉 OHLCV를 최대 `count`개 조회한다 (read-only · **주문 무관**).
 
-        ⚠ KIS 일봉 엔드포인트/응답 필드명은 라이브 사용 전 공식 문서로 재확인 필요(TODO M2.15B-3).
-        반환 순서는 KIS 응답 순서 그대로(보통 최신일 우선) — 호출자가 필요 시 정렬한다.
-        결측/비정상 행은 안전하게 건너뛴다. 주문 TR/place_order 절대 미사용.
+        KIS 1회 ~100봉 한도를 넘어 `count`(예 252)를 채우려면 **end-date를 뒤로 옮기며 여러 페이지를
+        호출**하고 business_date로 **dedupe**한다(M2.15B-4). 무한 루프 방지: 빈 페이지·진척 없음(가장 오래된
+        날짜가 더 뒤로 안 감)·`MAX_DAILY_PAGES` 도달 시 중단. 최종 결과는 **business_date 내림차순(최신일 우선)**.
+        ⚠ KIS 엔드포인트/필드명은 라이브 전 공식 문서로 재확인(M2.15B-3에서 동작 확인됨).
         """
-        count = max(1, min(int(count), 1000))  # 방어적 상한
-        end = end_date or datetime.now(KST)
-        start = start_date or end
-        params = {
-            "FID_COND_MRKT_DIV_CODE": self._market_div_code,
-            "FID_INPUT_ISCD": symbol_code,
-            "FID_INPUT_DATE_1": start.strftime("%Y%m%d"),
-            "FID_INPUT_DATE_2": end.strftime("%Y%m%d"),
-            "FID_PERIOD_DIV_CODE": "D",  # 일봉
-            "FID_ORG_ADJ_PRC": "1" if adjusted else "0",  # 1=수정주가 0=원주가
-        }
-        data = await self._request(
-            "GET",
-            "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
-            tr_id=TR_ID_INQUIRE_DAILY_ITEMCHARTPRICE,
-            params=params,
-        )
-        out: list[DailyCandle] = []
-        for row in (data.get("output2") or []):
-            candle = _parse_daily_row(row)
-            if candle is not None:
-                out.append(candle)
-        return out[:count]
+        count = max(1, min(int(count), MAX_DAILY_COUNT))  # 방어적 상한
+        overall_end = end_date or datetime.now(KST)
+        floor = start_date  # 명시 시 하한(그 이전은 조회 안 함)
+
+        collected: dict[str, DailyCandle] = {}
+        cur_end = overall_end
+        prev_oldest: str | None = None
+        for _ in range(MAX_DAILY_PAGES):
+            if floor is not None and cur_end < floor:
+                break
+            window_start = cur_end - timedelta(days=DAILY_PAGE_LOOKBACK_DAYS)
+            if floor is not None and window_start < floor:
+                window_start = floor
+            page = await self._fetch_daily_page(symbol_code, window_start, cur_end, adjusted)
+            if not page:
+                break  # 빈 페이지 → 더 과거 데이터 없음
+            for c in page:
+                collected.setdefault(c.business_date, c)  # business_date dedupe
+            oldest = min(c.business_date for c in page)
+            if len(collected) >= count:
+                break
+            if prev_oldest is not None and oldest >= prev_oldest:
+                break  # 진척 없음(무한 루프 방지)
+            prev_oldest = oldest
+            # 다음 페이지는 가장 오래된 거래일 직전에서 끝나도록.
+            cur_end = datetime.strptime(oldest, "%Y%m%d").replace(tzinfo=KST) - timedelta(days=1)
+
+        ordered = sorted(collected.values(), key=lambda c: c.business_date, reverse=True)
+        return ordered[:count]
 
     async def get_account_balance(self) -> AccountBalance:
         data = await self._request(
