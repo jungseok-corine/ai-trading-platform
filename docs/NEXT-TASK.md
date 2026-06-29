@@ -464,6 +464,19 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15E Leader Trend Research-Only Frontend UI (`DONE`, frontend read-only section, no backend change)**: 기존
+read-only API(`GET /leader-trend/candidates`)만 소비하는 `연구` 탭 신규 섹션 "주도주 리서치". **백엔드 런타임/엔드포인트
+변경 0 · 후보 영속화 0 · CandidateEvent 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 0 · 라이브 KIS 0 · DB write 0 ·
+마이그레이션 0 · `KIS_REAL_TRADING_ENABLED` 미변경 · M2.14B-3d 미승인.** 후보는 매수 신호 아님 · 액션 버튼 없음.
+
+- 구현: `components/research/LeaderTrendSection.tsx`(읽기 전용 표+경고 배너) + `ResearchPage.tsx` 섹션 등록 +
+  `api/research.ts` GET 함수 + `types/research.ts` 타입. 상단에 **NOT buy signals + safety/provenance 경고**(백엔드
+  문구 그대로). 000660·005930=후보 B(고변동), 035420/005380/051910=해당 없음. POST/PUT/PATCH/DELETE·버튼·onClick 없음.
+- 검증: `npm run build`(tsc --noEmit+vite) 통과(207 modules, 타입 에러 0). API 계약 read-only 확인(백엔드 미변경).
+  DB 불변(1d 1,260·005930 체크섬·Trade 35). 프론트 테스트 러너 미구성 → 단위 테스트 미작성(빌드/타입체크로 검증).
+- 산출물: `docs/reports/M2.15E-leader-trend-research-frontend-ui.md`. DECISIONS 미갱신(D-29의 얇은 소비자).
+- **다음(별도 승인): M2.15D-3C(비-KIS 독립 소스 통합) 또는 후보 메타 영속화(CandidateEvent 재사용).** 종목 확장은 미승인.
+
 **M2.15D-3B Leader Trend Research-Only Candidate API (`DONE`, read-only backend API + tests, no migration)**: 검증된
 후보를 `GET /api/v1/leader-trend/candidates`로 **읽기 전용** 노출. **DB write 0 · 라이브 KIS 0 · 일봉 fetch 0 · 후보
 영속화 0 · CandidateEvent 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 0 · 마이그레이션 0 · 프론트 0 ·

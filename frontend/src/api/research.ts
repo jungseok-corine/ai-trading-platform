@@ -5,6 +5,7 @@ import type {
   AssignmentRule,
   CandidateAnalysis,
   CandidateEvent,
+  LeaderTrendCandidatesResponse,
   CandidateStrategyProposal,
   ChallengerSessionActivation,
   ChallengerSessionPreparation,
@@ -1365,6 +1366,14 @@ export async function stopPaperSignalRecurringRun(
 export async function getPaperSignalRecurringDispatcherReadiness(): Promise<RecurringDispatcherReadiness> {
   const { data } = await apiClient.get<RecurringDispatcherReadiness>(
     "/paper-signal-recurring-runs/dispatcher/readiness",
+  );
+  return data;
+}
+
+// M2.15E: Leader Trend 연구 후보(읽기 전용 GET). **매수 신호 아님 · 영속화/주문 없음.**
+export async function getLeaderTrendCandidates(): Promise<LeaderTrendCandidatesResponse> {
+  const { data } = await apiClient.get<LeaderTrendCandidatesResponse>(
+    "/leader-trend/candidates",
   );
   return data;
 }

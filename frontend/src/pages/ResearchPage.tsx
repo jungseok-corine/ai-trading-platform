@@ -24,6 +24,7 @@ import TradeActivitySection from "../components/research/TradeActivitySection";
 import RiskEventsSection from "../components/research/RiskEventsSection";
 import PromotionReadinessSection from "../components/research/PromotionReadinessSection";
 import AutonomousJobsSection from "../components/research/AutonomousJobsSection";
+import LeaderTrendSection from "../components/research/LeaderTrendSection";
 
 type Section =
   | "ops"
@@ -35,6 +36,7 @@ type Section =
   | "scanner-proposals"
   | "scanners"
   | "candidates"
+  | "leader-trend"
   | "assignments"
   | "experiments"
   | "reports"
@@ -62,6 +64,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "scanner-proposals", label: "AI 스캐너 제안" },
   { key: "scanners", label: "스캐너" },
   { key: "candidates", label: "후보 종목" },
+  { key: "leader-trend", label: "주도주 리서치" },
   { key: "assignments", label: "전략 배정" },
   { key: "experiments", label: "실험 비교" },
   { key: "reports", label: "일일 리포트" },
@@ -109,6 +112,7 @@ export default function ResearchPage() {
       {section === "scanner-proposals" && <ScannerProposalsSection />}
       {section === "scanners" && <ScannersSection />}
       {section === "candidates" && <CandidatesSection />}
+      {section === "leader-trend" && <LeaderTrendSection />}
       {section === "assignments" && <AssignmentsSection />}
       {section === "experiments" && <ExperimentsSection />}
       {section === "reports" && <ReportsSection />}

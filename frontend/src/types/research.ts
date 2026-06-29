@@ -701,3 +701,51 @@ export interface RecurringDispatcherReadiness {
   safety_invariants: RecurringDispatcherSafetyInvariants;
   warnings: string[];
 }
+
+// --- M2.15E: Leader Trend 연구 후보(읽기 전용 · 매수 신호 아님) -------------
+export interface LeaderTrendCandidateResult {
+  symbol: string;
+  daily_count: number;
+  newest_date: string | null;
+  oldest_date: string | null;
+  current_close: number | null;
+  high_52w: number | null;
+  low_52w: number | null;
+  low_52w_gain_pct: number | null;
+  drawdown_from_52w_high_pct: number | null;
+  ma20: number | null;
+  ma50: number | null;
+  recent_20d_high: number | null;
+  volume_20d_avg: number | null;
+  has_20: boolean;
+  has_50: boolean;
+  has_120: boolean;
+  has_252: boolean;
+  ready_for_52w: boolean;
+  raw_candidate_a: boolean;
+  raw_candidate_b: boolean;
+  hard_errors: string[];
+  data_quality_warnings: string[];
+  adjustment_warnings: string[];
+  strategy_extreme_warnings: string[];
+  is_data_valid: boolean;
+  is_adjustment_suspect: boolean;
+  is_strategy_extreme: boolean;
+  candidate_bucket_research: string;
+  candidate_bucket_operational: string;
+  candidate_bucket: string;
+  operationally_safe_for_classification: boolean;
+}
+
+export interface LeaderTrendCandidatesResponse {
+  scanned_at: string;
+  universe_scope: string;
+  research_only: boolean;
+  not_buy_signal: boolean;
+  provenance_warning: string;
+  safety_warning: string;
+  total_symbols_scanned: number;
+  total_operational_candidates: number;
+  candidates: LeaderTrendCandidateResult[];
+  results: LeaderTrendCandidateResult[];
+}
