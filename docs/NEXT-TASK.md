@@ -464,6 +464,23 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-7 Daily Candle Idempotency / Post-Persistence Smoke — 005930 (`DONE`, 1 re-execute, dev DB, no migration)**:
+이미 적재된 005930 일봉(252봉)에 execute 경로를 1회 재실행해 멱등성 검증. **추가 종목 미수집 · 마이그레이션 없음 ·
+런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 · KIS 주문/place_order 미호출 · 스케줄러/디스패처 없음 ·
+production DB 미접촉 · M2.14B-3d 미승인.**
+
+- 가드: CLI에 `--end-date` 없음 → 라이브 read-only **count=1 프리체크**(DB 쓰기 0)로 provider 최신 거래일 20260629가
+  적재 최신과 일치(newer 아님) 확인 후에만 재실행 → 순수 멱등성 조건 충족.
+- 재실행(1회) 결과: **writes=0 · inserted=0 · 중복 0**, `1d` 252 유지, **행 체크섬 `3789bed6…` 적재 전후 동일**
+  (DB 바이트 단위 불변). status는 `skipped_fresh`가 아니라 **`conflict`(conflicts=1)** — 251 확정봉은 정확 일치→skip,
+  **당일봉 20260629만 close 323000→324000 / volume 51,942,901→53,360,736로 갱신**됐고 collector가 `overwrite=False`로
+  **미덮어쓰기**(보수적·정상 동작; 결함 아님).
+- 안전: SignalLog 98,025 불변 · Trade 35 불변 · 인트라데이 1m/5m 미수정 · coverage `ready_for_52w=True` 유지 ·
+  52주 메트릭 baseline과 동일(체크섬 불변).
+- 참고(차후 분리): 당일봉 최신화는 `--overwrite` 필요 → 과거 확정봉 보존+당일봉만 갱신하는 **별도 승인 증분 정책**으로.
+  산출물: `docs/reports/M2.15B-7-daily-candle-idempotency-smoke-005930.md`. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15B-8 — 5종목 execute-pilot 계획.** 5종목 execute-pilot은 미승인. DECISIONS 변경 없음.
+
 **M2.15B-6 Daily Candle Execute Pilot — 005930 (`DONE`, first real execute, dev DB, no migration)**: 1종목
 (005930) 일봉 252봉을 KIS read-only로 받아 dev DB `market_data` `timeframe="1d"`에 멱등 적재(첫 실제 execute-pilot).
 **5/20/110/전체 유니버스 미실행 · 마이그레이션 없음 · 런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 ·
