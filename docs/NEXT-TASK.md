@@ -464,6 +464,21 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B Leader Trend Following Data Readiness Diagnostic (`DONE`, read-only + docs)**: 주도주 추세추종 V1
+구현 전 데이터 준비도를 읽기 전용으로 진단. **스캐너/전략 구현 없음 · SignalLog/Trade/Order 없음 · broker/KIS
+주문 미호출(라이브 프로브 생략) · 마이그레이션 없음 · 런타임 변경 없음 · 플래그 false 유지 · M2.14B-3d 미승인.**
+
+- 산출물: `docs/reports/M2.15B-leader-trend-data-readiness.md`.
+- **판정: NOT_READY.** 측정(읽기 전용): `market_data` 269,636행이 **전부 1m/5m 인트라데이**(일봉 0) · 데이터
+  ~10 거래일(252 불가) · KIS 클라이언트에 **일봉 OHLCV fetch 메서드 없음**(`get_minute_candles`만) ·
+  `trading_value` 컬럼 없음 · `Theme`/`SymbolThemeMembership`=0(테마 V2) · 유니버스는 `WatchlistSymbol` 110종.
+- 결론: 52주 high/low·MA20/MA50·20일 신고가·거래대금을 **어떤 종목으로도 신뢰성 있게 계산 불가**. **지금 스캐너/
+  전략 구현 금지** — 일봉 수집 인프라 선행 필요.
+- **다음 권장(데이터 선행)**: M2.15B-1 일봉 수집기 설계(KIS read-only 일봉 엔드포인트 `inquire-daily-itemchartprice`
+  류 + 신규 메서드 계약 + rate-limit 인지 배치/캐시-first, M2.14O backoff/마스킹 패턴) → 110 워치리스트(또는 5~20종)
+  파일럿으로 `market_data` `1d` 적재 → 252봉 충분 후에만 **M2.15C 스캐너 지표(SignalLog 없음)**. (`trading_value`
+  추가 필요 시 별도 승인 마이그레이션.) DECISIONS 변경 없음.
+
 **M2.15A Leader Trend Following Strategy Design (`DONE`, docs/design-only)**: 주도주 추세추종 paper 연구 전략군의
 설계. **백엔드/프론트 구현 없음 · 마이그레이션 없음 · SignalLog/Trade/Order 없음 · broker/KIS 없음 · 스케줄러/
 디스패처 없음 · 실거래 없음 · M2.14B-3d 승인 아님 · paper SignalLog-only(궁극).**
