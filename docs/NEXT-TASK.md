@@ -464,6 +464,30 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-2 Daily Candle Collector Implementation (`DONE`, backend, no migration)**: M2.15B-1 설계대로 일봉
+수집기 1차 구현. **dry-run 기본 · 라이브 KIS 미호출 · dev DB execute 미실행(일봉 0 유지) · 마이그레이션 없음 ·
+프론트 없음 · API 실행 엔드포인트 없음 · 스케줄러/잡 없음 · SignalLog/Trade/Order 미생성 · 주문 TR/place_order
+미사용 · M2.14B-3d 미승인.**
+
+- KIS read-only 메서드 `KISPaperBrokerClient.get_daily_candles(symbol, ..., count=252, adjusted)` 추가 — 일봉
+  차트 엔드포인트(`inquire-daily-itemchartprice`, TR `FHKST03010100`) **라이브 전 KIS 문서 재확인 TODO 명시**.
+  결측/비정상 행 안전 skip(`_parse_daily_row`), 방어적 count 상한. **주문 경로 미사용**(기존 `_request` 재사용).
+  신규 `DailyCandle` DTO(schemas.py).
+- 서비스 `services/market_data_daily_collector.py`: 파일럿 유니버스 빌드(symbols/--limit/--from-watchlist,
+  기본 005930·000660) · dry-run 계획(무쓰기·무 KIS) · coverage report(읽기, 20/50/120/252) · execute 수집
+  (provider 주입 시). **멱등 upsert**(market_data `timeframe="1d"`, PK ON CONFLICT) · **인트라데이 1m/5m 미덮어쓰기**
+  · 동일값 skip · **충돌 보존(overwrite=False면 미덮어쓰기·conflict 보고)** · per-symbol status(success/
+  skipped_fresh/conflict/failed_transient/failed_permanent/insufficient_data) · 부분 성공 · 시크릿 마스킹(sanitize).
+- 스크립트 `scripts/collect_daily_candles.py`: **dry-run 기본**. execute는 `--execute`+
+  `--confirm-daily-candle-collection`+hard guard(APP_ENV non-prod·3 플래그 false·DB URL local/dev/test) 통과 시만.
+  `--coverage-only` 읽기. (M2.15B-2에선 dev DB execute 미실행.)
+- 테스트(+14, `test_m2_15b2_daily_candle_collector.py`): 파싱/매핑(MockTransport·실 키 미사용·키 미노출) ·
+  dry-run 무쓰기 · coverage 임계 · 멱등 upsert·재실행 무중복 · **인트라데이 미덮어쓰기** · 충돌 보존/overwrite ·
+  부분 성공·transient/permanent 분류 · insufficient · 가드(confirm/execute/prod/플래그/DB URL) · SignalLog/Trade 0.
+  **전체 백엔드 1745 passed.** 수동 스모크: dry-run/coverage-only만 실행 → **market_data `1d` count 0 유지**.
+- **다음(별도 승인): M2.15B-3 dry-run/coverage 운영 스모크 또는 execute-pilot(5종)로 실제 일봉 수집**(라이브 KIS
+  read-only). 252봉 적재 후에만 M2.15C 스캐너. DECISIONS 변경 없음.
+
 **M2.15B-1 Daily Candle Collector Design (`DONE`, docs/design-only)**: M2.15B(NOT_READY) 이후 52주 분석용 일봉
 수집을 안전·rate-limit 인지로 설계. **수집기 구현 없음 · 마이그레이션 없음 · 라이브 KIS 호출 없음 · broker/KIS
 주문 없음 · SignalLog/Trade/Order 없음 · 스케줄러/디스패처 없음 · M2.14B-3d 승인 아님.**

@@ -28,6 +28,21 @@ class MinuteCandle(BaseModel):
     volume: int
 
 
+class DailyCandle(BaseModel):
+    """일봉 OHLCV (M2.15B-2). 시세 read-only 수집용 — 주문/거래와 무관.
+
+    trading_value(거래대금)는 KIS 응답에 있으면 채우고 없으면 None. V1 저장은 OHLCV+volume만 사용.
+    """
+
+    business_date: str  # YYYYMMDD (거래일)
+    open_price: Decimal
+    high_price: Decimal
+    low_price: Decimal
+    close_price: Decimal
+    volume: int
+    trading_value: Decimal | None = None
+
+
 class BrokerPositionItem(BaseModel):
     """KIS 주식잔고조회(VTTC8434R/TTTC8434R) output1 행을 정규화한 모델.
 

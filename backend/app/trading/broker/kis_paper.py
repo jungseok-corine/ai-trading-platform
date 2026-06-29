@@ -9,6 +9,7 @@ from app.trading.broker.schemas import (
     AccountHolding,
     AccountSummary,
     BrokerPositionItem,
+    DailyCandle,
     MinuteCandle,
     OrderExecution,
     OrderRequest,
@@ -24,6 +25,10 @@ MARKET_DIV_CODE_KRX = "J"
 TR_ID_INQUIRE_PRICE = "FHKST01010100"
 # tr_id: 주식당일분봉조회 (실전/모의 동일)
 TR_ID_INQUIRE_TIME_ITEMCHARTPRICE = "FHKST03010200"
+# tr_id: 국내주식기간별시세(일/주/월/년) — 일봉 OHLCV (M2.15B-2, read-only).
+# ⚠ TODO(M2.15B-3): 라이브 사용 전 KIS 공식 문서로 경로/TR ID/응답 필드명을 반드시 재확인할 것.
+#   (분봉 inquire-time-itemchartprice=FHKST03010200의 일봉 대응으로 inquire-daily-itemchartprice 사용.)
+TR_ID_INQUIRE_DAILY_ITEMCHARTPRICE = "FHKST03010100"
 # tr_id: 주식잔고조회 (모의투자)
 TR_ID_INQUIRE_BALANCE = "VTTC8434R"
 # tr_id: 주식잔고조회 (실전) — 향후 KISRealBrokerClient 구현 시 사용
@@ -37,6 +42,42 @@ TR_ID_INQUIRE_DAILY_CCLD = "VTTC0081R"
 # tr_id: 주식일별주문체결조회 (실전, 3개월 이내) — KIS 문서 TTTC0081R
 # 향후 KISRealBrokerClient 구현 시 이 상수를 사용한다.
 TR_ID_INQUIRE_DAILY_CCLD_REAL = "TTTC0081R"
+
+# 결측/미체결 표기. KIS 일봉 결측은 "" 또는 "0"으로 올 수 있다.
+_DAILY_MISSING = ("", None, ".")
+
+
+def _parse_daily_row(row: dict) -> "DailyCandle | None":
+    """KIS 일봉 output2 행 1개를 DailyCandle로 안전 파싱한다(실패 시 None).
+
+    필드명은 KIS 일봉 차트 응답 기준(stck_bsop_date / stck_oprc·hgpr·lwpr·clpr / acml_vol /
+    acml_tr_pbmn). 결측/비정상 행은 None을 반환해 건너뛴다.
+    """
+    bsop = row.get("stck_bsop_date")
+    if bsop in _DAILY_MISSING:
+        return None
+
+    def _dec(key: str) -> "Decimal | None":
+        v = row.get(key)
+        if v in _DAILY_MISSING:
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:  # noqa: BLE001 - 비정상 숫자는 결측 처리
+            return None
+
+    o, h, lo, c = _dec("stck_oprc"), _dec("stck_hgpr"), _dec("stck_lwpr"), _dec("stck_clpr")
+    if None in (o, h, lo, c):
+        return None
+    try:
+        vol = int(row.get("acml_vol") or 0)
+    except (TypeError, ValueError):
+        vol = 0
+    tv = _dec("acml_tr_pbmn")  # 거래대금(있으면), V1 저장엔 미사용
+    return DailyCandle(
+        business_date=str(bsop), open_price=o, high_price=h, low_price=lo,
+        close_price=c, volume=vol, trading_value=tv,
+    )
 
 # 주문구분: 지정가
 ORD_DVSN_LIMIT = "00"
@@ -113,6 +154,44 @@ class KISPaperBrokerClient(KISClientBase, BrokerClient):
             )
             for row in data["output2"]
         ]
+
+    async def get_daily_candles(
+        self,
+        symbol_code: str,
+        start_date: "datetime | None" = None,
+        end_date: "datetime | None" = None,
+        count: int = 252,
+        adjusted: bool = False,
+    ) -> list[DailyCandle]:
+        """일봉 OHLCV를 조회한다 (M2.15B-2, **read-only 시세 조회 — 주문 무관**).
+
+        ⚠ KIS 일봉 엔드포인트/응답 필드명은 라이브 사용 전 공식 문서로 재확인 필요(TODO M2.15B-3).
+        반환 순서는 KIS 응답 순서 그대로(보통 최신일 우선) — 호출자가 필요 시 정렬한다.
+        결측/비정상 행은 안전하게 건너뛴다. 주문 TR/place_order 절대 미사용.
+        """
+        count = max(1, min(int(count), 1000))  # 방어적 상한
+        end = end_date or datetime.now(KST)
+        start = start_date or end
+        params = {
+            "FID_COND_MRKT_DIV_CODE": self._market_div_code,
+            "FID_INPUT_ISCD": symbol_code,
+            "FID_INPUT_DATE_1": start.strftime("%Y%m%d"),
+            "FID_INPUT_DATE_2": end.strftime("%Y%m%d"),
+            "FID_PERIOD_DIV_CODE": "D",  # 일봉
+            "FID_ORG_ADJ_PRC": "1" if adjusted else "0",  # 1=수정주가 0=원주가
+        }
+        data = await self._request(
+            "GET",
+            "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
+            tr_id=TR_ID_INQUIRE_DAILY_ITEMCHARTPRICE,
+            params=params,
+        )
+        out: list[DailyCandle] = []
+        for row in (data.get("output2") or []):
+            candle = _parse_daily_row(row)
+            if candle is not None:
+                out.append(candle)
+        return out[:count]
 
     async def get_account_balance(self) -> AccountBalance:
         data = await self._request(
