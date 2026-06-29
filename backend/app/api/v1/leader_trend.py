@@ -20,6 +20,11 @@ from app.services.leader_trend_scanner import (
     PILOT_SYMBOLS,
     LeaderTrendScanner,
 )
+from app.services.leader_trend_validation_service import (
+    MAJOR_DIFF_PCT,
+    MINOR_DIFF_PCT,
+    LeaderTrendValidationService,
+)
 
 router = APIRouter(prefix="/leader-trend", tags=["leader-trend"])
 
@@ -33,6 +38,36 @@ _WILDCARDS = {"all", "*", "universe", "full"}
 
 def get_scanner(session: AsyncSession = Depends(get_db)) -> LeaderTrendScanner:
     return LeaderTrendScanner(session)
+
+
+def get_validation_service(
+    session: AsyncSession = Depends(get_db),
+) -> LeaderTrendValidationService:
+    return LeaderTrendValidationService(session)  # 기본 placeholder fixture 사용
+
+
+_VALIDATION_SAFETY = (
+    "This endpoint is read-only validation support. It is not a buy signal and must not be "
+    "connected to trading."
+)
+_VALIDATION_PROVENANCE = (
+    "Reference values are manually supplied non-KIS data (no external API auto-fetch). "
+    "They are used only to validate data consistency, not for trading decisions."
+)
+
+
+def _parse_symbols(symbols: str | None) -> tuple[list[str] | None, str]:
+    """공통: symbols 쿼리 파싱 + scope. wildcard/cap 거부."""
+    if symbols is None:
+        return None, "pilot_5"
+    requested = [s.strip() for s in symbols.split(",") if s.strip()]
+    if any(s.lower() in _WILDCARDS for s in requested):
+        raise HTTPException(status_code=400, detail="wildcard/universe scope not allowed")
+    if not requested:
+        raise HTTPException(status_code=400, detail="no symbols provided")
+    if len(requested) > MAX_SCAN_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"too many symbols (max {MAX_SCAN_SYMBOLS})")
+    return requested, "explicit"
 
 
 class LeaderTrendCandidateResult(BaseModel):
@@ -123,4 +158,70 @@ async def get_leader_trend_candidates(
         total_operational_candidates=len(candidates),
         candidates=candidates,
         results=results,
+    )
+
+
+# --- M2.15F-1: non-KIS 독립 52주 검증(읽기 전용 데이터 품질 · 매매 신호 아님) ---
+class NonKisValidationResult(BaseModel):
+    symbol: str
+    validation_status: str
+    db_reference_close: float | None = None
+    db_high_52w: float | None = None
+    db_low_52w: float | None = None
+    reference_close: float | None = None
+    reference_high_52w: float | None = None
+    reference_low_52w: float | None = None
+    reference_close_diff_pct: float | None = None
+    high_52w_diff_pct: float | None = None
+    low_52w_diff_pct: float | None = None
+    note: str | None = None
+
+
+class NonKisValidationResponse(BaseModel):
+    scanned_at: str
+    research_only: bool
+    not_buy_signal: bool
+    read_only: bool
+    external_reference_auto_fetch: bool
+    universe_scope: str
+    total_symbols_checked: int
+    minor_diff_threshold_pct: float
+    major_diff_threshold_pct: float
+    reference_source_name: str | None
+    reference_source_note: str | None
+    reference_as_of_date: str | None
+    summary: dict[str, int]
+    safety_warning: str
+    provenance_warning: str
+    results: list[NonKisValidationResult]
+
+
+@router.get("/validation/non-kis-52w", response_model=NonKisValidationResponse)
+async def get_non_kis_52w_validation(
+    symbols: str | None = Query(
+        default=None,
+        description="comma-separated, max 5; default pilot_5. Read-only data-quality validation, NOT a buy signal.",
+    ),
+    service: LeaderTrendValidationService = Depends(get_validation_service),
+) -> NonKisValidationResponse:
+    """DB 52주 값 vs 수동 non-KIS 레퍼런스 비교(읽기 전용). **매매 신호 아님 · 외부 자동 호출 없음.**"""
+    requested, _ = _parse_symbols(symbols)
+    report = await service.validate(requested)
+    return NonKisValidationResponse(
+        scanned_at=datetime.now(KST).isoformat(),
+        research_only=True,
+        not_buy_signal=True,
+        read_only=True,
+        external_reference_auto_fetch=False,
+        universe_scope=report.universe_scope,
+        total_symbols_checked=len(report.results),
+        minor_diff_threshold_pct=MINOR_DIFF_PCT,
+        major_diff_threshold_pct=MAJOR_DIFF_PCT,
+        reference_source_name=report.source_name,
+        reference_source_note=report.source_note,
+        reference_as_of_date=report.as_of_date,
+        summary=report.summary(),
+        safety_warning=_VALIDATION_SAFETY,
+        provenance_warning=_VALIDATION_PROVENANCE,
+        results=[NonKisValidationResult(**r.to_dict()) for r in report.results],
     )

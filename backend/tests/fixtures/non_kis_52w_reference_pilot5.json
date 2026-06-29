@@ -1,0 +1,48 @@
+{
+  "source_name": "manual_non_kis_reference",
+  "source_note": "MANUAL REFERENCE REQUIRED. Placeholder values (0) below are NOT real data. A human must fill reference_close/high_52w/low_52w with independently-sourced non-KIS values before this validation is meaningful. Do NOT use for trading decisions.",
+  "as_of_date": "PLACEHOLDER",
+  "timeframe": "1d",
+  "symbols": [
+    {
+      "symbol": "005930",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "manual placeholder — fill with non-KIS reference"
+    },
+    {
+      "symbol": "000660",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "manual placeholder — fill with non-KIS reference"
+    },
+    {
+      "symbol": "035420",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "manual placeholder — fill with non-KIS reference"
+    },
+    {
+      "symbol": "005380",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "manual placeholder — fill with non-KIS reference"
+    },
+    {
+      "symbol": "051910",
+      "reference_close": 0,
+      "high_52w": 0,
+      "low_52w": 0,
+      "currency": "KRW",
+      "source_url_or_note": "manual placeholder — fill with non-KIS reference"
+    }
+  ]
+}
