@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15D-1 Leader Trend Data Realism / Scale Consistency Review (`DONE`, read-only review + docs)**: 5종 가격 스케일
+일관성(1d ↔ 5m ↔ 라이브 현재가) 검토. **DB write 0 · 후보 영속화 0 · API/UI 노출 0 · 스캐너 런타임 변경 0 ·
+SignalLog/Trade/Order 0 · KIS 주문/place_order 0 · 마이그레이션 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.**
+
+- 결과: **3소스(일봉·5m·라이브 현재가) 스케일 1:1 일치**(비율 1.000~1.006, ≤0.6%). 배율 불일치 없음. 1m만 ~7일
+  stale(age, 스케일 아님). 라이브 `get_current_price`(read-only `/quotations/inquire-price`, TR FHKST01010100) 5종
+  순차, 모두 성공·시크릿 미출력.
+- 판정: **000660·005930의 운영 B는 스케일 이슈가 아님**(데이터 내부 일관+라이브 확인). 단 005930 1년 5.6배·000660
+  ~10배는 실제 시장과 동떨어진 **paper/dev 데이터**로 보여 **시장 현실성 미검증** → 5종 모두 `usable_for_research_only`.
+- 권고: **Option D — 노출 전 백테스트/실측 데이터-벤더 현실성 검증**(스케일 가드/차단 B·C는 불필요). Option A(읽기
+  전용 노출)는 research-only+데이터출처 경고 명시 시에만.
+- DB 불변(1d 1,260·005930 체크섬·Trade 35). 산출물: `docs/reports/M2.15D-1-leader-trend-data-realism-scale-review.md`.
+  DECISIONS 미갱신(가역 검토). 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15D-2 — 실측 데이터 대조 검증 또는 읽기 전용 백테스트 골격**(주문/Trade 없음), 그 뒤
+  M2.15D-3 research-only 후보 노출. 종목 확장은 미승인.
+
 **M2.15C-4 Leader Trend Layered Warning Model (`DONE`, read-only scanner refactor + tests, no migration)**: 스캐너
 경고/분류를 **3계층**(hard_errors / adjustment_warnings / strategy_extreme_warnings)으로 분리(D-28). **스캐너 읽기 전용
 유지 · DB write 0 · 라이브 KIS 0 · 후보 영속화 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 0 · 마이그레이션 0 ·
