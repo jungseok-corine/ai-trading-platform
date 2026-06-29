@@ -464,6 +464,25 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15C-2 Adjusted Daily Candle Read-Only Probe / Price Policy Decision (`DONE`, live read-only probe + docs)**:
+5종 파일럿에 `adjusted=True`(`FID_ORG_ADJ_PRC=1`) 라이브 read-only 프로브 + 인메모리 메트릭 계산 + raw 대조.
+**adjusted 봉 미적재 · raw 봉 미덮어쓰기 · DB write 0 · 마이그레이션 없음 · 후보 영속화 없음 ·
+SignalLog/Trade/Order 0 · KIS 주문/place_order 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.**
+
+- 결과: 5/5 success, 각 252봉/3페이지/중복0/OHLCV완전, EGW00201 미관측. **adjusted=True가 경고를 해소하지 못함** —
+  high_52w·low_52w가 **raw와 정확히 일치**(005930 380000/57600, 000660 3002000/242000). close/gain/dd 미세차는
+  진행 중 당일봉 라이브 갱신 탓(수정주가 효과 아님). 000660·005930는 adjusted에서도 `B_raw_needs_adjusted_review`
+  (safe=False), 나머지 none. **운영 후보 raw 0·adjusted 0(동일).**
+- 추가 진단(read-only): 저가 구간은 단일 이상치 아님(005930 ~57,600은 2025-06 다일 연속; 중앙값 close 110,100) →
+  대형 range/gain은 **데이터 내 실제 1년 상승추세**.
+- 결정: **Option B — raw 유지 + 스캐너 운영 분류 차단 유지**(수정주가 도입 실익 없음). 단 경고 임계값이 실제 강한
+  주도주를 데이터 의심으로 묶는 한계 → raw-vs-adjusted 아님, **임계값/전략의도·데이터 현실성** 문제. 저장/스키마
+  변경(예 `1d_adj`/`adjustment_mode`) 실익 없어 **미구현**.
+- DB 불변(1d 1,260·005930 체크섬·schema·Trade 35). 산출물: `docs/reports/M2.15C-2-adjusted-daily-candle-readonly-probe.md`.
+  코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15C-3 — 경고 임계값/전략의도 재검토 + 데이터 현실성 점검**(이 paper 일봉이 실제 시장 스케일과
+  부합하는지). 종목 확장·후보 영속화·adjusted 적재는 미승인. DECISIONS 변경 없음(가역적 운영 결정).
+
 **M2.15C-1 Leader Trend Metric Calculator / Read-Only Candidate Scanner (`DONE`, backend service+CLI+tests, no migration)**:
 적재된 5종 일봉(`market_data` 1d)만으로 52주 지표 계산 + 후보 A/B 분류하는 **읽기 전용** 스캐너. **DB write 0 ·
 라이브 KIS 0 · SignalLog/Trade/Order 0 · broker/주문 경로 미사용 · 스케줄러/디스패처 0 · 마이그레이션 없음 · 후보
