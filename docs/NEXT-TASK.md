@@ -464,6 +464,25 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15B-6 Daily Candle Execute Pilot — 005930 (`DONE`, first real execute, dev DB, no migration)**: 1종목
+(005930) 일봉 252봉을 KIS read-only로 받아 dev DB `market_data` `timeframe="1d"`에 멱등 적재(첫 실제 execute-pilot).
+**5/20/110/전체 유니버스 미실행 · 마이그레이션 없음 · 런타임 코드/프론트 변경 없음 · SignalLog/Trade/Order 미생성 ·
+KIS 주문 API/place_order 미호출 · 스케줄러/디스패처 없음 · production DB 미접촉 · M2.14B-3d 미승인.**
+
+- 명령: `collect_daily_candles.py --symbols 005930 --count 252 --execute --confirm-daily-candle-collection`
+  (1회). 결과: status=success, fetched=252, inserted=252, conflicts=0, signals/trades/orders=0. 3 페이지 호출,
+  `EGW00201` 1회 → 내장 backoff 복구.
+- DB: market_data `1d` 0→**252**(005930), 중복 그룹 0, OHLCV/volume 결측 0, 거래일 KST 2025-06-18~2026-06-29.
+  인트라데이 1m(2274)/5m(3127) 불변. total 277,974→278,279(+252 본작업 +~53 무관 백그라운드). **SignalLog 95,110
+  불변 · Trade 35 불변.**
+- coverage(post): `daily_candles=252`, `has_20/50/120/252=True`, `ready_for_52w=True`. 52주 지표(read-only 계산,
+  미저장): current_close 323000, high_52w 380000, low_52w 57600, low_52w_gain 460.76%, drawdown 15.0%, MA20 335800,
+  MA50 289370 → **M2.15C 메트릭 계산기 준비됨**.
+- adjusted=False(원주가) 적재, trading_value 미저장(컬럼 없음 — 별도 승인). 산출물:
+  `docs/reports/M2.15B-6-daily-candle-execute-pilot-005930.md`. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15B-7 — (a) 멱등성/포스트-영속 스모크(005930 재-execute → inserted=0/skipped_fresh) 또는
+  (b) 5종목 execute-pilot 계획.** 5종목 execute-pilot은 미승인. DECISIONS 변경 없음.
+
 **M2.15B-5 Daily Candle Live Read-Only Pagination Probe (`DONE`, live read-only probe + docs)**: M2.15B-4
 페이지네이션을 실제 KIS read-only로 1종목(005930) 검증. **DB 쓰기 0 · execute-pilot 미실행 · 일봉 row 미삽입
 (1d 0 유지) · SignalLog/Trade/Order 미생성 · KIS 주문 API/place_order 미호출 · 마이그레이션 없음 · 런타임 코드
