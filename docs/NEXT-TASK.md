@@ -464,6 +464,24 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15C-1 Leader Trend Metric Calculator / Read-Only Candidate Scanner (`DONE`, backend service+CLI+tests, no migration)**:
+적재된 5종 일봉(`market_data` 1d)만으로 52주 지표 계산 + 후보 A/B 분류하는 **읽기 전용** 스캐너. **DB write 0 ·
+라이브 KIS 0 · SignalLog/Trade/Order 0 · broker/주문 경로 미사용 · 스케줄러/디스패처 0 · 마이그레이션 없음 · 후보
+영속화 없음 · 후보는 매수 신호 아님 · M2.14B-3d 미승인.**
+
+- 구현: `app/services/leader_trend_scanner.py`(`compute_metrics` 순수 + `LeaderTrendScanner.scan`) ·
+  `scripts/scan_leader_trend_candidates.py`(읽기 전용 CLI, execute/provider 플래그 없음) ·
+  `tests/test_m2_15c1_leader_trend_scanner.py`(14). 공식은 M2.15A와 동일(low_52w_gain_pct·drawdown). bucket:
+  A/B/`*_raw_needs_adjusted_review`/none/insufficient_data/invalid_data.
+- 데이터 품질/원주가 경고: range_ratio>4 · gain>500% · 일일점프>50% → `operationally_safe_for_classification=False`,
+  후보는 review 라벨로 유지(데이터 보존). hard invalid(nonpositive/high<low/중복일/null)→invalid_data.
+- dev DB 5종 read-only 스캔: **000660·005930 = raw Candidate B이나 원주가 경고로 `B_raw_needs_adjusted_review`
+  (safe=False)** · 035420/005380/051910 = none(safe). → **운영 분류 가능한 raw 후보 0개**(설계상 의도된 가드 작동).
+  DB 불변(1d 1,260·005930 체크섬·Trade 35), 전체 백엔드 **1768 passed**.
+- 산출물: `docs/reports/M2.15C-1-leader-trend-metric-scanner.md`. 스키마/마이그레이션/프론트/API 변경 없음.
+- **다음(별도 승인): M2.15C-2 — 수정주가(adjusted=True/`FID_ORG_ADJ_PRC=1`) 도입 결정/프로브**(경고 해소 확인) 또는
+  읽기 전용 API/UI 스캐너. 종목 확장(20/110/전체)·후보 영속화는 미승인. DECISIONS 변경 없음.
+
 **M2.15B-9 Five-Symbol Daily Candle Execute-Pilot (`DONE`, dev DB, no migration)**: 신규 4종
 (000660·035420·005380·051910)을 KIS read-only 일봉으로 dev DB `market_data` `1d`에 **종목별 순차 멱등 적재**(005930은
 control 유지·재실행 안 함). **20/110/전체 미실행 · 마이그레이션 없음 · 런타임 코드/프론트 변경 없음 ·
