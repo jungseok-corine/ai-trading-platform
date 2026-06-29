@@ -464,6 +464,22 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15D-3A Leader Trend Real Historical Daily 52W Validation (`DONE`, read-only review + docs)**: 저장 52주 일봉
+이력을 **KIS 실전 도메인 read-only 일봉 시세**(`inquire-daily-itemchartprice`, TR FHKST03010100, `real_trading_enabled=
+False`)와 대조. **주문 TR 0 · place_order 0 · `KIS_REAL_TRADING_ENABLED` 미변경(false) · DB write 0 · 레퍼런스/후보
+영속화 0 · 스캐너 런타임 변경 0 · 마이그레이션 0 · 스케줄러/디스패처 0 · M2.14B-3d 미승인.** 후보는 매수 신호 아님.
+
+- 결과: 5종 각 252봉/중복0/결측0. **52주 저점 5종 전부 정확 일치**(57,600/242,000/190,300/200,500/200,500), 고점
+  ≤1.5%, 현재가 ≤0.7% → 전부 `matches_reference`. 레퍼런스 재계산 gain/dd가 **운영 B 완전 재현**(005930 460.76%,
+  000660 985.95% → B; 나머지 none). 즉 000660·005930 B는 paper-only 아티팩트 아님(현재가+52주 이력 모두 실전 도메인 정합).
+- 잔존 한계(정직): KIS 실전·모의 도메인이 동일 시세 반환(D-2) → 검증은 **KIS 생태계 내부 정합성**, 비-KIS 독립
+  소스(pykrx/yfinance 미설치) 부재로 실세계 정확성·도메인 독립성은 미확증.
+- 권고: **Option B(강화) — research-only 노출 + 데이터 출처 경고**(52주 이력 검증, 비-KIS 독립성 미확보). Option
+  C(차단) 기각, A(클린) 미채택. DB 불변(1d 1,260·005930 체크섬·Trade 35·real flag false). 산출물:
+  `docs/reports/M2.15D-3A-real-historical-daily-52w-validation.md`. DECISIONS 미갱신. 코드/스키마/마이그레이션 변경 없음.
+- **다음(별도 승인): M2.15D-3B — research-only 후보 읽기 전용 노출**(출처 경고+"매수 신호 아님" 라벨, 자동제안/주문
+  없음), 또는 (선택) M2.15D-3C 비-KIS 독립 소스 통합. 종목 확장은 미승인.
+
 **M2.15D-2 Leader Trend Real-Market Reference Comparison (`DONE`, read-only review + docs)**: 저장 paper/dev 일봉을
 **KIS 실전(production) 도메인 read-only 시세**(`get_current_price`, `real_trading_enabled=False`)와 대조. **주문 TR 0 ·
 place_order 0 · DB write 0 · 레퍼런스/후보 영속화 0 · 스캐너 런타임 변경 0 · 마이그레이션 0 · 스케줄러/디스패처 0 ·
