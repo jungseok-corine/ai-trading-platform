@@ -26,6 +26,12 @@ DAILY_TIMEFRAME = "1d"
 REQUIRED_CANDLES = 252
 COVERAGE_THRESHOLDS = (20, 50, 120, 252)
 
+# 검증된 파일럿 유니버스(M2.15B-9 적재 + M2.15D-3A 실전 도메인 검증). 노출 기본 범위.
+PILOT_SYMBOLS = ["005930", "000660", "035420", "005380", "051910"]
+MAX_SCAN_SYMBOLS = 5  # 노출 API 상한(20/110/전체 확장 금지 — 별도 승인 전까지).
+# 운영 후보로 카운트하는 운영 bucket(매수 신호 아님 · 연구 후보 분류일 뿐).
+OPERATIONAL_CANDIDATE_BUCKETS = ("A", "B")
+
 # 후보 필터(M2.15A 설계와 동일). **매수 신호 아님 · 후보 필터일 뿐.**
 CAND_A_MAX_GAIN = 200.0      # low_52w_gain_pct <= 200
 CAND_A_MAX_DRAWDOWN = 10.0   # drawdown_from_52w_high_pct <= 10
@@ -104,8 +110,7 @@ def compute_metrics(symbol: str, candles: list) -> LeaderTrendMetrics:
     m.ready_for_52w = n >= REQUIRED_CANDLES
 
     if n == 0:
-        m.is_data_valid = False
-        m.hard_errors = ["no_rows"]
+        # 행이 없음 = 무결성 결함이 아니라 데이터 부족 → insufficient_data.
         _finalize(m)
         return m
 

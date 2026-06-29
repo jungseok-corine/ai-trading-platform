@@ -797,3 +797,26 @@ M2.15C-1 스캐너는 `range_ratio>4`·`gain>500%`·`일일점프>50%`를 한 �
 **구현/상세**: `leader_trend_scanner.py`(M2.15C-4) + 테스트(c1 갱신·c4 신규). 5종 read-only 재스캔으로
 005930·000660이 운영 `B`(safe=True, strategy_extreme)로, 035420/005380/051910이 `none`으로 확인. DB write 0 ·
 마이그레이션 0. 관련: [[D-24]].
+
+## D-29. Leader Trend 후보 API는 read-only 연구용 — 매수 신호 아님 · 영속화/주문 없음
+
+**경위**:
+M2.15D-1~3A에서 5종 후보 데이터의 스케일·52주 이력을 KIS 실전 도메인으로 검증(현재가 ≤0.7%·52주 저점 정확 일치·
+B 분류 재현). 단 KIS 실전·모의 도메인이 동일 데이터를 반환하고 비-KIS 독립 소스가 환경에 없어 실세계 독립성은
+미확증. 이 전제에서 후보를 노출하되 "운영/거래 승인"이 아닌 **연구용**으로만 한정한다.
+
+**결정 내용**:
+1. **`GET /api/v1/leader-trend/candidates`는 read-only.** 적재 `market_data` 1d만 읽고 라이브 KIS·일봉 fetch·DB
+   write·후보 영속화·CandidateEvent 생성·SignalLog/Trade/Order·broker/주문·스케줄러를 일절 하지 않는다.
+2. **후보는 매수 신호가 아니다.** 응답은 `research_only=true`·`not_buy_signal=true`·`safety_warning`·
+   `provenance_warning`(비-KIS 독립성 미확증)을 항상 포함하고, buy/order/trade/signal/recommendation을 긍정 라벨로
+   쓰지 않는다.
+3. **기본 범위는 검증된 pilot_5만.** 명시 심볼은 최대 5, wildcard/all/universe 거부. 20/110/전체 확장은 별도 승인.
+4. **후보 영속화·자동 제안·실배치는 별도 승인 단계**(M2.15E 이후). 본 API는 표면 노출까지만.
+
+**이유**:
+- 검증은 KIS 생태계 내부 정합성까지 — 실세계 독립성 미확증이므로 "연구용+출처 경고"가 정직한 노출 수준이다.
+- read-only·무영속·무부작용으로 안전 모델(주문/신호/스케줄러 도달 불가)을 유지하면서 후보를 사람이 검토 가능.
+
+**구현/상세**: `app/api/v1/leader_trend.py` + `main.py` 등록 + 테스트(M2.15D-3B, 6) + 전체 1790 passed. DB write 0 ·
+마이그레이션 0 · 프론트 0. 관련: [[D-28]], [[D-24]].

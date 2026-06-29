@@ -464,6 +464,20 @@ PaperSignalSession**에 대해 신호를 **1회만** 평가한다(M2.7 Option B 
 - 검증: `npm run build`(typecheck) 통과. 백엔드 무변경 — M2.10 페어 테스트 20 contract sanity 유지.
 - **다음(별도 단계, 미착수)**: M2.14B-3 무인 디스패처(명시 승인).
 
+**M2.15D-3B Leader Trend Research-Only Candidate API (`DONE`, read-only backend API + tests, no migration)**: 검증된
+후보를 `GET /api/v1/leader-trend/candidates`로 **읽기 전용** 노출. **DB write 0 · 라이브 KIS 0 · 일봉 fetch 0 · 후보
+영속화 0 · CandidateEvent 0 · SignalLog/Trade/Order 0 · 주문/스케줄러 0 · 마이그레이션 0 · 프론트 0 ·
+`KIS_REAL_TRADING_ENABLED` 미변경 · M2.14B-3d 미승인.** 후보는 매수 신호 아님.
+
+- 구현: `app/api/v1/leader_trend.py`(read-only 라우트) + `main.py` 등록 + 스캐너 상수(`PILOT_SYMBOLS`/
+  `MAX_SCAN_SYMBOLS=5`) + n==0→insufficient_data 정정. 응답: research_only/not_buy_signal/provenance_warning/
+  safety_warning + 계층화 경고 필드 + candidates(op∈{A,B})/results. 기본 pilot_5, explicit 최대 5, wildcard 거부(400).
+- dev 검증: 000660·005930 = operational B(strategy_extreme), 035420/005380/051910 = none. DB 불변(1d 1,260·005930
+  체크섬·Trade 35). 테스트 6 + 전체 백엔드 **1790 passed**. DECISIONS **D-29** 추가.
+- 산출물: `docs/reports/M2.15D-3B-research-only-candidate-api.md`. 스키마/마이그레이션/프론트 변경 없음.
+- **다음(별도 승인): M2.15D-3C(비-KIS 독립 소스 통합, 선택) 또는 M2.15E(읽기 전용 프론트 UI / 후보 메타 영속화).**
+  종목 확장은 미승인.
+
 **M2.15D-3A Leader Trend Real Historical Daily 52W Validation (`DONE`, read-only review + docs)**: 저장 52주 일봉
 이력을 **KIS 실전 도메인 read-only 일봉 시세**(`inquire-daily-itemchartprice`, TR FHKST03010100, `real_trading_enabled=
 False`)와 대조. **주문 TR 0 · place_order 0 · `KIS_REAL_TRADING_ENABLED` 미변경(false) · DB write 0 · 레퍼런스/후보
