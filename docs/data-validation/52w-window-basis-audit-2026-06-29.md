@@ -59,3 +59,10 @@
   - **calendar_52_weeks가 major_diff를 설명함** → **source-basis difference로 문서화**(DB=trading-day 252-row
     window, Naver=calendar-52주 window). 추가 non-KIS source/수동 차트 점검은 선택.
   - CandidateEvent 진행은 **사람의 별도 승인**이 있어야 한다(이 작업 범위 아님).
+
+## CandidateEvent Design Note (M2.15G-1)
+
+- major_diff가 window basis 차이로 설명되었으므로 **CandidateEvent 설계는 진행 가능**
+  (→ `docs/design/M2.15G-1-candidate-event-minimal-persistence-design.md`).
+- 단 **persistence(모델/migration/저장)는 M2.15G-2까지 차단(blocked)** 이며, CandidateEvent는 research-only ·
+  매수 신호 아님 · 주문/스케줄러 미연결.

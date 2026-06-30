@@ -80,3 +80,10 @@ Summary: matched 0 · minor_diff 3 · major_diff 2 · missing_db_data 0 · missi
   (005930 59,800 정확 일치, 051910 -5.43%→-1.89%).
 - **그럼에도 CandidateEvent는 여전히 차단(blocked)** — 설명은 됐으나 진행은 사람의 별도 승인이 필요하며,
   DB는 수정하지 않는다(window 정의 차이일 뿐 DB는 정상).
+
+## CandidateEvent Design Readiness (M2.15G-1)
+
+- **major_diff는 F-3F audit으로 설명됨**(window basis 차이) → **CandidateEvent 설계는 진행 가능**
+  (→ `docs/design/M2.15G-1-candidate-event-minimal-persistence-design.md`).
+- **CandidateEvent creation은 여전히 not allowed** — 모델/migration 리뷰(M2.15G-2) 전까지 저장 금지. CandidateEvent는
+  research-only · 매수 신호 아님 · 주문/Trade/SignalLog/스케줄러 미연결.
