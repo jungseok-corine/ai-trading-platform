@@ -232,6 +232,25 @@ risk check context에 action nature를 명시한다.
 * Tests: `test_risk_fix_1d_max_position_size_exit.py` (new behavior) +
   `test_risk_fix_1b_...`/`test_risk_fix_1c_...` 의 해당 기대값 갱신(삭제가 아니라 의미 이전).
 
+## 13. RISK-FIX-1E Implementation Note
+
+* `_count_consecutive_losses` no longer counts fee-only break-even exits as consecutive losses.
+* Consecutive loss streak now focuses on directional/percent loss when available
+  (`pnl_pct` = (exit_price - entry_price) / entry_price * 100, percent point, **수수료 미포함**;
+  pnl_pct가 없으면 entry/exit price로 방향 손익률 계산).
+* 판정: `directional_return_pct < -epsilon` → 손실, `|directional| <= epsilon` → break-even(손실 아님).
+  epsilon = `CONSECUTIVE_LOSS_BREAK_EVEN_EPSILON_PCT = Decimal("0.01")` (= 0.01%p).
+* If directional data is unavailable, the code falls back conservatively to `pnl_amount < 0`.
+* Real directional losses still count.
+* `ConsecutiveLossLimitRule` remains BUY-only after RISK-FIX-1C.
+* `MaxPositionSizeRule` remains BUY-only after RISK-FIX-1D.
+* Entry sizing cap is unchanged and remains for **RISK-FIX-1F**.
+* No RiskConfig was modified. No DB state was modified. No trading was enabled.
+* 변경 위치: `app/trading/risk/context.py`의 `_count_consecutive_losses` +
+  새 helper `_is_directional_streak_loss`(순수 함수). `ConsecutiveLossLimitRule`(rules.py)은 미변경.
+* Tests: `test_risk_fix_1e_consecutive_loss_fee_only.py` (new behavior) +
+  `test_risk_fix_1b_...`의 fee-only 기대값을 1E 파일로 의미 이전(삭제 아님).
+
 ## Future Work: RISK-AI-1 AI-assisted Stop-Loss / Take-Profit Policy
 
 ### Purpose

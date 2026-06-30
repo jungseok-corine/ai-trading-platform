@@ -14,6 +14,41 @@ from app.trading.broker.base import BrokerClient
 # 연속 손실 횟수를 계산할 때 조회할 최근 청산 거래 수
 CONSECUTIVE_LOSS_LOOKBACK = 20
 
+# RISK-FIX-1E: consecutive loss streak는 "실질 가격 방향 손실"만 센다.
+# 방향 손익률(directional return)이 이 epsilon(절대값) 이내이면 break-even으로 보고 손실로 세지 않는다.
+# 단위: pnl_pct는 (exit_price - entry_price) / entry_price * 100 로 계산되는 percent point(수수료 미포함)다.
+# 따라서 0.01 = 0.01%p. 수수료/세금만으로 pnl_amount<0인 fee-only break-even 청산을 제외하기 위한 값이다.
+CONSECUTIVE_LOSS_BREAK_EVEN_EPSILON_PCT = Decimal("0.01")
+
+
+def _is_directional_streak_loss(
+    pnl_amount: Decimal | None,
+    pnl_pct: Decimal | None,
+    entry_price: Decimal | None,
+    exit_price: Decimal | None,
+    *,
+    epsilon_pct: Decimal = CONSECUTIVE_LOSS_BREAK_EVEN_EPSILON_PCT,
+) -> bool:
+    """연속 손실 streak에 포함할 "실질 가격 방향 손실"인지 판정한다(RISK-FIX-1E).
+
+    - 1순위: 방향 손익률 pnl_pct(수수료 미포함). 없으면 entry/exit price로 계산.
+    - directional_return_pct < -epsilon → 손실로 카운트.
+    - |directional_return_pct| <= epsilon → fee-only/near-flat break-even → 손실 아님.
+    - 방향 데이터가 전혀 없으면 보수적으로 pnl_amount < 0 으로 판단(기존 동작 fallback).
+    """
+    directional_pct = pnl_pct
+    if (
+        directional_pct is None
+        and entry_price is not None
+        and exit_price is not None
+        and entry_price != 0
+    ):
+        directional_pct = (exit_price - entry_price) / entry_price * 100
+    if directional_pct is not None:
+        return directional_pct < -epsilon_pct
+    # 방향 판단 불가 → 보수적 fallback(실제 자본 손실 기준).
+    return pnl_amount is not None and pnl_amount < 0
+
 
 @dataclass
 class RiskContext:
@@ -84,8 +119,10 @@ class RiskContextBuilder:
         return total
 
     async def _count_consecutive_losses(self, account_id: int) -> int:
+        # RISK-FIX-1E: pnl_amount<0만 보지 않고, 방향 손익률(pnl_pct / entry·exit price) 기준으로
+        # 실질 가격 방향 손실만 센다. fee-only break-even 청산은 streak에서 제외한다.
         result = await self._session.execute(
-            select(Trade.pnl_amount)
+            select(Trade.pnl_amount, Trade.pnl_pct, Trade.entry_price, Trade.exit_price)
             .where(Trade.account_id == account_id)
             .where(Trade.exit_time.is_not(None))
             .order_by(Trade.exit_time.desc())
@@ -93,8 +130,8 @@ class RiskContextBuilder:
         )
 
         consecutive = 0
-        for pnl_amount in result.scalars():
-            if pnl_amount is not None and pnl_amount < 0:
+        for pnl_amount, pnl_pct, entry_price, exit_price in result.all():
+            if _is_directional_streak_loss(pnl_amount, pnl_pct, entry_price, exit_price):
                 consecutive += 1
             else:
                 break
