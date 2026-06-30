@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_broker_client
 from app.db.session import get_db
 from app.domain.repositories.account import AccountRepository
+from app.services.manual_reconciliation_report_service import (
+    ManualReconciliationReportService,
+)
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.schemas import AccountBalance
@@ -40,3 +46,63 @@ async def list_accounts(session: AsyncSession = Depends(get_db)) -> list[Account
         )
         for a in accounts
     ]
+
+
+# --- MANUAL-SELL-RECON-2: read-only reconciliation report ---------------------
+class ReconciliationReportItemRead(BaseModel):
+    symbol_code: str
+    symbol_name: str | None = None
+    report_type: str
+    broker_quantity: int | None = None
+    db_quantity: int | None = None
+    broker_avg_price: Decimal | None = None
+    db_avg_price: Decimal | None = None
+    details: str
+
+
+class ManualReconciliationReportResponse(BaseModel):
+    account_id: int
+    broker_account_no: str | None = None
+    market: str
+    checked_at: datetime
+    broker_holdings_count: int
+    db_open_positions_count: int
+    matched_count: int
+    mismatch_count: int
+    mismatches: list[ReconciliationReportItemRead]
+    broker_only_holdings: list[ReconciliationReportItemRead]
+    db_only_positions: list[ReconciliationReportItemRead]
+    matched_positions: list[ReconciliationReportItemRead]
+    warnings: list[str]
+
+
+@router.get(
+    "/{account_id}/reconciliation-report",
+    response_model=ManualReconciliationReportResponse,
+)
+async def get_reconciliation_report(
+    account_id: int,
+    market: str = "KR",
+    symbols: list[str] | None = Query(default=None),
+    include_zero_quantity_db_positions: bool = False,
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> ManualReconciliationReportResponse:
+    """KIS holdings ↔ DB positions를 비교하는 **read-only** 정합성 리포트.
+
+    DB를 수정하지 않으며 기존 auto-sync/reconcile write 경로를 호출하지 않는다. 수동 앱 매도 후
+    자동매매 재개 전 불일치를 확인하는 용도. 불일치 해소(DB reconciliation)는 별도 human-approved 작업.
+    """
+    service = ManualReconciliationReportService(session, broker)
+    try:
+        report = await service.build_report(
+            account_id,
+            market=market,
+            symbols=symbols,
+            include_zero_quantity_db_positions=include_zero_quantity_db_positions,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except KISAPIError as e:
+        raise HTTPException(status_code=502, detail=e.msg1) from e
+    return ManualReconciliationReportResponse.model_validate(report, from_attributes=True)

@@ -137,6 +137,7 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
 
 1. **Position exit decision** — 앱 직접 매도 또는 human-approved paper SELL execution.
 2. **MANUAL-SELL-RECON-2** — read-only KIS vs DB reconciliation report.
+   **(구현 완료)** `GET /api/v1/account/{account_id}/reconciliation-report` — DB write 없음.
 3. **PAPER-RESUME-1** — limited paper auto-trading resume checklist.
 4. **PAPER-RESUME-2** — limited strategy/symbol allowlist design.
 5. **RISK-AI-1A** — AI stop-loss/take-profit recommendation-only design.

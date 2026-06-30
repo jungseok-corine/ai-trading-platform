@@ -87,6 +87,17 @@
 ### Policy A — Read-only reconciliation report
 
 * KIS holdings ↔ DB open positions 비교 → mismatch table. **DB 수정 없음.**
+* **구현됨 (MANUAL-SELL-RECON-2)**: `GET /api/v1/account/{account_id}/reconciliation-report`.
+  * 목적: 수동 앱 매도 후 broker 잔고와 DB positions 불일치를 확인.
+  * 사용 시점: 앱 매도 후 **자동매매 재개 전 반드시 실행**.
+  * 동작: `broker.get_broker_positions()`(read-only) + DB `positions` SELECT를 순수 함수로 비교.
+    기존 `PositionReconciliationService.reconcile`/`sync_from_broker_positions`(DB write) **미호출**.
+  * mismatch types: `matched` · `broker_sold_db_open` · `broker_qty_less_than_db_qty` ·
+    `broker_qty_more_than_db_qty` · `broker_holding_db_missing` · `price_basis_mismatch`,
+    그리고 `realized_pnl_missing_possible`는 **warning으로만** 표시(write 없음).
+  * **DB write 없음.** 불일치 발견 시 다음 단계는 **human-approved DB reconciliation**(별도 작업).
+  * service: `app/services/manual_reconciliation_report_service.py`
+    (`ManualReconciliationReportService.build_report`).
 
 ### Policy B — Human-approved external manual sell sync
 
