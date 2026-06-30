@@ -139,6 +139,8 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
 2. **MANUAL-SELL-RECON-2** — read-only KIS vs DB reconciliation report.
    **(구현 완료)** `GET /api/v1/account/{account_id}/reconciliation-report` — DB write 없음.
 3. **PAPER-RESUME-1** — limited paper auto-trading resume checklist.
+   **(구현 완료)** `GET /api/v1/account/{account_id}/paper-resume-readiness` (read-only, DB write 없음) —
+   상세: [`docs/operations/paper-auto-trading-resume-checklist.md`](../operations/paper-auto-trading-resume-checklist.md).
 4. **PAPER-RESUME-2** — limited strategy/symbol allowlist design.
 5. **RISK-AI-1A** — AI stop-loss/take-profit recommendation-only design.
 6. **OPERATIONS-1** — paper trading runbook.

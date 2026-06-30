@@ -11,6 +11,9 @@ from app.domain.repositories.account import AccountRepository
 from app.services.manual_reconciliation_report_service import (
     ManualReconciliationReportService,
 )
+from app.services.paper_resume_readiness_service import (
+    PaperResumeReadinessService,
+)
 from app.trading.broker.base import BrokerClient
 from app.trading.broker.exceptions import KISAPIError
 from app.trading.broker.schemas import AccountBalance
@@ -106,3 +109,43 @@ async def get_reconciliation_report(
     except KISAPIError as e:
         raise HTTPException(status_code=502, detail=e.msg1) from e
     return ManualReconciliationReportResponse.model_validate(report, from_attributes=True)
+
+
+# --- PAPER-RESUME-1: read-only resume readiness checklist ---------------------
+class CheckItemRead(BaseModel):
+    key: str
+    status: str  # PASS / WARN / BLOCK / INFO
+    message: str
+    details: dict = {}
+
+
+class PaperResumeReadinessResponse(BaseModel):
+    account_id: int
+    overall_status: str  # READY / READY_WITH_WARNINGS / BLOCKED
+    checked_at: datetime
+    pass_count: int
+    warn_count: int
+    block_count: int
+    items: list[CheckItemRead]
+
+
+@router.get(
+    "/{account_id}/paper-resume-readiness",
+    response_model=PaperResumeReadinessResponse,
+)
+async def get_paper_resume_readiness(
+    account_id: int,
+    session: AsyncSession = Depends(get_db),
+    broker: BrokerClient = Depends(get_broker_client),
+) -> PaperResumeReadinessResponse:
+    """제한된 paper 자동 주문 재개 **전** 점검용 read-only checklist.
+
+    자동매매를 켜지 않으며 DB/RiskConfig/scheduler/settings를 수정하지 않는다. 각 항목을
+    PASS/WARN/BLOCK/INFO로 보고하고 overall_status(READY/READY_WITH_WARNINGS/BLOCKED)를 반환한다.
+    """
+    service = PaperResumeReadinessService(session, broker)
+    try:
+        report = await service.build_checklist(account_id)
+    except KISAPIError as e:
+        raise HTTPException(status_code=502, detail=e.msg1) from e
+    return PaperResumeReadinessResponse.model_validate(report, from_attributes=True)
