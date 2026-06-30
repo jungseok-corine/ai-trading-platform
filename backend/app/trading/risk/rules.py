@@ -45,6 +45,14 @@ class MaxPositionSizeRule(RiskRule):
     name = "max_position_size"
 
     def check(self, signal: Signal, config: RiskConfig, context: RiskContext) -> RiskCheckResult:
+        # RISK-FIX-1D: 주문 금액 한도는 "새 위험을 추가하는 진입(BUY)"에만 적용한다.
+        # SELL은 현재 long-only 구조에서 보유 포지션을 줄이는 청산/손절(risk-reducing exit)이므로,
+        # 주문 금액이 한도를 넘더라도 막지 않는다(예: 고가 포지션 손절이 막혀 데드락이 되던 문제 해소).
+        # short open 경로는 없으며(positions.quantity는 long-only), side가 SELL이 아니거나 알 수
+        # 없으면 위험을 추가할 가능성이 있으므로 보수적으로 기존 한도를 적용한다(RISK-FIX-1C와 동일 원칙).
+        is_risk_reducing_exit = signal.side == TradeSide.SELL
+        if is_risk_reducing_exit:
+            return RiskCheckResult(approved=True)
         order_amount = signal.price * signal.quantity
         # US 주문(USD)은 KRW 한도와 비교하기 위해 환율로 환산한다.
         if signal.market == "US":

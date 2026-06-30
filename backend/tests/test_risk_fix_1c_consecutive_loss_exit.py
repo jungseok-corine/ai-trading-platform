@@ -98,10 +98,11 @@ def test_consecutive_loss_limit_allows_sell_exit_after_loss_limit() -> None:
     assert result.approved is True
 
 
-# --- Test 3: 1C는 MaxPositionSizeRule의 SELL 동작을 바꾸지 않는다 --------------
-def test_consecutive_loss_fix_does_not_change_max_position_size_sell_behavior() -> None:
-    # RISK-FIX-1C로 CLL은 SELL을 허용하지만, MaxPositionSizeRule은 아직 SELL을 막는다.
-    # 남은 데드락 원인이 MPS임을 명확히 보여준다(RISK-FIX-1D 전).
+# --- Test 3: CLL은 SELL을 허용하고, MPS는 RISK-FIX-1D에서 별도로 SELL을 허용하게 됐다 ----
+def test_consecutive_loss_fix_scope_is_cll_only_mps_handled_in_1d() -> None:
+    # RISK-FIX-1C의 범위는 CLL에 한정된다(MPS는 건드리지 않았다).
+    # 이 테스트는 작성 당시 "MPS는 아직 SELL을 막는다"를 고정했으나, 그 후 RISK-FIX-1D가
+    # MPS의 SELL 동작을 바꿔(고가 청산 허용) 남은 데드락을 제거했다 → 현재 코드 기준으로 갱신.
     config = make_config(consecutive_loss_limit=3, max_position_size=Decimal("1000000"))
     context = make_context(
         consecutive_losses=5,
@@ -112,11 +113,10 @@ def test_consecutive_loss_fix_does_not_change_max_position_size_sell_behavior() 
     sell_exit = make_signal(
         symbol_code="373220", side=TradeSide.SELL, quantity=4, price=Decimal("367000"))
 
-    # CLL: 이제 허용.
+    # CLL(RISK-FIX-1C): SELL 허용.
     cll_result = ConsecutiveLossLimitRule().check(sell_exit, config, context)
     assert cll_result.approved is True
 
-    # MPS: 아직 거부(RISK-FIX-1D에서 바뀜).
+    # MPS(RISK-FIX-1D): 이제 SELL 허용(과거에는 거부했음).
     mps_result = MaxPositionSizeRule().check(sell_exit, config, context)
-    assert mps_result.approved is False
-    assert mps_result.rule_name == "max_position_size"
+    assert mps_result.approved is True

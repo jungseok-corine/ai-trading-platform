@@ -113,16 +113,21 @@ closed-처리 버그가 아니라 **실제로 열린 포지션**이며, 미실�
 
 1. SELL/exit는 `consecutive_loss_limit`에서 제외하거나 risk-reducing action으로 허용
    — **(RISK-FIX-1C 적용 완료)** `ConsecutiveLossLimitRule`은 이제 BUY 진입만 차단하고 SELL/exit는 허용한다.
-2. SELL/exit는 `max_position_size`에서 제외하거나 분할청산 로직으로 처리 — **(RISK-FIX-1D, 미적용)** 남은 데드락 원인.
+2. SELL/exit는 `max_position_size`에서 제외하거나 분할청산 로직으로 처리
+   — **(RISK-FIX-1D 적용 완료)** `MaxPositionSizeRule`은 이제 BUY 진입만 한도 적용하고 SELL/exit는 허용한다.
 3. `_count_consecutive_losses`에서 수수료성 break-even 손실을 손실 streak에서 제외하는 기준 추가 — **(RISK-FIX-1E, 미적용)**
 4. entry sizing에서 `max_position_size`를 넘지 않도록 사전 캡 적용 — (RISK-FIX-1F, 미적용)
 5. RiskConfig 한도 상향은 마지막 선택지
 
 ### 진행 상태 (2026-06-30)
 
-* RISK-FIX-1C addressed the `consecutive_loss_limit` SELL/exit block — 소액 청산은 이제 통과 가능.
-* Remaining risk deadlock: `max_position_size` still blocks high-notional SELL/exit (RISK-FIX-1D),
-  and fee-only break-even still counts as a consecutive loss (RISK-FIX-1E).
+* RISK-FIX-1C addressed the `consecutive_loss_limit` SELL/exit block.
+* RISK-FIX-1D addressed the `max_position_size` SELL/exit block.
+* 두 수정으로 DIAG-2에서 확인된 "risk rules가 손절 SELL 자체를 막는 데드락"은 해소되었다.
+* Remaining issues:
+  * fee-only break-even loss count (RISK-FIX-1E)
+  * entry sizing cap (RISK-FIX-1F)
+  * actual paper trading resume requires human approval and may require a DB/RiskConfig decision
 
 ## Safety Notes
 

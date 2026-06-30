@@ -214,6 +214,24 @@ risk check context에 action nature를 명시한다.
 * Tests: `test_risk_fix_1c_consecutive_loss_exit.py` (new behavior) +
   `test_risk_fix_1b_risk_deadlock_characterization.py` (남은 데드락/미변경 동작 고정, Test 1 의미는 1C 파일로 이전).
 
+## 12. RISK-FIX-1D Implementation Note
+
+* `MaxPositionSizeRule` now blocks risk-increasing BUY entries above the notional limit.
+* `MaxPositionSizeRule` no longer blocks SELL/exit in the current long-only model.
+* Together with RISK-FIX-1C, this removes the main risk-rule exit deadlock found in DIAG-2
+  (고가 보유 포지션의 손절/청산이 risk rule에 막히던 문제 해소).
+* `ConsecutiveLossLimitRule` remains BUY-only after RISK-FIX-1C.
+* `MaxOpenPositionsRule` remains entry-only.
+* long-only 전제 유지: SELL은 short open이 아니라 보유 long 포지션의 축소/청산이며, side가 SELL이
+  아니거나 알 수 없으면 보수적으로 기존 한도를 적용한다.
+* SELL 허용은 주문 실행이 아니라 risk rule이 막지 않는다는 의미일 뿐이다. 실제 주문/체결/position
+  close는 별도 trade/order path의 책임이다.
+* Fee-only break-even loss counting is unchanged and remains for **RISK-FIX-1E**.
+* Entry sizing cap is unchanged and remains for **RISK-FIX-1F**.
+* No RiskConfig was modified. No DB state was modified. No trading was enabled.
+* Tests: `test_risk_fix_1d_max_position_size_exit.py` (new behavior) +
+  `test_risk_fix_1b_...`/`test_risk_fix_1c_...` 의 해당 기대값 갱신(삭제가 아니라 의미 이전).
+
 ## Future Work: RISK-AI-1 AI-assisted Stop-Loss / Take-Profit Policy
 
 ### Purpose
