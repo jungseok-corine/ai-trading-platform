@@ -1,6 +1,14 @@
 {
   "source_name": "manual_non_kis_reference",
-  "source_note": "MANUAL REFERENCE REQUIRED. Values must be collected MANUALLY from non-KIS sources (e.g. KRX, exchange disclosures, a securities HTS, public market data). This is the runtime manual validation snapshot — NOT a test fixture. Placeholder values (0) below are NOT real data. Do not use this file for trading decisions.",
+  "source_note": "MANUAL REFERENCE REQUIRED. Values must be collected MANUALLY from non-KIS sources (e.g. KRX, exchange disclosures, a securities HTS, public market data). This is the runtime manual validation snapshot — NOT a test fixture. reference_close/high_52w/low_52w stay 0 (placeholder) until a human fills them. db_* fields are DB-side baselines (from the db-52w-snapshot endpoint) for reference only — DO NOT copy them into reference_*. Do not use this file for trading decisions.",
+  "manual_fill_required": true,
+  "do_not_use_for_trading": true,
+  "expected_close_basis": "same as DB snapshot close date; usually daily close, not intraday quote",
+  "expected_52w_window_basis": "same 252 daily rows as DB snapshot when possible",
+  "adjusted_price_basis_required": "must record whether source is adjusted or raw",
+  "db_snapshot_reference_commit": "f61a12b",
+  "db_snapshot_endpoint": "/api/v1/leader-trend/validation/db-52w-snapshot",
+  "manual_fill_status": "placeholder_only",
   "as_of_date": "PLACEHOLDER",
   "timeframe": "1d",
   "symbols": [
@@ -10,7 +18,17 @@
       "high_52w": 0,
       "low_52w": 0,
       "currency": "KRW",
-      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED",
+      "manual_fill_required": true,
+      "db_reference_close": 323000,
+      "db_high_52w": 380000,
+      "db_low_52w": 57600,
+      "db_reference_close_date": "20260629",
+      "db_high_52w_date": "20260619",
+      "db_low_52w_date": "20250618",
+      "source_close_basis": "MANUAL_INPUT_REQUIRED",
+      "source_52w_window_basis": "MANUAL_INPUT_REQUIRED",
+      "source_adjusted_price_basis": "MANUAL_INPUT_REQUIRED"
     },
     {
       "symbol": "000660",
@@ -18,7 +36,17 @@
       "high_52w": 0,
       "low_52w": 0,
       "currency": "KRW",
-      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED",
+      "manual_fill_required": true,
+      "db_reference_close": 2610000,
+      "db_high_52w": 3002000,
+      "db_low_52w": 242000,
+      "db_reference_close_date": "20260629",
+      "db_high_52w_date": "20260623",
+      "db_low_52w_date": "20250619",
+      "source_close_basis": "MANUAL_INPUT_REQUIRED",
+      "source_52w_window_basis": "MANUAL_INPUT_REQUIRED",
+      "source_adjusted_price_basis": "MANUAL_INPUT_REQUIRED"
     },
     {
       "symbol": "035420",
@@ -26,7 +54,17 @@
       "high_52w": 0,
       "low_52w": 0,
       "currency": "KRW",
-      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED",
+      "manual_fill_required": true,
+      "db_reference_close": 205500,
+      "db_high_52w": 308500,
+      "db_low_52w": 190300,
+      "db_reference_close_date": "20260629",
+      "db_high_52w_date": "20260609",
+      "db_low_52w_date": "20260626",
+      "source_close_basis": "MANUAL_INPUT_REQUIRED",
+      "source_52w_window_basis": "MANUAL_INPUT_REQUIRED",
+      "source_adjusted_price_basis": "MANUAL_INPUT_REQUIRED"
     },
     {
       "symbol": "005380",
@@ -34,7 +72,17 @@
       "high_52w": 0,
       "low_52w": 0,
       "currency": "KRW",
-      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED",
+      "manual_fill_required": true,
+      "db_reference_close": 499500,
+      "db_high_52w": 787000,
+      "db_low_52w": 200500,
+      "db_reference_close_date": "20260629",
+      "db_high_52w_date": "20260602",
+      "db_low_52w_date": "20250618",
+      "source_close_basis": "MANUAL_INPUT_REQUIRED",
+      "source_52w_window_basis": "MANUAL_INPUT_REQUIRED",
+      "source_adjusted_price_basis": "MANUAL_INPUT_REQUIRED"
     },
     {
       "symbol": "051910",
@@ -42,7 +90,17 @@
       "high_52w": 0,
       "low_52w": 0,
       "currency": "KRW",
-      "source_url_or_note": "MANUAL REFERENCE REQUIRED"
+      "source_url_or_note": "MANUAL REFERENCE REQUIRED",
+      "manual_fill_required": true,
+      "db_reference_close": 308000,
+      "db_high_52w": 437500,
+      "db_low_52w": 200500,
+      "db_reference_close_date": "20260629",
+      "db_high_52w_date": "20260506",
+      "db_low_52w_date": "20250623",
+      "source_close_basis": "MANUAL_INPUT_REQUIRED",
+      "source_52w_window_basis": "MANUAL_INPUT_REQUIRED",
+      "source_adjusted_price_basis": "MANUAL_INPUT_REQUIRED"
     }
   ]
 }

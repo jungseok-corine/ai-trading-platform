@@ -63,6 +63,27 @@
 - (major_diff가 있으면 §8-1 원인 분류: 단위 / 수정주가 / 날짜 범위 / 종가 vs 현재가 / 데이터 누락 / source 차이)
 -
 
+## Manual Reference Fill Evidence
+
+각 종목별로 사람이 채운 근거를 기록한다(반드시 non-KIS):
+
+| symbol | source name | source URL / 화면 설명 | close basis | 52w window basis | adjusted/raw | 확인 시각 | evidence note |
+|---|---|---|---|---|---|---|---|
+| 005930 | | | | | | | |
+| 000660 | | | | | | | |
+| 035420 | | | | | | | |
+| 005380 | | | | | | | |
+| 051910 | | | | | | | |
+
+## Do not proceed if (다음 중 하나라도 해당하면 CandidateEvent 단계로 넘어가지 않는다)
+
+- [ ] `placeholder_reference`가 남아 있음 (실제 값 미입력)
+- [ ] `major_diff` 원인 불명 (§8-1 분류 미완료)
+- [ ] KIS 출처가 섞임 (독립성 위반)
+- [ ] close 기준이 intraday/current price와 daily close로 섞임
+- [ ] 52w window basis 불명
+- [ ] adjusted / raw basis 불명
+
 ## Decision
 - SAFE TO PROCEED TO CANDIDATE EVENT DESIGN: yes/no
 - reason:
