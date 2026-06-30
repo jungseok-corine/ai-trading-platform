@@ -91,11 +91,10 @@ def test_migration_does_not_alter_existing_tables():
             assert token not in src
 
 
-def test_no_leader_trend_candidate_event_service_or_repository():
-    # G-2는 model/migration only — service/repository/API 미존재
-    assert not (BACKEND / "app" / "services" / "leader_trend_candidate_event_service.py").exists()
-    assert not (BACKEND / "app" / "domain" / "repositories" / "leader_trend_candidate_event.py").exists()
-    # API route에 candidate-events 생성 경로 미존재
+def test_no_candidate_event_api_route():
+    # G-2/G-4 불변: API route에 leader_trend candidate-events 경로/모델 미존재(create API는 G-5+).
     api_dir = BACKEND / "app" / "api" / "v1"
     for p in api_dir.glob("*.py"):
-        assert "leader_trend_candidate_events" not in p.read_text(encoding="utf-8")
+        txt = p.read_text(encoding="utf-8")
+        assert "leader_trend_candidate_events" not in txt
+        assert "LeaderTrendCandidateEvent" not in txt
