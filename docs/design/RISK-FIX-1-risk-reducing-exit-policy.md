@@ -3,6 +3,7 @@
 > **설계 문서만.** risk rule 코드 수정 0 · RiskConfig 수정 0 · DB write 0 · consecutive loss reset 0 ·
 > position/trade 수정 0 · scheduler/broker/KIS 0 · migration 0 · frontend 0.
 > 진단 근거: [`docs/diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md`](../diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md).
+> See [`docs/roadmap/four-day-paper-trading-stabilization-plan.md`](../roadmap/four-day-paper-trading-stabilization-plan.md) for the short-term limited paper auto-trading resume plan.
 
 ## 1. Purpose
 

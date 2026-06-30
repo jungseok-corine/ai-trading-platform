@@ -2,6 +2,7 @@
 
 > **MANUAL-SELL-RECON-1 — 설계/운영 문서만.** 코드/DB/주문 변경 0 · 동기화 실행 0 · 스케줄러 enable 0.
 > 진단 맥락: [`docs/diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md`](../diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md).
+> See [`docs/roadmap/four-day-paper-trading-stabilization-plan.md`](../roadmap/four-day-paper-trading-stabilization-plan.md) for the short-term limited paper auto-trading resume plan.
 
 ## Purpose
 
