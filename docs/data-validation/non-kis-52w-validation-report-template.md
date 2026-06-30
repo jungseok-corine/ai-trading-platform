@@ -13,6 +13,26 @@
 - as_of_date:
 - collected by:
 
+## DB-side 52W Snapshot (paste from endpoint)
+
+> `GET /api/v1/leader-trend/validation/db-52w-snapshot` 응답을 그대로 붙인다(자동 생성 파일 없음).
+
+```json
+
+```
+
+## Manual Reference Basis (per source)
+
+각 종목별로 사람이 채운 기준을 기록한다:
+
+| symbol | source(non-KIS) | close basis (종가/현재가) | 52w period (기간 기준) | adjusted? (수정주가 여부) | as_of_date |
+|---|---|---|---|---|---|
+| 005930 | | | | | |
+| 000660 | | | | | |
+| 035420 | | | | | |
+| 005380 | | | | | |
+| 051910 | | | | | |
+
 ## Safety
 - research_only:
 - not_buy_signal:

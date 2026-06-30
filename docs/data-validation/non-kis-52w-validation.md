@@ -123,13 +123,29 @@ M2.15D-1~3A에서 pilot_5(005930/000660/035420/005380/051910)의 저장 일봉�
 
 ---
 
+## 7-1. DB-side 52주 snapshot export (M2.15F-3A)
+
+`GET /api/v1/leader-trend/validation/db-52w-snapshot` — **현재 local DB**가 계산한 종목별 52주 기준값을 read-only로
+보여준다(매수 신호 아님). **이 endpoint는 non-KIS 값을 가져오지 않는다** — KIS/외부 호출 0, DB write 0. 사람이
+manual reference를 채울 때 **무엇을 어떤 기준으로 채워야 하는지**의 DB 측 기준을 제공한다.
+
+응답 플래그: `research_only/not_buy_signal/read_only=true`, `external_reference_auto_fetch/kis_call_used/
+db_write_performed=false`. 종목별 필드: row_count · first/last_date · db_reference_close(+date) · db_high_52w(+date) ·
+db_low_52w(+date) · low_52w_gain_pct · drawdown_from_52w_high_pct · candidate_bucket_if_any · data_quality_note.
+
+> ⚠ snapshot 결과는 **실행 시점 DB 상태에 의존**한다. repo에 자동 생성 파일을 만들지 않는다 — endpoint 응답을
+> **복사해서 report template(§ report-template)** 에 붙여라.
+
 ## 8. 사람이 실제 값을 채운 뒤 검증 절차
 
-1. 위 §4대로 fixture에 실제 non-KIS 값을 채운다(커밋 별도 판단).
-2. `GET /api/v1/leader-trend/validation/non-kis-52w` 호출(읽기 전용).
-3. summary에서 `matched`/`minor_diff`/`major_diff` 분포를 본다.
-4. `major_diff`가 있으면 저장 일봉이 실세계와 크게 어긋남 → **DB를 바로 고치지 말고 원인을 먼저 분류**한다(아래 §8-1).
-5. 대부분 `matched`/`minor_diff`면 데이터 품질이 실세계와 부합한다는 보조 근거.
+1. **`GET /api/v1/leader-trend/validation/db-52w-snapshot` 호출** → 각 종목의 DB close/high_52w/low_52w와 **그 날짜**를
+   확인한다(어떤 기준으로 채울지 기준점).
+2. 각 symbol의 DB close/high_52w/low_52w를 본다.
+3. 사람이 **non-KIS 출처**에서 같은 기준(종가/52주 기간/수정주가 여부)의 값을 수동 확인한다.
+4. `backend/app/data/reference/non_kis_52w_reference_pilot5.manual.json`에 수동 입력(§4 규칙 준수).
+5. `GET /api/v1/leader-trend/validation/non-kis-52w` 호출 → `matched`/`minor_diff`/`major_diff` 분포 확인.
+6. validation report template(`non-kis-52w-validation-report-template.md`)에 결과 기록.
+7. `major_diff`가 있으면 저장 일봉이 실세계와 크게 어긋남 → **DB를 바로 고치지 말고 원인을 먼저 분류**한다(아래 §8-1).
 
 ### 8-1. `major_diff` 원인 분류 (DB 수정 전 반드시 분류)
 

@@ -16,8 +16,13 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.timezone import KST
 from app.domain.models.market_data import MarketData
-from app.services.leader_trend_scanner import MAX_SCAN_SYMBOLS, PILOT_SYMBOLS
+from app.services.leader_trend_scanner import (
+    MAX_SCAN_SYMBOLS,
+    PILOT_SYMBOLS,
+    compute_metrics,
+)
 
 DAILY_TIMEFRAME = "1d"
 
@@ -166,3 +171,79 @@ class LeaderTrendValidationService:
             base.validation_status = _classify(diffs) if diffs else "missing_reference_data"
             report.results.append(base)
         return report
+
+
+# --- M2.15F-3A: DB-side 52주 snapshot export(읽기 전용 · 매수 신호 아님) ---
+@dataclass
+class DbSnapshotRow:
+    symbol: str
+    row_count: int
+    first_date: str | None = None
+    last_date: str | None = None
+    db_reference_close: float | None = None
+    db_reference_close_date: str | None = None
+    db_high_52w: float | None = None
+    db_high_52w_date: str | None = None
+    db_low_52w: float | None = None
+    db_low_52w_date: str | None = None
+    low_52w_gain_pct: float | None = None
+    drawdown_from_52w_high_pct: float | None = None
+    candidate_bucket_if_any: str | None = None
+    data_quality_note: str = "computed_from_existing_market_data_only"
+
+    def to_dict(self) -> dict:
+        return {**self.__dict__}
+
+
+@dataclass
+class DbSnapshotReport:
+    universe_scope: str
+    timeframe: str
+    results: list[DbSnapshotRow] = field(default_factory=list)
+
+
+def _kst_date(ts) -> str:
+    return ts.astimezone(KST).strftime("%Y%m%d")
+
+
+async def db_52w_snapshot(
+    session: AsyncSession, symbols: list[str] | None = None
+) -> DbSnapshotReport:
+    """기존 market_data(1d)에서 pilot 종목별 52주 기준값을 read-only로 export.
+
+    **DB write 0 · 외부/KIS 호출 0 · SignalLog/Trade/Order/CandidateEvent 0.** 매수 신호가 아니라
+    사람이 non-KIS 레퍼런스를 채울 때 참고하는 local DB 기준값이다.
+    """
+    universe = (symbols if symbols else list(PILOT_SYMBOLS))[:MAX_SCAN_SYMBOLS]
+    report = DbSnapshotReport(
+        universe_scope="pilot_5" if not symbols else "explicit", timeframe=DAILY_TIMEFRAME
+    )
+    for sym in universe:
+        rows = list((await session.execute(
+            select(MarketData)
+            .where(MarketData.symbol_code == sym, MarketData.timeframe == DAILY_TIMEFRAME)
+            .order_by(MarketData.ts.asc())
+        )).scalars().all())
+        if not rows:
+            report.results.append(DbSnapshotRow(
+                symbol=sym, row_count=0, candidate_bucket_if_any=None,
+                data_quality_note="missing_db_data"))
+            continue
+        highs = [(float(r.high), r.ts) for r in rows]
+        lows = [(float(r.low), r.ts) for r in rows]
+        hi_val, hi_ts = max(highs, key=lambda x: x[0])
+        lo_val, lo_ts = min(lows, key=lambda x: x[0])
+        last = rows[-1]
+        close = float(last.close)
+        m = compute_metrics(sym, rows)  # 동일 공식으로 운영 bucket 산출(매수 신호 아님)
+        report.results.append(DbSnapshotRow(
+            symbol=sym, row_count=len(rows),
+            first_date=_kst_date(rows[0].ts), last_date=_kst_date(last.ts),
+            db_reference_close=round(close, 2), db_reference_close_date=_kst_date(last.ts),
+            db_high_52w=round(hi_val, 2), db_high_52w_date=_kst_date(hi_ts),
+            db_low_52w=round(lo_val, 2), db_low_52w_date=_kst_date(lo_ts),
+            low_52w_gain_pct=round((close / lo_val - 1) * 100, 2) if lo_val else None,
+            drawdown_from_52w_high_pct=round((hi_val - close) / hi_val * 100, 2) if hi_val else None,
+            candidate_bucket_if_any=m.candidate_bucket_operational,
+        ))
+    return report

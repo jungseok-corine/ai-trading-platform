@@ -24,6 +24,7 @@ from app.services.leader_trend_validation_service import (
     MAJOR_DIFF_PCT,
     MINOR_DIFF_PCT,
     LeaderTrendValidationService,
+    db_52w_snapshot,
 )
 
 router = APIRouter(prefix="/leader-trend", tags=["leader-trend"])
@@ -224,4 +225,76 @@ async def get_non_kis_52w_validation(
         safety_warning=_VALIDATION_SAFETY,
         provenance_warning=_VALIDATION_PROVENANCE,
         results=[NonKisValidationResult(**r.to_dict()) for r in report.results],
+    )
+
+
+# --- M2.15F-3A: DB-side 52주 snapshot export(읽기 전용 · 매수 신호 아님) ---
+class DbSnapshotResultModel(BaseModel):
+    symbol: str
+    row_count: int
+    first_date: str | None = None
+    last_date: str | None = None
+    db_reference_close: float | None = None
+    db_reference_close_date: str | None = None
+    db_high_52w: float | None = None
+    db_high_52w_date: str | None = None
+    db_low_52w: float | None = None
+    db_low_52w_date: str | None = None
+    low_52w_gain_pct: float | None = None
+    drawdown_from_52w_high_pct: float | None = None
+    candidate_bucket_if_any: str | None = None
+    data_quality_note: str
+
+
+class DbSnapshotResponse(BaseModel):
+    generated_at: str
+    research_only: bool
+    not_buy_signal: bool
+    read_only: bool
+    external_reference_auto_fetch: bool
+    kis_call_used: bool
+    db_write_performed: bool
+    universe_scope: str
+    timeframe: str
+    total_symbols_checked: int
+    safety_warning: str
+    provenance_warning: str
+    results: list[DbSnapshotResultModel]
+
+
+_DB_SNAPSHOT_SAFETY = (
+    "This DB snapshot is validation support only. It is not a buy signal and must not be "
+    "connected to trading."
+)
+_DB_SNAPSHOT_PROVENANCE = (
+    "Values are computed only from existing local market_data. No external or KIS fetch is "
+    "performed."
+)
+
+
+@router.get("/validation/db-52w-snapshot", response_model=DbSnapshotResponse)
+async def get_db_52w_snapshot(
+    symbols: str | None = Query(
+        default=None,
+        description="comma-separated, max 5; default pilot_5. Read-only local DB snapshot, NOT a buy signal.",
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> DbSnapshotResponse:
+    """기존 market_data(1d)만으로 52주 기준값을 read-only export. **매매 신호 아님 · 외부/KIS 호출 없음.**"""
+    requested, _ = _parse_symbols(symbols)
+    report = await db_52w_snapshot(session, requested)
+    return DbSnapshotResponse(
+        generated_at=datetime.now(KST).isoformat(),
+        research_only=True,
+        not_buy_signal=True,
+        read_only=True,
+        external_reference_auto_fetch=False,
+        kis_call_used=False,
+        db_write_performed=False,
+        universe_scope=report.universe_scope,
+        timeframe=report.timeframe,
+        total_symbols_checked=len(report.results),
+        safety_warning=_DB_SNAPSHOT_SAFETY,
+        provenance_warning=_DB_SNAPSHOT_PROVENANCE,
+        results=[DbSnapshotResultModel(**r.to_dict()) for r in report.results],
     )
