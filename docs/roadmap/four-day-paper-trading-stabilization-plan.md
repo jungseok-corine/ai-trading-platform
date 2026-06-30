@@ -108,6 +108,10 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
 * 목표: paper 자동 주문 재개 전 checklist 확정 · 어떤 전략/종목만 허용할지 결정 · full-universe 금지 · live 금지.
 * 작업 후보: paper resume checklist · limited strategy/symbol allowlist · `auto_trade_enabled` 정책 정리 · scheduler/dispatcher 상태 확인 · risk limits 재확인.
 * 완료 기준: 제한된 paper 자동 주문 재개 조건이 명확.
+* **진행:** PAPER-RESUME-1 readiness checklist 구현 완료. **PAPER-RESUME-2 allowlist 설계 완료** —
+  [`docs/operations/limited-paper-auto-trade-allowlist.md`](../operations/limited-paper-auto-trade-allowlist.md).
+  현재 8개 auto-trade 전략이 전부 broad universe(full-universe 위험)라 **즉시 켤 안전한 후보 없음** →
+  소수 종목 KR paper 후보를 PAPER-RESUME-3/4에서 구성·승인해야 함.
 
 ### Day 3 — Limited Paper Auto-Order Resume
 * 목표: 제한된 범위에서 paper 자동 주문 재개 · BUY/SELL risk rule이 실제 운영에서 작동하는지 확인 · 주문/체결/동기화 흐름 관찰.
@@ -142,6 +146,7 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
    **(구현 완료)** `GET /api/v1/account/{account_id}/paper-resume-readiness` (read-only, DB write 없음) —
    상세: [`docs/operations/paper-auto-trading-resume-checklist.md`](../operations/paper-auto-trading-resume-checklist.md).
 4. **PAPER-RESUME-2** — limited strategy/symbol allowlist design.
+   **(설계 완료)** [`docs/operations/limited-paper-auto-trade-allowlist.md`](../operations/limited-paper-auto-trade-allowlist.md).
 5. **RISK-AI-1A** — AI stop-loss/take-profit recommendation-only design.
 6. **OPERATIONS-1** — paper trading runbook.
 

@@ -60,5 +60,6 @@
 
 ## Next Step
 
-* **READY / READY_WITH_WARNINGS** → PAPER-RESUME-2(limited strategy/symbol allowlist 설계)로 진행.
+* **READY / READY_WITH_WARNINGS** → [limited paper auto-trade allowlist](limited-paper-auto-trade-allowlist.md)
+  (PAPER-RESUME-2)로 진행해 켤 후보를 좁힌다.
 * **BLOCKED** → blocker를 먼저 해결한다. **scheduler/dispatcher를 켜지 않는다.**
