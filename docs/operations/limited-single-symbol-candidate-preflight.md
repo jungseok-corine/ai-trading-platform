@@ -175,6 +175,7 @@ auto_trade_enabled=false(주문 시도 안 함) · v329 참조 trades/signal_log
 rollback: DRAFT + 참조 0 이므로 `StrategyService.delete_version`(hard delete) 또는 `archive_version` 가능.
 
 **다음 단계는 enable이 아니라 PAPER-RESUME-4C preflight**(enable 전 최종 확인). enable 없이는 거래 발생 없음.
+→ [`limited-candidate-enable-preflight.md`](limited-candidate-enable-preflight.md) (enable 요건·실행 경로·옵션·rollback·승인 문구).
 
 ## Next Steps
 
