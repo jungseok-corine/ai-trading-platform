@@ -66,6 +66,15 @@ allowlist는 "켜도 되는 후보"를 정하는 것이지 실제로 켜는 작�
   synthetic draft 2개.
 * **이번주 제한 resume 후보:** **현재 DB에 ready-made 후보 없음**(소수 명시 symbol KR paper auto-trade 전략 부재).
 
+## Update (2026-07-01) — broad universe auto-trade disabled
+
+PAPER-RESUME-UNIVERSE-OFF: 이번주 limited paper scope를 위해 account 230의 **broad universe
+auto-trade 8개 전부 비활성화**했다(`universe_auto_trade: true → false`, parameters JSONB만 변경,
+**status는 testing 유지**라 signal 관찰은 남음). 대상 version: 298/300/302/304/315/316/317/318.
+auto-trade attempt(risk_events)는 더 이상 생성되지 않는다(이전 24h 316/317 risk_events 2,587 → 차단).
+**full-universe는 계속 금지.** limited single-symbol **v329는 signal-only 그대로 유지**(미변경).
+helper: `limited_paper_candidate.disable_universe_auto_trade`(broad universe·paper·true→false 가드).
+
 ## Recommended Allowlist Candidates
 
 | candidate | strategy/version | symbols | market | reason | risk | recommendation |

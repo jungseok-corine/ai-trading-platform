@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from app.domain.models.enums import StrategyVersionStatus
 from app.domain.models.strategy import Strategy, StrategyVersion
+from app.domain.repositories.account import AccountRepository
 from app.domain.repositories.strategy import StrategyRepository, StrategyVersionRepository
 from app.services.strategy_service import StrategyService
 from app.trading.strategy.registry import registered_types
@@ -28,6 +29,13 @@ class LimitedCandidateDuplicateError(Exception):
 
 class SignalOnlyEnableError(Exception):
     """signal-only 전환 정책 위반(주문 위험 차단)."""
+
+
+class DisableUniverseAutoTradeError(Exception):
+    """broad universe auto-trade 비활성 정책 위반."""
+
+
+_BROAD_UNIVERSES = ("watchlist", "scanner_candidates")
 
 
 async def create_dormant_limited_candidate(
@@ -113,3 +121,42 @@ async def enable_signal_only_testing(
     # status 컬럼만 변경(parameters 미변경).
     return await StrategyService(session).update_version(
         strategy_id, version_id, status=StrategyVersionStatus.TESTING)
+
+
+async def disable_universe_auto_trade(
+    session, *, strategy_id: int, version_id: int
+) -> StrategyVersion:
+    """broad universe 전략의 자동주문을 끈다: parameters.universe_auto_trade → false.
+
+    가드(위반 시 변경하지 않고 raise):
+      - parameters에 `universe` key가 없으면(=single-symbol) 거부 → v329 같은 단일종목 후보 보호.
+      - universe가 broad(watchlist/scanner_candidates)가 아니면 거부.
+      - parameters.universe_auto_trade가 true가 아니면 거부(이미 꺼짐/무관).
+      - 연결 account가 paper가 아니면 거부(live 보호).
+    status는 변경하지 않는다(signal 관찰은 남길 수 있음). auto_trade_enabled가 true면 함께 false로.
+    """
+    version = await StrategyVersionRepository(session).get(version_id)
+    if version is None or version.strategy_id != strategy_id:
+        raise DisableUniverseAutoTradeError(f"version {version_id} (strategy {strategy_id}) not found")
+    p = dict(version.parameters or {})
+    if "universe" not in p:
+        raise DisableUniverseAutoTradeError("single-symbol version (no `universe` key) — refuse")
+    if p.get("universe") not in _BROAD_UNIVERSES:
+        raise DisableUniverseAutoTradeError(f"universe {p.get('universe')!r} not broad — refuse")
+    if p.get("universe_auto_trade") is not True:
+        raise DisableUniverseAutoTradeError("universe_auto_trade is not true — nothing to disable")
+
+    account_id = p.get("account_id")
+    if account_id is not None:
+        from app.domain.models.enums import AccountType  # noqa: PLC0415
+        account = await AccountRepository(session).get(int(account_id))
+        if account is not None and account.account_type != AccountType.PAPER:
+            raise DisableUniverseAutoTradeError(
+                f"account {account_id} is {account.account_type.value} — refuse (paper only)")
+
+    p["universe_auto_trade"] = False
+    if p.get("auto_trade_enabled") is True:
+        p["auto_trade_enabled"] = False
+
+    # parameters JSONB만 변경(status 미변경).
+    return await StrategyService(session).update_version(strategy_id, version_id, parameters=p)

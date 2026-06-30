@@ -48,6 +48,12 @@
 
 각 item status: `PASS` / `WARN` / `BLOCK` / `INFO`.
 
+## Before Resume — universe auto-trade must be disarmed
+
+resume 전 **broad `universe_auto_trade=true` 버전이 남아 있지 않은지** 확인한다(full-universe 금지).
+2026-07-01 기준 account 230의 universe auto-trade 8개(298/300/302/304/315/316/317/318)는
+PAPER-RESUME-UNIVERSE-OFF로 `universe_auto_trade=false` 처리됨. 새 universe 전략을 켤 때도 동일 점검.
+
 ## What This Endpoint Does Not Do
 
 * does not enable trading
