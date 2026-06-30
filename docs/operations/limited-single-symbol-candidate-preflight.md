@@ -152,10 +152,33 @@ scheduler/dispatcher는 변경하지 마세요.
 live trading은 절대 건드리지 마세요.
 ```
 
+## PAPER-RESUME-4B Result (생성 완료, dormant)
+
+사용자 승인(symbol 005930, moving_average_cross)으로 dev DB에 dormant candidate를 생성했다:
+
+| 항목 | 값 |
+|---|---|
+| strategy_id | **295** (`limited-paper-005930-moving-average-cross`) |
+| strategy_version_id | **329** (version_no 1) |
+| status | **DRAFT** |
+| symbol_code / market / account_id | 005930 / KR / 230 |
+| strategy_type | moving_average_cross |
+| quantity / SL / TP / max_orders_per_run | 1 / 1.0 / 1.5 / 1 |
+| auto_trade_enabled | **false** |
+| universe_auto_trade | **false** |
+| `universe` key | **없음** |
+
+dormant 검증: status DRAFT(스케줄러 `list_active`(active/testing) 대상 아님 → 신호 생성 안 함) ·
+auto_trade_enabled=false(주문 시도 안 함) · v329 참조 trades/signal_logs 0 · 6개 open positions 불변.
+생성 helper: `app/services/limited_paper_candidate.py::create_dormant_limited_candidate`(안전 불변식 강제 + 중복 방지).
+
+rollback: DRAFT + 참조 0 이므로 `StrategyService.delete_version`(hard delete) 또는 `archive_version` 가능.
+
+**다음 단계는 enable이 아니라 PAPER-RESUME-4C preflight**(enable 전 최종 확인). enable 없이는 거래 발생 없음.
+
 ## Next Steps
 
-* **PAPER-RESUME-4B** — human-approved candidate **생성**(DB write): single-symbol, KR, account 230,
-  status draft, `auto_trade_enabled=false`, `universe_auto_trade=false`, SL/TP 명시. 테스트/rollback 포함.
+* **PAPER-RESUME-4B** — (완료) candidate 생성됨(strategy 295 / version 329, dormant).
 * **PAPER-RESUME-4C** — human-approved enable: 승인 candidate만 status testing 승격 + `auto_trade_enabled=true`,
   broad universe 금지, rollback 포함.
 * **PAPER-RESUME-5** — limited paper auto-order post-run report.

@@ -117,6 +117,9 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
 * 목표: 제한된 범위에서 paper 자동 주문 재개 · BUY/SELL risk rule이 실제 운영에서 작동하는지 확인 · 주문/체결/동기화 흐름 관찰.
 * 작업 후보: limited paper resume dry-run · human-approved enable · small-scope paper auto-order 실행 · post-run report.
 * 완료 기준: 자동 주문이 paper에서 제한 범위로 재작동 · 예상치 못한 BUY/SELL 폭주 없음 · risk reject/approve/trade flow 관찰 가능.
+* **진행: PAPER-RESUME-4B 완료 — dormant limited candidate 생성됨**(strategy 295 / version 329, 005930,
+  moving_average_cross, **DRAFT · auto_trade_enabled=false · universe_auto_trade=false**). 거래는 발생하지 않으며,
+  enable은 PAPER-RESUME-4C 사람 승인 단계에서만 한다.
 
 ### Day 4 — Stop/Take-Profit Baseline + AI Recommendation Design + Runbook
 * 목표: 기본 손절/익절 정책 확정 · AI는 recommendation-only 설계 · 이번주 운영 결과를 runbook으로 정리.
