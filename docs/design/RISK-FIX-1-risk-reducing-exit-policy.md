@@ -184,3 +184,96 @@ risk check context에 action nature를 명시한다.
 * SAFE TO MODIFY RISKCONFIG NOW: no
 * SAFE TO RESET LOSS STREAK NOW: no
 * SAFE TO ENABLE TRADING NOW: no
+
+## 10. RISK-FIX-1B Characterization Tests
+
+현재 동작을 고정하는 characterization test가 추가되었다
+(`backend/tests/test_risk_fix_1b_risk_deadlock_characterization.py`). 모두 **현재 코드 기준 PASS**:
+
+* `ConsecutiveLossLimitRule` currently blocks SELL/exit — 손절 매도까지 거부함을 고정
+* `MaxPositionSizeRule` currently blocks SELL/exit — 1M 초과 손절 매도까지 거부함을 고정
+* `MaxOpenPositionsRule` already behaves as entry-only — SELL/exit는 막지 않고 신규 BUY만 막음을 고정
+* fee-only break-even loss currently counts as loss — `_count_consecutive_losses`가 평탄 청산도 손실로 셈을 고정
+* deadlock chain reproduced — 위험을 줄이는 어떤 청산도 통과 못 하고 신규 진입도 막힘을 조합 테스트로 고정
+
+다음 단계는 **RISK-FIX-1C**(ConsecutiveLossLimitRule이 risk-reducing exit를 허용하도록 변경)이며,
+그때 위 기대값들이 바뀐다.
+
+## Future Work: RISK-AI-1 AI-assisted Stop-Loss / Take-Profit Policy
+
+### Purpose
+
+AI 또는 분석 모듈이 종목별 변동성, 현재 포지션 손익, 52주 위치, 최근 신호 품질, 시장 상황을 참고해
+stop-loss / take-profit percent를 제안하도록 한다.
+
+### Important Precondition
+
+AI가 손절/익절 퍼센트를 제안하더라도, 실제 SELL/exit가 risk rule에 막히면 의미가 없다.
+따라서 AI 손절/익절 설계 전에 반드시 선행되어야 한다.
+
+1. `ConsecutiveLossLimitRule`이 risk-reducing SELL/exit를 막지 않아야 한다.
+2. `MaxPositionSizeRule`이 risk-reducing SELL/exit를 막지 않아야 한다.
+3. 수수료성 break-even 청산이 연속 손실로 과도하게 집계되지 않아야 한다.
+4. entry sizing이 `max_position_size`를 사전에 반영해야 한다.
+5. paper trading에서 exit path가 정상 동작해야 한다.
+
+### Proposed Inputs
+
+* symbol
+* current_price
+* avg_entry_price
+* unrealized_pnl_pct
+* unrealized_pnl_amount
+* volatility
+* ATR or recent average range
+* 52w high/low position
+* drawdown_from_52w_high_pct
+* low_52w_gain_pct
+* recent signal quality
+* recent win/loss streak
+* max_position_size
+* current open positions
+* market regime
+* sector/theme context
+* existing stop-loss/take-profit config
+* risk profile
+
+### Proposed Output
+
+* recommended_stop_loss_pct
+* recommended_take_profit_pct
+* trailing_stop_pct
+* confidence
+* reasoning
+* risk_level
+* should_reduce_position_now
+* should_block_new_entries
+
+주의:
+
+* `should_reduce_position_now`는 주문 실행이 아니라 검토 플래그다.
+* AI는 주문을 직접 실행하지 않는다.
+* AI는 RiskConfig를 자동 수정하지 않는다.
+* live trading 적용은 human approval 없이는 금지다.
+
+### Safety Policy
+
+* recommendation only
+* paper trading first
+* human approval required
+* no direct order placement
+* no automatic RiskConfig mutation
+* no live trading application
+* every recommendation must be logged
+* every applied value must be versioned
+
+### Suggested Implementation Breakdown
+
+* RISK-AI-1A: design only
+* RISK-AI-1B: static rule-based baseline
+* RISK-AI-1C: volatility-based stop-loss/take-profit calculator
+* RISK-AI-1D: AI recommendation prompt design
+* RISK-AI-1E: paper-only recommendation storage
+* RISK-AI-1F: human approval API/UI design
+* RISK-AI-1G: paper trading application only
+* RISK-AI-1H: live trading review gate
