@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from app.domain.models.enums import StrategyVersionStatus
 from app.domain.models.strategy import Strategy, StrategyVersion
-from app.domain.repositories.strategy import StrategyRepository
+from app.domain.repositories.strategy import StrategyRepository, StrategyVersionRepository
 from app.services.strategy_service import StrategyService
 from app.trading.strategy.registry import registered_types
 
@@ -24,6 +24,10 @@ class LimitedCandidateValidationError(Exception):
 
 class LimitedCandidateDuplicateError(Exception):
     """같은 name의 strategy가 이미 존재."""
+
+
+class SignalOnlyEnableError(Exception):
+    """signal-only 전환 정책 위반(주문 위험 차단)."""
 
 
 async def create_dormant_limited_candidate(
@@ -76,3 +80,36 @@ async def create_dormant_limited_candidate(
         status=StrategyVersionStatus.DRAFT,
     )
     return strategy, version
+
+
+async def enable_signal_only_testing(
+    session, *, strategy_id: int, version_id: int
+) -> StrategyVersion:
+    """DRAFT candidate를 **signal-only TESTING**으로 전환한다(주문 비활성 유지).
+
+    status 컬럼만 DRAFT→TESTING으로 바꾼다. parameters(특히 auto_trade_enabled/universe_auto_trade)는
+    절대 건드리지 않으며, 다음 가드를 위반하면 변경하지 않고 raise한다:
+      - 현재 status가 DRAFT가 아니면 거부(이미 testing/active 등).
+      - parameters.auto_trade_enabled is True → 거부(주문 위험).
+      - parameters.universe_auto_trade is True → 거부(broad universe).
+      - parameters에 `universe` key 존재 → 거부.
+    TESTING은 scheduler list_active 대상이 되어 신호가 생성될 수 있으나, auto_trade_enabled=false라
+    주문 시도는 하지 않는다(signal-only).
+    """
+    version = await StrategyVersionRepository(session).get(version_id)
+    if version is None or version.strategy_id != strategy_id:
+        raise SignalOnlyEnableError(f"version {version_id} (strategy {strategy_id}) not found")
+    if version.status != StrategyVersionStatus.DRAFT:
+        raise SignalOnlyEnableError(
+            f"status가 {version.status.value} — DRAFT만 signal-only TESTING으로 전환 가능")
+    p = version.parameters or {}
+    if p.get("auto_trade_enabled") is True:
+        raise SignalOnlyEnableError("auto_trade_enabled=true — signal-only 전환 불가(주문 위험)")
+    if p.get("universe_auto_trade") is True:
+        raise SignalOnlyEnableError("universe_auto_trade=true — 전환 불가(broad universe)")
+    if "universe" in p:
+        raise SignalOnlyEnableError("`universe` key present — 전환 불가")
+
+    # status 컬럼만 변경(parameters 미변경).
+    return await StrategyService(session).update_version(
+        strategy_id, version_id, status=StrategyVersionStatus.TESTING)

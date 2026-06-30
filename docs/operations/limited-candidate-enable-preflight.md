@@ -117,8 +117,26 @@ live trading은 절대 건드리지 마세요.
 
 > 주의: BUY 체결은 open positions가 5 미만으로 줄어든 뒤에야 가능(현재 6≥5로 MOP 차단). 4D 전 포지션 정리 권장.
 
+## PAPER-RESUME-4C Result (signal-only enabled)
+
+사용자 승인으로 v329를 signal-only로 전환했다(status 컬럼만 변경, parameters 미변경):
+
+* strategy_version_id **329**: status **DRAFT → TESTING**
+* `auto_trade_enabled=false` 유지 · `universe_auto_trade=false` 유지 · `universe` key 없음 유지
+* symbol/market/account 불변(005930/KR/230)
+* **scheduler-visible**(status testing → `list_active` 대상, 다음 interval부터 신호 생성 가능)
+* **order-disabled**(auto_trade_enabled=false → 주문 시도 없음 = signal-only)
+* scheduler/dispatcher 설정 변경 없음(`strategy_scheduler_enabled=true`, runner/dispatcher false 그대로)
+* side-effect: 전환 직후 v329 SignalLog 0 · Trade 0 · risk_events 0 · 6 open positions 불변.
+  (Claude는 run-once를 직접 호출하지 않았다. 이후 SignalLog가 생긴다면 기존 scheduler의 signal-only 관찰 결과다.)
+* 전환 경로: `limited_paper_candidate.enable_signal_only_testing`(status만 변경 + auto_trade/universe 가드).
+* rollback: status를 DRAFT로 되돌리면 scheduler 대상에서 제외(주문은 애초에 비활성).
+
+**다음 단계는 post-signal observation report(PAPER-RESUME-5 또는 별도)** — 신호 빈도/품질 관찰 후,
+사람 승인 시에만 PAPER-RESUME-4D(auto_trade_enabled=true). 단 현재 6≥5 open positions로 005930 BUY는 MOP 차단.
+
 ## Next Steps
 
-* **PAPER-RESUME-4C** — human-approved signal-only enable(status→TESTING, auto_trade_enabled=false). DB write(1행).
+* **PAPER-RESUME-4C** — (완료) v329 signal-only TESTING.
 * **PAPER-RESUME-4D** — human-approved auto-trade enable(auto_trade_enabled=true). DB write(1행) + 모니터링.
 * **PAPER-RESUME-5** — limited paper auto-order post-run report.

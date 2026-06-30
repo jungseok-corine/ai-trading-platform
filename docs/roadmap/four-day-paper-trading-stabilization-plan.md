@@ -124,6 +124,8 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
   [`docs/operations/limited-candidate-enable-preflight.md`](../operations/limited-candidate-enable-preflight.md).
   핵심: status→TESTING만으로 strategy scheduler가 자동 실행(restart 불필요); 현재 6≥5 open positions로 005930 BUY는
   MOP 차단 → **exit-first 후 enable 권장**; signal-only(4C) → auto-trade(4D) 단계 분리.
+* **PAPER-RESUME-4C 완료 — v329 signal-only TESTING 전환**(status DRAFT→TESTING, auto_trade_enabled=false 유지).
+  scheduler-visible·order-disabled. 주문/Trade 없음. auto-trade(4D)는 관찰 + 사람 승인 후.
 
 ### Day 4 — Stop/Take-Profit Baseline + AI Recommendation Design + Runbook
 * 목표: 기본 손절/익절 정책 확정 · AI는 recommendation-only 설계 · 이번주 운영 결과를 runbook으로 정리.
