@@ -99,6 +99,8 @@ allowlist 밖 symbol 신호 생성 · live trading 관련 경고.
 ## Next Steps
 
 * **PAPER-RESUME-3** — human-approved allowlist selection report: 실제 DB 값 변경 없이 사용자가 고를 후보 표 제공.
+  **(설계 완료)** [`limited-paper-candidate-selection-plan.md`](limited-paper-candidate-selection-plan.md) —
+  결론: universe 축소는 코드 미지원이라 **single-symbol 모드 신규 후보(Option D)** 가 권장 경로, **exit/reconcile 선행**.
 * **PAPER-RESUME-4** — human-approved limited `auto_trade_enabled` enable: 사용자가 승인한 strategy/version만
   enable(또는 universe를 소수 symbol로 축소). **DB write 발생**, scheduler/dispatcher enable 여부 별도 확인, 테스트/rollback 포함.
 * **PAPER-RESUME-5** — limited paper auto-order post-run report: 재개 후 신호/주문/체결/risk 결과 요약, unexpected behavior 확인.

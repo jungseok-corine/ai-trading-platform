@@ -147,6 +147,9 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
    상세: [`docs/operations/paper-auto-trading-resume-checklist.md`](../operations/paper-auto-trading-resume-checklist.md).
 4. **PAPER-RESUME-2** — limited strategy/symbol allowlist design.
    **(설계 완료)** [`docs/operations/limited-paper-auto-trade-allowlist.md`](../operations/limited-paper-auto-trade-allowlist.md).
+   **PAPER-RESUME-3** candidate selection plan **(설계 완료)** —
+   [`docs/operations/limited-paper-candidate-selection-plan.md`](../operations/limited-paper-candidate-selection-plan.md):
+   universe 축소는 코드 미지원 → single-symbol 신규 후보(Option D) + exit-first 권장.
 5. **RISK-AI-1A** — AI stop-loss/take-profit recommendation-only design.
 6. **OPERATIONS-1** — paper trading runbook.
 
