@@ -32,15 +32,14 @@ def test_runtime_default_path_is_app_data_reference():
     assert p.exists()                    # manual snapshot 파일 존재
 
 
-def test_runtime_default_snapshot_is_placeholder():
+def test_runtime_default_snapshot_structure_and_symbols():
+    # M2.15F-3E 이후 runtime default는 네이버 값으로 채워짐. 구조/심볼/db_* 유지 확인.
     data = json.loads(svc_mod._DEFAULT_REFERENCE_PATH.read_text(encoding="utf-8"))
-    assert data["source_name"] == "manual_non_kis_reference"
-    assert "MANUAL REFERENCE REQUIRED" in data["source_note"]
     syms = {s["symbol"] for s in data["symbols"]}
     assert syms == {"005930", "000660", "035420", "005380", "051910"}
-    # 전부 placeholder(0) — 실제 값은 사람이 채운다
     for s in data["symbols"]:
-        assert s["reference_close"] == 0 and s["high_52w"] == 0 and s["low_52w"] == 0
+        # db_* baseline은 유지(참고용)
+        assert "db_reference_close" in s and "db_high_52w" in s and "db_low_52w" in s
 
 
 def test_service_module_does_not_reference_tests_dir():

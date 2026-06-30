@@ -26,17 +26,18 @@ def _override_get_db(session: AsyncSession):
     return _get_db
 
 
-def test_manual_snapshot_reference_values_still_placeholder_zero():
+def test_manual_snapshot_filled_with_naver_keeps_db_baseline():
+    # M2.15F-3E: 네이버 값으로 채워진 상태. reference_*는 비-0, db_* baseline 유지, db≠reference 보장.
     data = json.loads(svc_mod._DEFAULT_REFERENCE_PATH.read_text(encoding="utf-8"))
-    assert data.get("manual_fill_required") is True
     assert data.get("do_not_use_for_trading") is True
-    assert data.get("manual_fill_status") == "placeholder_only"
+    assert data.get("manual_fill_status") == "validated_with_diffs"
+    assert data.get("source_name") == "네이버증권"
     for s in data["symbols"]:
-        # reference_*는 0 유지(실제 값 미입력)
-        assert s["reference_close"] == 0 and s["high_52w"] == 0 and s["low_52w"] == 0
-        # db_* baseline은 존재(참고용)
+        # reference_*는 채워짐(비-0)
+        assert s["reference_close"] != 0 and s["high_52w"] != 0 and s["low_52w"] != 0
+        # db_* baseline은 유지(참고용)
         assert "db_reference_close" in s and "db_high_52w" in s and "db_low_52w" in s
-        assert s["source_close_basis"] == "MANUAL_INPUT_REQUIRED"
+        assert s["source_close_basis"] == "daily close"
 
 
 def test_parser_tolerates_extra_metadata_and_still_placeholder():
@@ -63,8 +64,8 @@ async def _seed(session, symbol, hloc):
     await session.flush()
 
 
-async def test_default_endpoint_returns_placeholder_with_enriched_snapshot(db_session: AsyncSession):
-    # 모든 pilot 시드 → 풍부한 metadata manual snapshot 사용해도 5개 placeholder_reference
+async def test_default_endpoint_compares_filled_snapshot(db_session: AsyncSession):
+    # M2.15F-3E: 작은 합성 DB값(110) vs 네이버 ref(수십만~수백만) → 전부 major_diff, placeholder 0.
     for s in ("005930", "000660", "035420", "005380", "051910"):
         await _seed(db_session, s, [(120, 100, 110)])
     app.dependency_overrides[get_db] = _override_get_db(db_session)
@@ -73,8 +74,8 @@ async def test_default_endpoint_returns_placeholder_with_enriched_snapshot(db_se
             b = (await c.get("/api/v1/leader-trend/validation/non-kis-52w")).json()
     finally:
         app.dependency_overrides.clear()
-    assert b["summary"]["placeholder_reference"] == 5
-    assert b["summary"]["matched"] == 0 and b["summary"]["major_diff"] == 0
+    assert b["summary"]["placeholder_reference"] == 0
+    assert b["summary"]["major_diff"] == 5     # 합성 DB값과 실제 네이버 ref 차이 큼
 
 
 def test_runtime_default_path_is_manual_snapshot_no_tests_dep():

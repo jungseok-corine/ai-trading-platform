@@ -95,8 +95,9 @@ async def _client(session):
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-async def test_api_default_pilot_placeholder(db_session: AsyncSession):
-    # 기본 fixture(placeholder)로 호출 → DB 없으면 missing_db_data, 있으면 placeholder_reference
+async def test_api_default_pilot_filled_naver(db_session: AsyncSession):
+    # M2.15F-3E: runtime default snapshot은 이제 네이버 값으로 채워짐.
+    # 005930 DB(작은 합성값) vs 네이버 ref(323000) → major_diff. 미시드 종목은 missing_db_data.
     await _seed(db_session, "005930", [(110, 90, 100)])
     client = await _client(db_session)
     try:
@@ -113,11 +114,11 @@ async def test_api_default_pilot_placeholder(db_session: AsyncSession):
     assert body["total_symbols_checked"] == 5
     assert "not a buy signal" in body["safety_warning"].lower()
     assert "non-kis" in body["provenance_warning"].lower()
+    assert body["reference_source_name"] == "네이버증권"
     by = {r_["symbol"]: r_["validation_status"] for r_ in body["results"]}
-    assert by["005930"] == "placeholder_reference"  # 기본 fixture는 placeholder
-    # 미시드 종목은 missing_db_data
-    assert by["000660"] == "missing_db_data"
-    assert body["summary"]["placeholder_reference"] >= 1
+    assert by["005930"] == "major_diff"            # 작은 DB값 vs 실제 네이버 ref → 큰 차이
+    assert by["000660"] == "missing_db_data"        # 미시드
+    assert body["summary"]["placeholder_reference"] == 0
 
 
 async def test_api_wildcard_and_cap_rejected(db_session: AsyncSession):
