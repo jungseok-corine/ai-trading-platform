@@ -132,6 +132,9 @@ closed-처리 버그가 아니라 **실제로 열린 포지션**이며, 미실�
 * Remaining issues:
   * actual paper trading resume requires human approval and possibly a RiskConfig/current-position decision
   * AI-assisted stop-loss/take-profit design (RISK-AI-1) remains future work after the safe exit/sizing path
+* If the user exits positions manually through the KIS paper app, follow
+  [`docs/operations/manual-app-sell-reconciliation.md`](../operations/manual-app-sell-reconciliation.md)
+  before resuming automation.
 
 ## Safety Notes
 
