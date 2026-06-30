@@ -1,11 +1,14 @@
 """RISK-FIX-1B — risk deadlock characterization tests.
 
-이 파일은 **현재(flawed) 동작을 고정**하는 characterization test다. 모두 현재 코드 기준으로
-PASS해야 한다. 기대값을 바꾸는 것은 다음 단계의 일이다:
+이 파일은 **남아 있는(아직 고치지 않은) 현재 동작을 고정**하는 characterization test다.
+모두 현재 코드 기준으로 PASS해야 한다.
 
-  * RISK-FIX-1C — ConsecutiveLossLimitRule이 risk-reducing SELL/exit를 막지 않도록 변경
-  * RISK-FIX-1D — MaxPositionSizeRule이 risk-reducing SELL/exit를 막지 않도록 변경
-  * RISK-FIX-1E — fee-only break-even 청산을 연속 손실에서 제외
+진행 상황:
+  * RISK-FIX-1C (적용됨) — ConsecutiveLossLimitRule이 risk-reducing SELL/exit를 더 이상 막지 않는다.
+    → 1B가 기록하던 "CLL이 SELL을 막는다" 기대는 더 이상 유효하지 않으며, 새 동작은
+      test_risk_fix_1c_consecutive_loss_exit.py 로 이동했다(삭제가 아니라 의미 이전).
+  * RISK-FIX-1D (미적용) — MaxPositionSizeRule이 여전히 SELL/exit를 막는다(아래 Test 2/5에서 고정).
+  * RISK-FIX-1E (미적용) — fee-only break-even 청산이 여전히 연속 손실로 집계된다(아래 Test 4).
 
 진단 근거: docs/diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md
 설계: docs/design/RISK-FIX-1-risk-reducing-exit-policy.md
@@ -22,7 +25,6 @@ from app.trading.risk.context import RiskContext, RiskContextBuilder
 from app.trading.risk.manager import RiskManager
 from app.trading.risk.rules import (
     DEFAULT_RULES,
-    ConsecutiveLossLimitRule,
     MaxOpenPositionsRule,
     MaxPositionSizeRule,
 )
@@ -71,31 +73,13 @@ def make_signal(**overrides) -> Signal:
     return Signal(**defaults)
 
 
-# --- Test 1: ConsecutiveLossLimit이 SELL/exit까지 막는다 (현재 동작) -----------
-def test_current_consecutive_loss_limit_blocks_sell_exit_characterization() -> None:
-    # Characterization test for the current flawed behavior.
-    # RISK-FIX-1C should change this expectation so risk-reducing exits are allowed.
-    rule = ConsecutiveLossLimitRule()
-    config = make_config(consecutive_loss_limit=3)
-    context = make_context(
-        consecutive_losses=5,  # 5 >= 3
-        open_positions_count=6,
-        current_position_value={"373220": Decimal("1468000")},
-    )
-    # 보유 중인 종목을 줄이는 손절 매도(risk-reducing exit).
-    sell_exit = make_signal(
-        symbol_code="373220", side=TradeSide.SELL, quantity=4, price=Decimal("367000"),
-        reason="손절 (평가손익률 -1.94% <= -1.0%)",
-    )
-
-    result = rule.check(sell_exit, config, context)
-
-    # 현재 코드는 side를 보지 않으므로 손절 매도까지 거부한다.
-    assert result.approved is False
-    assert result.rule_name == "consecutive_loss_limit"
+# NOTE: RISK-FIX-1B의 원래 Test 1
+# (test_current_consecutive_loss_limit_blocks_sell_exit_characterization)은
+# RISK-FIX-1C가 동작을 바꿨기 때문에 더 이상 유효하지 않다. 단순 삭제가 아니라,
+# 새 기대(SELL 허용 / BUY 차단 유지)는 test_risk_fix_1c_consecutive_loss_exit.py 로 옮겼다.
 
 
-# --- Test 2: MaxPositionSize가 SELL/exit까지 막는다 (현재 동작) ----------------
+# --- Test 2: MaxPositionSize가 SELL/exit까지 막는다 (현재 동작, RISK-FIX-1D 미적용) ---
 def test_current_max_position_size_blocks_sell_exit_characterization() -> None:
     # Characterization test for the current flawed behavior.
     # RISK-FIX-1D should change this expectation so risk-reducing exits are allowed.
@@ -182,10 +166,11 @@ async def test_current_fee_only_break_even_counts_as_consecutive_loss_characteri
     assert await builder2._count_consecutive_losses(account_id=230) == 0
 
 
-# --- Test 5: 현재 규칙들이 exit deadlock을 만들 수 있다 (조합) ------------------
-def test_current_rules_can_create_exit_deadlock_characterization() -> None:
-    # Characterization test for the current flawed behavior.
-    # RISK-FIX-1C/1D/1E should make risk-reducing exits pass so the deadlock breaks.
+# --- Test 5: RISK-FIX-1C 이후 데드락이 부분적으로만 줄었다 (조합) ----------------
+def test_risk_fix_1c_removes_consecutive_loss_exit_block_but_mps_deadlock_remains() -> None:
+    # RISK-FIX-1B captured the original full deadlock (CLL + MPS 모두 SELL을 막음).
+    # RISK-FIX-1C intentionally changed CLL so risk-reducing SELL/exit는 통과한다.
+    # 그러나 MaxPositionSizeRule은 아직 SELL을 막으므로(RISK-FIX-1D 필요) 고가 포지션 청산은 여전히 막힌다.
     manager = RiskManager(DEFAULT_RULES)
     config = make_config(
         consecutive_loss_limit=3, max_open_positions=5, max_position_size=Decimal("1000000")
@@ -201,24 +186,26 @@ def test_current_rules_can_create_exit_deadlock_characterization() -> None:
         },
     )
 
-    # (a) 고가 포지션 손절 매도 — max_position_size가 먼저 거부.
+    # (a) 고가 포지션 손절 매도 — CLL은 이제 허용하지만 max_position_size가 여전히 거부(남은 데드락).
     high_notional_exit = make_signal(
         symbol_code="373220", side=TradeSide.SELL, quantity=4, price=Decimal("367000"))
     r_a = manager.validate(high_notional_exit, config, context)
     assert r_a.approved is False
-    assert r_a.rule_name == "max_position_size"
+    assert r_a.rule_name == "max_position_size"  # CLL이 아니라 MPS가 막는다 → RISK-FIX-1D 필요
 
-    # (b) 소액 포지션 손절 매도 — 주문금액은 한도 내지만 consecutive_loss_limit이 거부.
+    # (b) 소액 포지션 손절 매도 — 주문금액 한도 내. RISK-FIX-1C 이후 이제 통과한다(데드락 부분 해소).
     small_notional_exit = make_signal(
         symbol_code="017670", side=TradeSide.SELL, quantity=1, price=Decimal("89300"))
     r_b = manager.validate(small_notional_exit, config, context)
-    assert r_b.approved is False
-    assert r_b.rule_name == "consecutive_loss_limit"
+    assert r_b.approved is True
 
-    # (c) 신규 진입 매수 — 어차피 거부(연속 손실 한도).
-    new_buy = make_signal(
-        symbol_code="000270", side=TradeSide.BUY, quantity=1, price=Decimal("90000"))
-    r_c = manager.validate(new_buy, config, context)
+    # (c) 위험을 추가하는 매수 — 여전히 연속 손실 한도로 거부(의도된 차단 유지).
+    #     (보유 종목 추가매수라 max_open_positions는 통과하고 CLL이 막는 경우로 구성.)
+    add_buy = make_signal(
+        symbol_code="373220", side=TradeSide.BUY, quantity=1, price=Decimal("90000"))
+    r_c = manager.validate(add_buy, config, context)
     assert r_c.approved is False
+    assert r_c.rule_name == "consecutive_loss_limit"
 
-    # 결론: 현재 코드에서는 위험을 줄이는 어떤 청산도 통과하지 못하고 신규 진입도 막혀 데드락이 된다.
+    # 결론: RISK-FIX-1C로 소액 청산은 가능해졌으나, 고가 포지션 청산을 막는 MaxPositionSizeRule
+    # 데드락은 남아 있어 RISK-FIX-1D가 필요하다.

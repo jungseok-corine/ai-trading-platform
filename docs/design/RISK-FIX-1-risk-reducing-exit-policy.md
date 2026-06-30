@@ -199,6 +199,21 @@ risk check context에 action nature를 명시한다.
 다음 단계는 **RISK-FIX-1C**(ConsecutiveLossLimitRule이 risk-reducing exit를 허용하도록 변경)이며,
 그때 위 기대값들이 바뀐다.
 
+## 11. RISK-FIX-1C Implementation Note
+
+* `ConsecutiveLossLimitRule` now blocks risk-increasing BUY entries after the loss limit.
+* `ConsecutiveLossLimitRule` no longer blocks SELL/exit in the current long-only model.
+* long-only 전제: 현재 시스템에는 별도 action field가 없고 `Signal.side: TradeSide`만 있다.
+  전략의 SELL 신호는 데드크로스/손절 등 청산 의도이며 short open 경로가 없다(positions.quantity는 long-only).
+  side가 SELL이 아니거나 알 수 없으면 보수적으로 기존 한도를 적용한다.
+* This reduces one part of the exit deadlock (소액 청산은 이제 통과 가능).
+* However, `MaxPositionSizeRule` can still block SELL/exit above the notional limit.
+  Therefore **RISK-FIX-1D remains required**.
+* Fee-only break-even loss counting is unchanged and remains for **RISK-FIX-1E**.
+* No RiskConfig was modified. No DB state was modified. No trading was enabled.
+* Tests: `test_risk_fix_1c_consecutive_loss_exit.py` (new behavior) +
+  `test_risk_fix_1b_risk_deadlock_characterization.py` (남은 데드락/미변경 동작 고정, Test 1 의미는 1C 파일로 이전).
+
 ## Future Work: RISK-AI-1 AI-assisted Stop-Loss / Take-Profit Policy
 
 ### Purpose

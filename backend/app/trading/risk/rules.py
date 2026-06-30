@@ -90,7 +90,13 @@ class ConsecutiveLossLimitRule(RiskRule):
     name = "consecutive_loss_limit"
 
     def check(self, signal: Signal, config: RiskConfig, context: RiskContext) -> RiskCheckResult:
-        if context.consecutive_losses >= config.consecutive_loss_limit:
+        # RISK-FIX-1C: 연속 손실 circuit breaker는 "새 위험을 추가하는 진입(BUY)"만 차단한다.
+        # SELL은 현재 long-only 구조에서 위험을 줄이는 청산/손절(risk-reducing exit)이므로 허용한다
+        # (전략의 SELL 신호는 데드크로스/손절 등 청산 의도이며 short open 경로는 없다 —
+        #  positions.quantity는 long-only). side를 알 수 없거나 SELL이 아니면 위험을 추가할
+        #  가능성이 있으므로 보수적으로 기존 한도를 적용한다.
+        is_risk_reducing_exit = signal.side == TradeSide.SELL
+        if not is_risk_reducing_exit and context.consecutive_losses >= config.consecutive_loss_limit:
             return RiskCheckResult(
                 False,
                 self.name,
