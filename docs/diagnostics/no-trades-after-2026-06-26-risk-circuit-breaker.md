@@ -117,7 +117,8 @@ closed-처리 버그가 아니라 **실제로 열린 포지션**이며, 미실�
    — **(RISK-FIX-1D 적용 완료)** `MaxPositionSizeRule`은 이제 BUY 진입만 한도 적용하고 SELL/exit는 허용한다.
 3. `_count_consecutive_losses`에서 수수료성 break-even 손실을 손실 streak에서 제외하는 기준 추가
    — **(RISK-FIX-1E 적용 완료)** 방향 손익률(pnl_pct/entry·exit) 기준으로 실질 손실만 카운트, fee-only는 제외.
-4. entry sizing에서 `max_position_size`를 넘지 않도록 사전 캡 적용 — (RISK-FIX-1F, 미적용)
+4. entry sizing에서 `max_position_size`를 넘지 않도록 사전 캡 적용
+   — **(RISK-FIX-1F 적용 완료)** BUY 진입 수량을 risk check 직전에 cap하고, 0이 되면 no-trade(브로커 미호출).
 5. RiskConfig 한도 상향은 마지막 선택지
 
 ### 진행 상태 (2026-06-30)
@@ -125,11 +126,12 @@ closed-처리 버그가 아니라 **실제로 열린 포지션**이며, 미실�
 * RISK-FIX-1C addressed the `consecutive_loss_limit` SELL/exit block.
 * RISK-FIX-1D addressed the `max_position_size` SELL/exit block.
 * RISK-FIX-1E addressed fee-only break-even loss counting.
-* 위 수정으로 DIAG-2에서 확인된 "risk rules가 손절 SELL 자체를 막는 데드락" + "fee-only 손실이 연속
-  손실 한도를 트립시키던 문제"는 해소되었다.
+* RISK-FIX-1F addressed entry sizing cap.
+* 위 수정으로 DIAG-2에서 확인된 risk-rule exit 데드락 + fee-only 손실 트립 + 고가주 진입금액 초과로 인한
+  reject 문제가 모두 해소되었다(코드 레벨).
 * Remaining issues:
-  * entry sizing cap (RISK-FIX-1F)
-  * actual paper trading resume requires human approval and may require a DB/RiskConfig decision
+  * actual paper trading resume requires human approval and possibly a RiskConfig/current-position decision
+  * AI-assisted stop-loss/take-profit design (RISK-AI-1) remains future work after the safe exit/sizing path
 
 ## Safety Notes
 

@@ -251,6 +251,22 @@ risk check context에 action nature를 명시한다.
 * Tests: `test_risk_fix_1e_consecutive_loss_fee_only.py` (new behavior) +
   `test_risk_fix_1b_...`의 fee-only 기대값을 1E 파일로 의미 이전(삭제 아님).
 
+## 14. RISK-FIX-1F Implementation Note
+
+* BUY entry quantity is capped before risk check so `price * quantity * fx_rate <= max_position_size`.
+* SELL/exit quantity is not capped because SELL is risk-reducing in the current long-only model.
+* If BUY quantity would become 0 after cap, the trade attempt is rejected/no-trade and broker is not called
+  (reason `max_position_size_quantity_cap_zero` / `quantity_below_min_after_position_size_cap`).
+* `MaxPositionSizeRule` remains as a defense-in-depth check for uncapped BUY orders.
+* 구현 위치: 순수 helper `app/trading/risk/sizing.py::cap_buy_quantity_by_position_size` +
+  `TradeService.execute_signal`에서 **risk check 직전** 적용(전략 output은 미변경 — execution/risk layer에서 조정).
+  US 주문은 `MaxPositionSizeRule`과 동일하게 `usd_krw_rate`로 환산한 기준을 사용한다.
+* price<=0 또는 max_position_size<=0이면 보수적으로 cap하지 않고 원래 수량을 둔다(MPS가 방어선).
+* DB schema 변경 없음 — 새 log field 추가 없이 cap 사실은 로그/Trade.quantity(=조정 수량)로만 남긴다.
+* No RiskConfig was modified. No DB state was modified (테스트 DB 제외). No trading was enabled.
+* Tests: `test_risk_fix_1f_entry_sizing_cap.py`(pure helper + rule) +
+  `test_trade_service.py`(service-level: zero→no broker call / cap→reduced trade qty / SELL 미cap).
+
 ## Future Work: RISK-AI-1 AI-assisted Stop-Loss / Take-Profit Policy
 
 ### Purpose

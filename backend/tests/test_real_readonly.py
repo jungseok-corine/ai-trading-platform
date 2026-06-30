@@ -350,6 +350,14 @@ async def test_trade_service_paper_broker_not_blocked_by_real_trading_check(
     risk_svc.validate_signal = AsyncMock(
         return_value=RiskCheckResult(approved=True, rule_name=None, reason=None)
     )
+    # RISK-FIX-1F: execute_signal은 BUY에 대해 risk check 직전 get_config로 max_position_size를
+    # 읽어 수량을 cap한다. 충분히 큰 한도를 주어 cap이 no-op이 되게 한다(이 테스트의 관심사 아님).
+    from app.domain.models.risk import RiskConfig
+    risk_svc.get_config = AsyncMock(return_value=RiskConfig(
+        account_id=1, max_daily_loss_amount=Decimal("100000"),
+        max_position_size=Decimal("1000000000"), max_open_positions=5,
+        max_trades_per_day=10, consecutive_loss_limit=3, emergency_stop=False,
+    ))
 
     account = Account(account_type=AccountType.PAPER, broker_account_no="12345678-01")
     db_session.add(account)

@@ -259,3 +259,71 @@ async def test_list_trades_orders_by_created_at_desc(db_session: AsyncSession) -
 
     trades_for_account = await service.list_trades(account_id=account.id, limit=100, offset=0)
     assert [t.id for t in trades_for_account] == [newer.id, older.id]
+
+
+# --- RISK-FIX-1F: BUY entry quantity cap by max_position_size ------------------
+async def test_buy_quantity_capped_to_zero_does_not_call_broker(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    # 단일 주식 가격이 max_position_size를 넘으면 cap 결과 수량 0 → no-trade, 브로커 미호출.
+    account = await _create_account_with_risk_config(
+        db_session, max_position_size=Decimal("1000000")
+    )
+    broker = FakeBrokerClient()
+    service = TradeService(db_session, broker, RiskService(db_session, broker))
+
+    result = await service.place_order(
+        order_request_factory(account.id, price=Decimal("1500000"), quantity=1)
+    )
+
+    assert result.approved is False
+    assert result.rule_name == "max_position_size_quantity_cap_zero"
+    assert result.trade is None
+    assert broker.place_order_calls == []  # 주문/브로커 호출 없음
+    trades = (
+        (await db_session.execute(select(Trade).where(Trade.account_id == account.id))).scalars().all()
+    )
+    assert trades == []
+
+
+async def test_buy_quantity_capped_reduces_order_and_trade_quantity(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    # price 400,000 * qty 4 = 1,600,000 > 1,000,000 → cap to floor(1,000,000/400,000)=2.
+    account = await _create_account_with_risk_config(
+        db_session, max_position_size=Decimal("1000000")
+    )
+    broker = FakeBrokerClient()
+    service = TradeService(db_session, broker, RiskService(db_session, broker))
+
+    result = await service.place_order(
+        order_request_factory(account.id, symbol_code="373220", price=Decimal("400000"), quantity=4)
+    )
+
+    assert result.approved is True
+    assert len(broker.place_order_calls) == 1
+    assert broker.place_order_calls[0].quantity == 2  # capped
+    assert result.trade is not None
+    assert result.trade.quantity == 2
+
+
+async def test_sell_quantity_not_capped_by_max_position_size(
+    db_session: AsyncSession, order_request_factory
+) -> None:
+    # SELL 주문금액 500,000 * 4 = 2,000,000 > 1,000,000 이지만 cap하지 않고 그대로 실행.
+    account = await _create_account_with_risk_config(
+        db_session, max_position_size=Decimal("1000000")
+    )
+    broker = FakeBrokerClient()
+    service = TradeService(db_session, broker, RiskService(db_session, broker))
+
+    result = await service.place_order(
+        order_request_factory(
+            account.id, symbol_code="373220", side=TradeSide.SELL,
+            price=Decimal("500000"), quantity=4,
+        )
+    )
+
+    assert result.approved is True
+    assert len(broker.place_order_calls) == 1
+    assert broker.place_order_calls[0].quantity == 4  # SELL 수량 유지

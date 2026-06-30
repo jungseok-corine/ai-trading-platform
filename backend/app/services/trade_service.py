@@ -1,8 +1,11 @@
 import logging
 from dataclasses import dataclass
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.domain.models.enums import TradeSide
 from app.domain.models.trade import Trade
 from app.domain.repositories.trade import TradeRepository
 from app.services.risk_service import RiskService
@@ -10,6 +13,7 @@ from app.trading.broker.base import BrokerClient
 from app.trading.broker.schemas import OrderRequest, OrderType
 from app.trading.order.schemas import OrderCreateRequest
 from app.trading.pricing.tick import round_price_to_tick, round_us_price_to_cent
+from app.trading.risk.sizing import cap_buy_quantity_by_position_size
 from app.trading.strategy.base import Signal
 
 logger = logging.getLogger(__name__)
@@ -139,6 +143,42 @@ class TradeService:
                 rule_name="trading_paused",
                 reason="Auto-trading is paused for this account. Resume via POST /api/v1/trading-guard/resume.",
             )
+
+        # RISK-FIX-1F: BUY 진입 수량을 max_position_size 한도 내로 사전 cap한다(risk check 직전).
+        # SELL/exit는 risk-reducing이므로 cap하지 않는다. cap 결과 수량이 0이면 주문하지 않는다.
+        if signal.side == TradeSide.BUY:
+            config = await self._risk_service.get_config(account_id)
+            fx_rate = get_settings().usd_krw_rate if market == "US" else Decimal("1")
+            capped_quantity = cap_buy_quantity_by_position_size(
+                side=signal.side,
+                price=signal.price,
+                quantity=signal.quantity,
+                max_position_size=config.max_position_size,
+                fx_rate=fx_rate,
+            )
+            if capped_quantity < 1:
+                logger.info(
+                    "execute_signal no-trade: BUY quantity capped to 0 by max_position_size "
+                    "(account=%s symbol=%s price=%s max_position_size=%s)",
+                    account_id, signal.symbol_code, signal.price, config.max_position_size,
+                )
+                return OrderPlacementResult(
+                    approved=False,
+                    trade=None,
+                    rule_name="max_position_size_quantity_cap_zero",
+                    reason=(
+                        "max_position_size 한도로 진입 수량이 0이 되어 주문하지 않습니다 "
+                        "(quantity_below_min_after_position_size_cap)."
+                    ),
+                )
+            if capped_quantity != signal.quantity:
+                logger.info(
+                    "buy quantity capped by max_position_size: account=%s symbol=%s "
+                    "original_qty=%s adjusted_qty=%s price=%s max_position_size=%s",
+                    account_id, signal.symbol_code, signal.quantity, capped_quantity,
+                    signal.price, config.max_position_size,
+                )
+                signal.quantity = capped_quantity
 
         risk_result = await self._risk_service.validate_signal(account_id, signal)
         if not risk_result.approved:

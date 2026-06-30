@@ -67,7 +67,9 @@ def test_kr_order_not_converted() -> None:
 # --------------------------------------------------------------------------- #
 
 
-async def test_large_us_order_rejected_by_fx_converted_limit(db_session: AsyncSession) -> None:
+async def test_large_us_order_capped_by_fx_converted_limit(db_session: AsyncSession) -> None:
+    # RISK-FIX-1F: 과거에는 fx 환산 주문금액이 한도를 넘으면 BUY가 거부됐다. 이제는 한도 내로
+    # 수량을 cap한다. $500 × fx 1350 = ₩675,000/주 → max_allowed = floor(1,000,000/675,000) = 1.
     account = await _create_account_with_risk_config(db_session, max_position_size=Decimal("1000000"))
     kr_broker = FakeBrokerClient()
     us_broker = FakeBrokerClient()
@@ -75,13 +77,36 @@ async def test_large_us_order_rejected_by_fx_converted_limit(db_session: AsyncSe
         db_session, kr_broker, RiskService(db_session, kr_broker), overseas_broker=us_broker
     )
 
-    # $500 × 10 = $5,000 → 환산 ₩6,750,000 > ₩1,000,000 → 거부, 주문 미실행
+    # 원래 $500 × 10 = $5,000 → 환산 ₩6,750,000 > ₩1,000,000 이지만, 수량이 1로 cap되어 통과한다.
     req = OrderCreateRequest(
         account_id=account.id, symbol_code="AAPL", side=TradeSide.BUY,
         quantity=10, price=Decimal("500"), market="US", exchange="NAS",
     )
     result = await service.place_order(req)
 
+    assert result.approved is True
+    assert len(us_broker.place_order_calls) == 1
+    assert us_broker.place_order_calls[0].quantity == 1  # fx 기준 cap
+    assert result.trade is not None
+    assert result.trade.quantity == 1
+
+
+async def test_us_order_capped_to_zero_rejected(db_session: AsyncSession) -> None:
+    # 단가 자체가 fx 환산 한도를 넘으면 cap 결과 0 → no-trade(브로커 미호출).
+    account = await _create_account_with_risk_config(db_session, max_position_size=Decimal("1000000"))
+    kr_broker = FakeBrokerClient()
+    us_broker = FakeBrokerClient()
+    service = TradeService(
+        db_session, kr_broker, RiskService(db_session, kr_broker), overseas_broker=us_broker
+    )
+
+    # $1000 × fx 1350 = ₩1,350,000 > ₩1,000,000 → max_allowed = floor(0.74) = 0.
+    req = OrderCreateRequest(
+        account_id=account.id, symbol_code="AAPL", side=TradeSide.BUY,
+        quantity=1, price=Decimal("1000"), market="US", exchange="NAS",
+    )
+    result = await service.place_order(req)
+
     assert result.approved is False
-    assert result.rule_name == "max_position_size"
+    assert result.rule_name == "max_position_size_quantity_cap_zero"
     assert us_broker.place_order_calls == []
