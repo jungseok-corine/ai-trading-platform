@@ -25,6 +25,7 @@ from app.services.leader_trend_validation_service import (
     MINOR_DIFF_PCT,
     LeaderTrendValidationService,
     db_52w_snapshot,
+    window_basis_audit,
 )
 
 router = APIRouter(prefix="/leader-trend", tags=["leader-trend"])
@@ -297,4 +298,90 @@ async def get_db_52w_snapshot(
         safety_warning=_DB_SNAPSHOT_SAFETY,
         provenance_warning=_DB_SNAPSHOT_PROVENANCE,
         results=[DbSnapshotResultModel(**r.to_dict()) for r in report.results],
+    )
+
+
+# --- M2.15F-3F: 52주 window basis audit(읽기 전용 · 매수 신호 아님) ---
+class WindowBasisResultModel(BaseModel):
+    basis: str
+    row_count: int
+    first_date: str | None = None
+    last_date: str | None = None
+    reference_close: float | None = None
+    reference_close_date: str | None = None
+    high_52w: float | None = None
+    high_52w_date: str | None = None
+    low_52w: float | None = None
+    low_52w_date: str | None = None
+    low_52w_gain_pct: float | None = None
+    drawdown_from_52w_high_pct: float | None = None
+    candidate_bucket_if_any: str | None = None
+
+
+class WindowAuditRowModel(BaseModel):
+    symbol: str
+    last_252_trading_rows: WindowBasisResultModel
+    calendar_52_weeks: WindowBasisResultModel
+    high_diff_between_basis_pct: float | None = None
+    low_diff_between_basis_pct: float | None = None
+    reference_close_diff_between_basis_pct: float | None = None
+    bucket_changed_between_basis: bool = False
+    naver_low: float | None = None
+    low_252_vs_naver_diff_pct: float | None = None
+    low_calendar_vs_naver_diff_pct: float | None = None
+    naver_major_diff_explainable_by_window_basis: str = "unknown"
+
+
+class WindowBasisAuditResponse(BaseModel):
+    generated_at: str
+    research_only: bool
+    not_buy_signal: bool
+    read_only: bool
+    external_reference_auto_fetch: bool
+    kis_call_used: bool
+    db_write_performed: bool
+    candidate_event_allowed: bool
+    universe_scope: str
+    total_symbols_checked: int
+    safety_warning: str
+    provenance_warning: str
+    results: list[WindowAuditRowModel]
+
+
+_WINDOW_AUDIT_SAFETY = (
+    "This window-basis audit is read-only validation support. It is not a buy signal and must not "
+    "be connected to trading."
+)
+_WINDOW_AUDIT_PROVENANCE = (
+    "Both bases are computed only from existing local market_data. No external or KIS fetch is "
+    "performed. Explainability is a hypothesis, not DB-correction or CandidateEvent approval."
+)
+
+
+@router.get("/validation/52w-window-basis-audit", response_model=WindowBasisAuditResponse)
+async def get_52w_window_basis_audit(
+    symbols: str | None = Query(
+        default=None,
+        description="comma-separated, max 5; default pilot_5. Read-only window-basis audit, NOT a buy signal.",
+    ),
+    service: LeaderTrendValidationService = Depends(get_validation_service),
+    session: AsyncSession = Depends(get_db),
+) -> WindowBasisAuditResponse:
+    """last_252_trading_rows vs calendar_52_weeks 비교(읽기 전용). **매매 신호 아님 · 외부/KIS 호출 없음.**"""
+    requested, scope = _parse_symbols(symbols)
+    rows = await window_basis_audit(session, service._reference, requested)
+    return WindowBasisAuditResponse(
+        generated_at=datetime.now(KST).isoformat(),
+        research_only=True,
+        not_buy_signal=True,
+        read_only=True,
+        external_reference_auto_fetch=False,
+        kis_call_used=False,
+        db_write_performed=False,
+        candidate_event_allowed=False,
+        universe_scope=scope if requested else "pilot_5",
+        total_symbols_checked=len(rows),
+        safety_warning=_WINDOW_AUDIT_SAFETY,
+        provenance_warning=_WINDOW_AUDIT_PROVENANCE,
+        results=[WindowAuditRowModel(**r.to_dict()) for r in rows],
     )

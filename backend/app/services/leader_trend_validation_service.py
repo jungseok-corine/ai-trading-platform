@@ -247,3 +247,129 @@ async def db_52w_snapshot(
             candidate_bucket_if_any=m.candidate_bucket_operational,
         ))
     return report
+
+
+# --- M2.15F-3F: 52주 window basis audit(읽기 전용 · last_252_trading_rows vs calendar_52_weeks) ---
+from datetime import timedelta as _timedelta  # noqa: E402
+
+CALENDAR_52_WEEKS_DAYS = 364  # 52 weeks
+WINDOW_EXPLAIN_PCT = 2.0      # calendar low가 Naver low와 이내면 window basis로 설명 가능
+
+
+@dataclass
+class BasisResult:
+    basis: str
+    row_count: int
+    first_date: str | None = None
+    last_date: str | None = None
+    reference_close: float | None = None
+    reference_close_date: str | None = None
+    high_52w: float | None = None
+    high_52w_date: str | None = None
+    low_52w: float | None = None
+    low_52w_date: str | None = None
+    low_52w_gain_pct: float | None = None
+    drawdown_from_52w_high_pct: float | None = None
+    candidate_bucket_if_any: str | None = None
+
+    def to_dict(self) -> dict:
+        return {**self.__dict__}
+
+
+@dataclass
+class WindowAuditRow:
+    symbol: str
+    last_252_trading_rows: BasisResult
+    calendar_52_weeks: BasisResult
+    high_diff_between_basis_pct: float | None = None
+    low_diff_between_basis_pct: float | None = None
+    reference_close_diff_between_basis_pct: float | None = None
+    bucket_changed_between_basis: bool = False
+    naver_low: float | None = None
+    low_252_vs_naver_diff_pct: float | None = None
+    low_calendar_vs_naver_diff_pct: float | None = None
+    naver_major_diff_explainable_by_window_basis: str = "unknown"
+
+    def to_dict(self) -> dict:
+        return {
+            **{k: v for k, v in self.__dict__.items()
+               if k not in ("last_252_trading_rows", "calendar_52_weeks")},
+            "last_252_trading_rows": self.last_252_trading_rows.to_dict(),
+            "calendar_52_weeks": self.calendar_52_weeks.to_dict(),
+        }
+
+
+def _basis_from_rows(symbol: str, basis: str, rows: list) -> BasisResult:
+    if not rows:
+        return BasisResult(basis=basis, row_count=0)
+    highs = [(float(r.high), r.ts) for r in rows]
+    lows = [(float(r.low), r.ts) for r in rows]
+    hi_v, hi_ts = max(highs, key=lambda x: x[0])
+    lo_v, lo_ts = min(lows, key=lambda x: x[0])
+    last = rows[-1]
+    close = float(last.close)
+    m = compute_metrics(symbol, rows)
+    return BasisResult(
+        basis=basis, row_count=len(rows),
+        first_date=_kst_date(rows[0].ts), last_date=_kst_date(last.ts),
+        reference_close=round(close, 2), reference_close_date=_kst_date(last.ts),
+        high_52w=round(hi_v, 2), high_52w_date=_kst_date(hi_ts),
+        low_52w=round(lo_v, 2), low_52w_date=_kst_date(lo_ts),
+        low_52w_gain_pct=round((close / lo_v - 1) * 100, 2) if lo_v else None,
+        drawdown_from_52w_high_pct=round((hi_v - close) / hi_v * 100, 2) if hi_v else None,
+        candidate_bucket_if_any=m.candidate_bucket_operational,
+    )
+
+
+async def window_basis_audit(
+    session: AsyncSession, reference: dict | None, symbols: list[str] | None = None
+) -> list[WindowAuditRow]:
+    """last_252_trading_rows vs calendar_52_weeks 비교(읽기 전용). DB write 0 · 외부/KIS 0.
+
+    reference(manual snapshot)가 있으면 Naver low와의 차이로 window basis 설명 가능성을 판정한다.
+    """
+    universe = (symbols if symbols else list(PILOT_SYMBOLS))[:MAX_SCAN_SYMBOLS]
+    ref_by_symbol = {s["symbol"]: s for s in (reference or {}).get("symbols", [])}
+    out: list[WindowAuditRow] = []
+    for sym in universe:
+        rows = list((await session.execute(
+            select(MarketData)
+            .where(MarketData.symbol_code == sym, MarketData.timeframe == DAILY_TIMEFRAME)
+            .order_by(MarketData.ts.asc())
+        )).scalars().all())
+        last252 = _basis_from_rows(sym, "last_252_trading_rows", rows[-252:])
+        if rows:
+            cutoff = rows[-1].ts - _timedelta(days=CALENDAR_52_WEEKS_DAYS)
+            cal_rows = [r for r in rows if r.ts >= cutoff]
+        else:
+            cal_rows = []
+        cal = _basis_from_rows(sym, "calendar_52_weeks", cal_rows)
+
+        row = WindowAuditRow(symbol=sym, last_252_trading_rows=last252, calendar_52_weeks=cal)
+        if last252.high_52w and cal.high_52w:
+            row.high_diff_between_basis_pct = _pct(cal.high_52w, last252.high_52w)
+        if last252.low_52w and cal.low_52w:
+            row.low_diff_between_basis_pct = _pct(cal.low_52w, last252.low_52w)
+        if last252.reference_close and cal.reference_close:
+            row.reference_close_diff_between_basis_pct = _pct(cal.reference_close, last252.reference_close)
+        row.bucket_changed_between_basis = (
+            last252.candidate_bucket_if_any != cal.candidate_bucket_if_any
+        )
+
+        ref = ref_by_symbol.get(sym)
+        naver_low = None
+        if ref is not None and not _is_placeholder(ref):
+            naver_low = float(ref.get("low_52w") or 0) or None
+        row.naver_low = naver_low
+        if naver_low:
+            if last252.low_52w:
+                row.low_252_vs_naver_diff_pct = _pct(last252.low_52w, naver_low)
+            if cal.low_52w:
+                row.low_calendar_vs_naver_diff_pct = _pct(cal.low_52w, naver_low)
+            cal_ok = (row.low_calendar_vs_naver_diff_pct is not None
+                      and abs(row.low_calendar_vs_naver_diff_pct) <= WINDOW_EXPLAIN_PCT)
+            row.naver_major_diff_explainable_by_window_basis = "true" if cal_ok else "false"
+        else:
+            row.naver_major_diff_explainable_by_window_basis = "unknown"
+        out.append(row)
+    return out

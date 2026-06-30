@@ -70,3 +70,13 @@ Summary: matched 0 · minor_diff 3 · major_diff 2 · missing_db_data 0 · missi
 - 051910 `low_52w` 차이(200,500 vs 212,000) 원인 확인.
 - 가능하면 같은 출처(네이버증권)에서 52주 low 산식/기간/수정주가 기준 재확인.
 - major_diff 원인이 설명되기 전까지 **CandidateEvent 금지**.
+
+## 52W Window Basis Audit (M2.15F-3F)
+
+→ audit 결과: **[52w-window-basis-audit-2026-06-29.md](52w-window-basis-audit-2026-06-29.md)**.
+
+- 결론: **005930·051910 major_diff는 52주 window basis 차이로 설명됨** — DB는 trading-day 252-row window
+  (2025-06-18~), Naver는 calendar-52주(≈2025-06-30~). calendar-52주 기준 low가 Naver low와 ≤2%로 일치
+  (005930 59,800 정확 일치, 051910 -5.43%→-1.89%).
+- **그럼에도 CandidateEvent는 여전히 차단(blocked)** — 설명은 됐으나 진행은 사람의 별도 승인이 필요하며,
+  DB는 수정하지 않는다(window 정의 차이일 뿐 DB는 정상).
