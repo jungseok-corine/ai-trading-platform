@@ -91,13 +91,10 @@ def test_migration_does_not_alter_existing_tables():
             assert token not in src
 
 
-def test_only_create_candidate_event_route_no_read_or_mutate():
-    # G-5 불변: candidate-events route는 explicit create POST 하나만. read/list/update/delete/bulk 금지.
-    route = (BACKEND / "app" / "api" / "v1" / "leader_trend.py").read_text(encoding="utf-8")
-    assert '@router.post(\n    "/candidate-events/research-only"' in route  # create-only 존재
-    for forbidden in (
-        '@router.get("/candidate-events"', '@router.get("/candidate-events/{',
-        '@router.put("/candidate-events', '@router.patch("/candidate-events',
-        '@router.delete("/candidate-events', "/candidate-events/bulk", "/candidate-events/save-all",
-    ):
-        assert forbidden not in route, f"forbidden candidate-events route: {forbidden}"
+def test_no_candidate_event_api_route():
+    # G-2/G-4 불변: API route에 leader_trend candidate-events 경로/모델 미존재(create API는 G-5+).
+    api_dir = BACKEND / "app" / "api" / "v1"
+    for p in api_dir.glob("*.py"):
+        txt = p.read_text(encoding="utf-8")
+        assert "leader_trend_candidate_events" not in txt
+        assert "LeaderTrendCandidateEvent" not in txt
