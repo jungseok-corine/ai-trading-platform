@@ -1,0 +1,186 @@
+# RISK-FIX-1 Risk-Reducing Exit Policy Design
+
+> **설계 문서만.** risk rule 코드 수정 0 · RiskConfig 수정 0 · DB write 0 · consecutive loss reset 0 ·
+> position/trade 수정 0 · scheduler/broker/KIS 0 · migration 0 · frontend 0.
+> 진단 근거: [`docs/diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md`](../diagnostics/no-trades-after-2026-06-26-risk-circuit-breaker.md).
+
+## 1. Purpose
+
+2026-06-26 이후 매매 중단 원인인 risk deadlock을 해결하기 위한 설계다.
+
+핵심 목표:
+
+* 위험을 늘리는 신규 진입은 계속 제한한다.
+* 위험을 줄이는 청산/손절은 risk rule 때문에 막히지 않도록 한다.
+* 수수료성 break-even round-trip이 연속 손실 제한을 과도하게 트립하지 않도록 한다.
+* max_position_size가 청산을 막는 데드락을 방지한다.
+
+## 2. Non-goals
+
+이번 설계의 비목표:
+
+* risk limit 완화
+* emergency stop 해제
+* consecutive loss streak 수동 reset
+* open position 수동 수정
+* 실거래 활성화
+* 자동 주문 활성화
+* 전략 수익성 개선
+* AI 분석 연결
+* scheduler 활성화
+
+## 3. Problems Found
+
+### Problem A: ConsecutiveLossLimit blocks exits
+
+현재 `ConsecutiveLossLimitRule`(`app/trading/risk/rules.py`)이 side/action 구분 없이 작동하여 SELL/exit까지 막는다.
+
+문제:
+
+* 손절이 필요한 상황에서도 손절이 막힘
+* 포지션을 줄일 수 없음
+* max_open_positions도 계속 걸림
+
+### Problem B: MaxPositionSize blocks exits
+
+현재 `MaxPositionSizeRule`이 order_amount(`price * quantity`) 기준으로 SELL/exit까지 막는다.
+
+문제:
+
+* 이미 보유 중인 고가 포지션을 청산하려 할 때 주문금액이 1M을 넘으면 청산이 막힘
+* 리스크를 줄이는 매도 주문이 오히려 risk rule에 의해 거부됨
+
+### Problem C: Fee-only break-even losses trip consecutive loss limit
+
+현재 `_count_consecutive_losses`(`app/trading/risk/context.py`)가 `pnl_amount < 0`이면 손실로 카운트한다.
+
+문제:
+
+* entry_price == exit_price이고 pnl_pct == 0%인데 수수료/세금 때문에 pnl_amount만 음수인 경우도 손실 streak로 카운트
+* 실질 가격 방향 손실이 아닌데 circuit breaker가 과도하게 트립됨
+
+### Problem D: Entry sizing does not fully prevent future exit deadlock
+
+고가주에서 진입 수량이 작아도 order_value가 max_position_size에 근접하거나 초과할 수 있다.
+진입은 통과하지만 이후 청산 주문금액이 한도를 넘어 Problem B 데드락을 유발한다.
+
+## 4. Proposed Policy
+
+### Policy 1: Risk-increasing vs risk-reducing action 구분
+
+risk check context에 action nature를 명시한다.
+
+예시:
+
+* `BUY_OPEN`
+* `BUY_INCREASE`
+* `SELL_REDUCE`
+* `SELL_CLOSE`
+* `SELL_SHORT`는 현재 미지원이면 금지
+
+초기 단순 정책:
+
+* BUY는 risk-increasing
+* SELL은 existing long position을 줄이는 경우 risk-reducing
+* risk-reducing SELL은 `consecutive_loss_limit`과 `max_position_size`에서 제외 또는 완화
+* 단, emergency_stop은 모든 action을 막을지 별도 정책 필요
+
+### Policy 2: ConsecutiveLossLimit should block new entries, not exits
+
+권장:
+
+* `ConsecutiveLossLimitRule`은 신규 BUY/진입만 차단
+* SELL/exit는 허용
+* 단, SELL이 포지션을 늘리는 구조가 없다는 전제 필요
+
+### Policy 3: MaxPositionSize should apply to entries, not reducing exits
+
+권장:
+
+* `MaxPositionSizeRule`은 BUY/open/increase에만 적용
+* SELL/reduce/close는 기존 포지션을 줄이는 행위이므로 차단하지 않음
+* 필요 시 max order notional rule과 position size rule을 분리
+
+### Policy 4: Fee-only break-even should not count as consecutive loss
+
+권장:
+
+* consecutive loss count는 다음 중 하나로 계산:
+  * `directional_return_pct < -epsilon`
+  * 또는 `pnl_pct < -epsilon`
+  * 또는 `pnl_amount < 0 AND pnl_pct < -epsilon`
+* epsilon 예시:
+  * 0.01%
+  * 0.05%
+  * 프로젝트 데이터 기준으로 결정
+
+주의:
+
+* 수수료성 손실을 완전히 무시할지, 별도 fee_drag 지표로 관리할지 결정 필요
+* 실제 자본 손실은 맞지만 전략 방향 손실과 구분해야 함
+
+### Policy 5: Entry sizing cap
+
+진입 수량 계산 시:
+
+* `price * quantity <= max_position_size`
+* 위 조건을 만족하도록 quantity를 줄인다.
+* quantity가 0이 되면 trade attempt reject:
+  * reason: `quantity_below_min_after_position_size_cap`
+
+## 5. Recommended Implementation Breakdown
+
+순서:
+
+* RISK-FIX-1A: design only (이 문서)
+* RISK-FIX-1B: unit tests for current deadlock reproduction
+* RISK-FIX-1C: ConsecutiveLossLimitRule exits allowed
+* RISK-FIX-1D: MaxPositionSizeRule exits allowed
+* RISK-FIX-1E: consecutive loss calculation with fee-only break-even tolerance
+* RISK-FIX-1F: entry sizing cap design
+* RISK-FIX-1G: paper trading resume decision, human approval only
+
+## 6. Test Plan
+
+필수 테스트:
+
+* consecutive loss limit blocks BUY
+* consecutive loss limit allows SELL close
+* max position size blocks BUY above limit
+* max position size allows SELL close above notional limit
+* max open positions blocks new BUY
+* max open positions does not block SELL close
+* emergency stop behavior explicitly tested
+* fee-only break-even trade not counted as directional loss
+* real directional loss still counted
+* existing reject behavior for risky BUY remains intact
+* no broker/KIS/order call in risk unit tests
+* no DB write in pure risk tests
+
+## 7. Safety Gates
+
+구현 전 확인:
+
+* paper/live 모두에 적용 가능한가
+* SELL이 실제로 long position reduce인지 확인 가능한가
+* short sell/unsupported sell은 어떻게 처리할 것인가
+* emergency_stop은 exits를 허용할지, 모든 것을 막을지 결정 필요
+* quantity sizing cap이 기존 전략 결과와 충돌하지 않는지 확인 필요
+
+## 8. Final Recommendation
+
+권장:
+
+1. RiskConfig 한도를 올리지 말 것
+2. consecutive loss streak를 수동 reset하지 말 것
+3. 먼저 risk-reducing exit policy를 구현할 것
+4. 그 다음 fee-only break-even 손실 카운트 기준을 수정할 것
+5. 마지막으로 entry sizing cap을 설계할 것
+
+## 9. Final Decision
+
+* SAFE TO IMPLEMENT RISK-FIX-1B TESTS NEXT: yes
+* SAFE TO CHANGE RISK RULES NOW WITHOUT TESTS: no
+* SAFE TO MODIFY RISKCONFIG NOW: no
+* SAFE TO RESET LOSS STREAK NOW: no
+* SAFE TO ENABLE TRADING NOW: no
