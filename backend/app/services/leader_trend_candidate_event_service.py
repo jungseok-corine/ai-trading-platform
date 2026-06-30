@@ -71,6 +71,7 @@ class LeaderTrendCandidateEventService:
     """create policy를 강제하는 서비스. **읽기/append-only · 주문/스케줄러 부작용 없음.**"""
 
     def __init__(self, session: AsyncSession) -> None:
+        self._session = session
         self._repo = LeaderTrendCandidateEventRepository(session)
 
     @staticmethod
@@ -145,4 +146,6 @@ class LeaderTrendCandidateEventService:
             source_basis_note=inp.source_basis_note, notes=inp.notes,
             provenance_warning=inp.provenance_warning, safety_warning=inp.safety_warning,
         )
-        return await self._repo.create(event)
+        created = await self._repo.create(event)
+        await self._session.commit()  # 단일 record append 후 커밋(주문/신호 부작용 없음)
+        return created

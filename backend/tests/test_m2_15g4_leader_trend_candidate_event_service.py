@@ -109,10 +109,13 @@ def test_service_module_no_trading_or_external():
         assert forbidden not in src, f"unexpected token: {forbidden}"
 
 
-def test_no_api_route_or_schema_for_candidate_event(tmp_path):
+def test_only_create_api_no_read_or_mutate_routes():
+    # G-5 이후: candidate-events는 create-only POST 하나. read/list/update/delete/bulk 금지.
     from pathlib import Path
-    backend = Path(__file__).resolve().parents[1]
-    api_dir = backend / "app" / "api" / "v1"
-    for p in api_dir.glob("*.py"):
-        assert "leader_trend_candidate_events" not in p.read_text(encoding="utf-8")
-        assert "LeaderTrendCandidateEvent" not in p.read_text(encoding="utf-8")
+    route = (Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "leader_trend.py").read_text(encoding="utf-8")
+    assert "/candidate-events/research-only" in route
+    for forbidden in ('@router.get("/candidate-events"', '@router.get("/candidate-events/{',
+                      '@router.put("/candidate-events', '@router.patch("/candidate-events',
+                      '@router.delete("/candidate-events', "/candidate-events/bulk",
+                      "/candidate-events/save-all"):
+        assert forbidden not in route
