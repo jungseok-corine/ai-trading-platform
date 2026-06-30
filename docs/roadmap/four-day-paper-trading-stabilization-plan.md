@@ -150,6 +150,9 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
    **PAPER-RESUME-3** candidate selection plan **(설계 완료)** —
    [`docs/operations/limited-paper-candidate-selection-plan.md`](../operations/limited-paper-candidate-selection-plan.md):
    universe 축소는 코드 미지원 → single-symbol 신규 후보(Option D) + exit-first 권장.
+   **PAPER-RESUME-4A** creation preflight **(완료)** —
+   [`docs/operations/limited-single-symbol-candidate-preflight.md`](../operations/limited-single-symbol-candidate-preflight.md):
+   DRAFT+auto_trade_enabled=false 이중 안전 게이트, 필드/파라미터/rollback/승인문구 확정.
 5. **RISK-AI-1A** — AI stop-loss/take-profit recommendation-only design.
 6. **OPERATIONS-1** — paper trading runbook.
 

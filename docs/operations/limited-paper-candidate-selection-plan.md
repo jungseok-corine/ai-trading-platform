@@ -112,6 +112,8 @@ rollback/disable:
 ## Next Implementation Tasks
 
 * **PAPER-RESUME-4A** — limited candidate creation preflight: strategy/version/symbol/parameters 확정 + rollback plan.
+  **(완료)** [`limited-single-symbol-candidate-preflight.md`](limited-single-symbol-candidate-preflight.md) —
+  DRAFT+auto_trade_enabled=false 이중 안전 게이트, `moving_average_cross` 권장, symbol은 사용자 입력.
 * **PAPER-RESUME-4B** — human-approved limited candidate **생성**(DB write): single-symbol, KR, account 230,
   `auto_trade_enabled=false`, `universe_auto_trade=false`, 손절/익절 명시.
 * **PAPER-RESUME-4C** — human-approved limited `auto_trade_enable`: 승인 candidate만 enable, broad universe 금지, rollback 포함.
