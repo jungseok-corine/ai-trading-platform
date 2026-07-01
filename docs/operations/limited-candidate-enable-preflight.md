@@ -117,6 +117,24 @@ live trading은 절대 건드리지 마세요.
 
 > 주의: BUY 체결은 open positions가 5 미만으로 줄어든 뒤에야 가능(현재 6≥5로 MOP 차단). 4D 전 포지션 정리 권장.
 
+## UI-PARAMS-FIX-1 (UI 저장으로 오염된 parameters 복구)
+
+웹 UI 편집 폼 저장(2026-07-01 13:00)이 v329 parameters를 전체 폼 스키마로 덮어써 오염됐다:
+* 상단 **"활성화" 체크박스는 `enabled` 필드**(하단 `auto_trade_enabled`와 **별개**)에 매핑되며,
+  체크 해제로 **`enabled=false` 저장 → 러너가 v329를 스킵**(`_run_version:115` `if not enabled: return []`).
+* **`timeframe='5'`**(무효; 유효값 `1m`/`5m`) → 캔들 조회 실패.
+* **`universe` key(값 None) 추가** → "universe key absent" invariant 위반.
+* RSI/MACD/volume/surge/breakout/flow/cash 등 무관한 UI default key 다수 추가(42 keys).
+
+**복구(UI-PARAMS-FIX-1, sanitized restore)**: v329 parameters를 allowed key set(14개)로 정리 —
+`enabled=true` · `timeframe='1m'` · `universe` key 제거 · 스퍼리어스 key 제거 · `auto_trade_enabled=true` 유지 ·
+`universe_auto_trade=false` 유지 · symbol 005930/KR/230/qty1/mopr1/short5·long20/SL1.0·TP1.5 유지 · status TESTING 유지.
+복구 직후 side-effect 0(signal_logs 10→10, trades 0). broad universe count 0, RiskConfig/scheduler 불변.
+helper: `limited_paper_candidate.restore_limited_auto_trade_parameters`(TESTING·symbol·account·market·strategy_type·paper 가드).
+
+> 교훈: 편집 폼 저장이 parameters를 전체 스키마로 덮어써 좁게 관리하던 limited 후보를 오염시킬 수 있다.
+> resume 전 `enabled=true` · `timeframe` 유효 · `universe` key 없음을 반드시 재확인한다.
+
 ## PAPER-RESUME-4D Result (limited paper auto-trade ENABLED)
 
 사용자 승인으로 v329의 `auto_trade_enabled`를 **false → true**로 전환했다(2026-07-01 11:42 KST).

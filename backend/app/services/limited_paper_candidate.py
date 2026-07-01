@@ -39,6 +39,18 @@ class LimitedAutoTradeEnableError(Exception):
     """limited single-symbol auto-trade enable 정책 위반."""
 
 
+class LimitedCandidateRestoreError(Exception):
+    """limited single-symbol candidate parameters 복구 정책 위반."""
+
+
+# UI 폼 저장으로 오염된 parameters를 정리할 때 남길 허용 key set(single-symbol MA cross).
+_LIMITED_ALLOWED_KEYS = (
+    "enabled", "strategy_type", "symbol_code", "market", "account_id", "quantity",
+    "short_window", "long_window", "timeframe", "stop_loss_pct", "take_profit_pct",
+    "max_orders_per_run", "auto_trade_enabled", "universe_auto_trade",
+)
+
+
 _BROAD_UNIVERSES = ("watchlist", "scanner_candidates")
 
 
@@ -210,3 +222,66 @@ async def enable_limited_auto_trade(
     # auto_trade_enabled만 true로. status/그 외 필드 미변경.
     p["auto_trade_enabled"] = True
     return await StrategyService(session).update_version(strategy_id, version_id, parameters=p)
+
+
+async def restore_limited_auto_trade_parameters(
+    session, *, strategy_id: int, version_id: int,
+    expected_symbol: str = "005930", expected_account_id: int = 230,
+) -> StrategyVersion:
+    """UI 폼 저장으로 오염된 limited single-symbol 후보 parameters를 의도 상태로 sanitize한다.
+
+    강제(복구): `enabled=true` · `timeframe='1m'` · `auto_trade_enabled=true` ·
+    `universe_auto_trade=false` · `universe` key 제거 · allowed key set 밖의 UI default key 제거.
+    보존: symbol_code · market · account_id · quantity · short/long_window · stop_loss/take_profit_pct ·
+    max_orders_per_run · strategy_type. status는 변경하지 않는다(TESTING 유지).
+
+    가드(위반 시 변경 없이 raise): status != TESTING · symbol/market/account/strategy_type 불일치 ·
+    account가 paper 아님(live 보호).
+    """
+    version = await StrategyVersionRepository(session).get(version_id)
+    if version is None or version.strategy_id != strategy_id:
+        raise LimitedCandidateRestoreError(f"version {version_id} (strategy {strategy_id}) not found")
+    if version.status != StrategyVersionStatus.TESTING:
+        raise LimitedCandidateRestoreError(
+            f"status가 {version.status.value} — TESTING 후보만 복구 가능")
+    p = dict(version.parameters or {})
+    if p.get("symbol_code") != expected_symbol:
+        raise LimitedCandidateRestoreError(
+            f"symbol_code {p.get('symbol_code')!r} != {expected_symbol!r} — 복구 거부")
+    if p.get("account_id") != expected_account_id:
+        raise LimitedCandidateRestoreError(
+            f"account_id {p.get('account_id')!r} != {expected_account_id} — 복구 거부")
+    if p.get("market") != "KR":
+        raise LimitedCandidateRestoreError("market != KR — 복구 거부")
+    if p.get("strategy_type") != "moving_average_cross":
+        raise LimitedCandidateRestoreError(
+            f"strategy_type {p.get('strategy_type')!r} != moving_average_cross — 복구 거부")
+
+    from app.domain.models.enums import AccountType  # noqa: PLC0415
+    account = await AccountRepository(session).get(int(expected_account_id))
+    if account is None or account.account_type != AccountType.PAPER:
+        raise LimitedCandidateRestoreError(
+            f"account {expected_account_id}가 paper가 아님 — 복구 거부(live 보호)")
+
+    # allowed key만 남긴 깨끗한 parameters 재구성. 강제값 + 보존값.
+    clean = {
+        "enabled": True,
+        "strategy_type": "moving_average_cross",
+        "symbol_code": expected_symbol,
+        "market": "KR",
+        "account_id": expected_account_id,
+        "quantity": p.get("quantity", 1),
+        "short_window": p.get("short_window", 5),
+        "long_window": p.get("long_window", 20),
+        "timeframe": "1m",
+        "stop_loss_pct": p.get("stop_loss_pct", 1.0),
+        "take_profit_pct": p.get("take_profit_pct", 1.5),
+        "max_orders_per_run": p.get("max_orders_per_run", 1),
+        "auto_trade_enabled": True,
+        "universe_auto_trade": False,
+    }
+    # 방어: allowed key set만 남는지 확인(universe 등 스퍼리어스 key 제거 보장).
+    assert set(clean.keys()) <= set(_LIMITED_ALLOWED_KEYS)
+    assert "universe" not in clean
+
+    return await StrategyService(session).update_version(strategy_id, version_id, parameters=clean)
