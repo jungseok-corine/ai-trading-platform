@@ -117,6 +117,18 @@ live trading은 절대 건드리지 마세요.
 
 > 주의: BUY 체결은 open positions가 5 미만으로 줄어든 뒤에야 가능(현재 6≥5로 MOP 차단). 4D 전 포지션 정리 권장.
 
+## PAPER-RESUME-4D-GUARD Result (SELL-without-holding guard added)
+
+auto-trade enable(4D) 전 필수 가드를 구현했다: `StrategyRunnerService._attempt_auto_trade`에서
+**SELL 신호인데 브로커 보유수량이 0이면 `execute_signal`(broker) 호출/risk 검증 전에 스킵**한다.
+* 보유수량 판정은 SL/TP와 동일하게 `trade_service.get_holdings`(브로커 잔고) 기준 → DB 불일치에 의존하지 않음.
+* **BUY 미영향** · **보유 포지션 SELL(청산)은 기존 경로 유지**(RISK-FIX-1C/1D 원칙 보존) · broker 거부에 의존하지 않음.
+* SignalLog `trade_attempt_status`는 `REJECTED`로 기록, `result.rejection_reason`에 `sell_without_holding` 명시.
+* 미보유 SELL은 Trade/Order/risk_event를 만들지 않는다.
+* 코드: `app/services/strategy_runner_service.py`. 테스트: `test_sell_without_holding_guard.py`(6).
+* v329는 여전히 `auto_trade_enabled=false`(미변경). 이제 4D 시 005930 미보유 SELL은 코드에서 안전 스킵되고,
+  골든크로스 BUY만 실제 진입 대상이 된다.
+
 ## PAPER-RESUME-4C Result (signal-only enabled)
 
 사용자 승인으로 v329를 signal-only로 전환했다(status 컬럼만 변경, parameters 미변경):

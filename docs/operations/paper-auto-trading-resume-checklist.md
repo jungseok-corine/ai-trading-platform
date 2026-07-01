@@ -54,6 +54,11 @@ resume 전 **broad `universe_auto_trade=true` 버전이 남아 있지 않은지*
 2026-07-01 기준 account 230의 universe auto-trade 8개(298/300/302/304/315/316/317/318)는
 PAPER-RESUME-UNIVERSE-OFF로 `universe_auto_trade=false` 처리됨. 새 universe 전략을 켤 때도 동일 점검.
 
+## Before Resume — SELL-without-holding guard present
+
+auto-trade enable 전 **미보유 종목 SELL이 broker 호출 전에 스킵되는 가드**가 있어야 한다
+(PAPER-RESUME-4D-GUARD, `_attempt_auto_trade`). 보유 SELL(청산)·BUY는 영향 없음. broker 거부에 의존하지 않음.
+
 ## What This Endpoint Does Not Do
 
 * does not enable trading

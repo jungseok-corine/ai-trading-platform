@@ -128,6 +128,8 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
   scheduler-visible·order-disabled. 주문/Trade 없음. auto-trade(4D)는 관찰 + 사람 승인 후.
 * **PAPER-RESUME-UNIVERSE-OFF 완료 — broad universe auto-trade 8개 비활성화**(298/300/302/304/315/316/317/318,
   `universe_auto_trade=false`, status testing 유지). full-universe auto-trade attempt 차단 → 이번주 제한 paper scope 정렬.
+* **PAPER-RESUME-4D-GUARD 완료 — 미보유 SELL auto-trade 스킵 가드**(`_attempt_auto_trade`, broker 잔고 기준).
+  보유 SELL/BUY 미영향. 4D(auto_trade_enabled=true) enable 전 필수 안전장치 완료.
 
 ### Day 4 — Stop/Take-Profit Baseline + AI Recommendation Design + Runbook
 * 목표: 기본 손절/익절 정책 확정 · AI는 recommendation-only 설계 · 이번주 운영 결과를 runbook으로 정리.

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.market_session import is_closing_auction, is_signal_active
 from app.core.config import get_settings
-from app.domain.models.enums import MarketCode, TradeAttemptStatus
+from app.domain.models.enums import MarketCode, TradeAttemptStatus, TradeSide
 from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
 from app.domain.repositories.signal_log import SignalLogRepository
@@ -337,6 +337,31 @@ class StrategyRunnerService:
             result.error = "TradeService가 설정되지 않아 자동 주문을 실행할 수 없습니다."
             logger.warning("strategy_version_id=%s: %s", version.id, result.error)
             return
+
+        # PAPER-RESUME-4D-GUARD: 미보유 종목 SELL은 청산(exit)이 아니므로 broker 호출/risk 검증 전에
+        # 스킵한다. 보유 포지션 SELL은 정상 청산 경로를 그대로 유지한다(RISK-FIX-1C/1D 원칙 보존).
+        # 보유수량은 SL/TP 판정과 동일하게 브로커 잔고(get_holdings)를 기준으로 확인한다. BUY 미영향.
+        if log.signal_type == TradeSide.SELL:
+            market = params.get("market", "KR")
+            try:
+                holdings = await self._trade_service.get_holdings(market)
+            except Exception as exc:  # noqa: BLE001 - 잔고 조회 실패 시 보수적으로 스킵
+                logger.warning("SELL guard 잔고 조회 실패 — 보수적 스킵: %s", exc_message(exc))
+                holdings = {}
+            holding = holdings.get(log.symbol_code) if holdings else None
+            held_quantity = int(getattr(holding, "quantity", 0) or 0) if holding is not None else 0
+            if held_quantity <= 0:
+                result.rejection_reason = (
+                    f"sell_without_holding: no position to sell "
+                    f"(account_id={account_id}, symbol={log.symbol_code})"
+                )
+                logger.info(
+                    "strategy_version_id=%s: SELL auto-trade skipped — no holding "
+                    "(account=%s symbol=%s). broker 주문 없음.",
+                    version.id, account_id, log.symbol_code,
+                )
+                await self._mark_trade_attempt(log, TradeAttemptStatus.REJECTED)
+                return
 
         # 포지션 사이징: fixed/cash_amount/cash_pct에 따라 수량을 동적으로 계산한다.
         quantity = await self._resolve_quantity(params, log)
