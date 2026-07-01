@@ -35,6 +35,10 @@ class DisableUniverseAutoTradeError(Exception):
     """broad universe auto-trade 비활성 정책 위반."""
 
 
+class LimitedAutoTradeEnableError(Exception):
+    """limited single-symbol auto-trade enable 정책 위반."""
+
+
 _BROAD_UNIVERSES = ("watchlist", "scanner_candidates")
 
 
@@ -159,4 +163,50 @@ async def disable_universe_auto_trade(
         p["auto_trade_enabled"] = False
 
     # parameters JSONB만 변경(status 미변경).
+    return await StrategyService(session).update_version(strategy_id, version_id, parameters=p)
+
+
+async def enable_limited_auto_trade(
+    session, *, strategy_id: int, version_id: int
+) -> StrategyVersion:
+    """limited **single-symbol paper** 후보의 auto_trade_enabled를 false→true로 켠다.
+
+    parameters.auto_trade_enabled만 true로 바꾼다. status/symbol/quantity/universe 등 다른 필드는
+    변경하지 않는다. 다음 가드를 위반하면 변경 없이 raise한다:
+      - status가 TESTING이 아니면 거부(ACTIVE/DRAFT 금지).
+      - `universe` key가 있거나 universe_auto_trade=true이면 거부(broad universe 금지).
+      - symbol_code가 없으면 거부(single-symbol만).
+      - market != 'KR'이면 거부.
+      - account_id 연결 계좌가 paper가 아니면 거부(live 보호).
+      - 이미 auto_trade_enabled=true이면 거부(중복).
+    """
+    version = await StrategyVersionRepository(session).get(version_id)
+    if version is None or version.strategy_id != strategy_id:
+        raise LimitedAutoTradeEnableError(f"version {version_id} (strategy {strategy_id}) not found")
+    if version.status != StrategyVersionStatus.TESTING:
+        raise LimitedAutoTradeEnableError(
+            f"status가 {version.status.value} — TESTING만 auto-trade enable 가능")
+    p = dict(version.parameters or {})
+    if "universe" in p:
+        raise LimitedAutoTradeEnableError("`universe` key present — broad universe는 enable 금지")
+    if p.get("universe_auto_trade") is True:
+        raise LimitedAutoTradeEnableError("universe_auto_trade=true — broad universe는 enable 금지")
+    if not p.get("symbol_code"):
+        raise LimitedAutoTradeEnableError("symbol_code 없음 — single-symbol 후보만 enable 가능")
+    if p.get("market") != "KR":
+        raise LimitedAutoTradeEnableError("market이 KR이 아님 — enable 금지")
+    if p.get("auto_trade_enabled") is True:
+        raise LimitedAutoTradeEnableError("이미 auto_trade_enabled=true")
+
+    account_id = p.get("account_id")
+    if account_id is None:
+        raise LimitedAutoTradeEnableError("account_id 없음 — enable 금지")
+    from app.domain.models.enums import AccountType  # noqa: PLC0415
+    account = await AccountRepository(session).get(int(account_id))
+    if account is None or account.account_type != AccountType.PAPER:
+        raise LimitedAutoTradeEnableError(
+            f"account {account_id}가 paper가 아님 — enable 금지(live 보호)")
+
+    # auto_trade_enabled만 true로. status/그 외 필드 미변경.
+    p["auto_trade_enabled"] = True
     return await StrategyService(session).update_version(strategy_id, version_id, parameters=p)

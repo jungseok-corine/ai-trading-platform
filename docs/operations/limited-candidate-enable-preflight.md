@@ -117,6 +117,20 @@ live trading은 절대 건드리지 마세요.
 
 > 주의: BUY 체결은 open positions가 5 미만으로 줄어든 뒤에야 가능(현재 6≥5로 MOP 차단). 4D 전 포지션 정리 권장.
 
+## PAPER-RESUME-4D Result (limited paper auto-trade ENABLED)
+
+사용자 승인으로 v329의 `auto_trade_enabled`를 **false → true**로 전환했다(2026-07-01 11:42 KST).
+* strategy_version_id **329**: `auto_trade_enabled=true` · **status TESTING 유지** · `universe_auto_trade=false` 유지 ·
+  `universe` key 없음 유지 · symbol 005930 · account 230(paper) · quantity 1 · max_orders_per_run 1 · SL 1.0 / TP 1.5.
+* enable 직후(≈27s): v329 신규 SignalLog/Trade/RiskEvent **0**(다음 005930 MA 교차 신호에서 주문 시도 예정).
+* 안전 유지: broad universe_auto_trade=true **0** · universe 버전 auto_trade_enabled=true **0** ·
+  **ate=true는 v329 하나뿐** · RiskConfig 불변 · open positions 0 · scheduler/dispatcher 불변 · KIS_REAL_TRADING_ENABLED=false.
+* 예상 동작: 골든크로스 **BUY → paper 주문**(qty1, max_position_size cap); 미보유 데드크로스 **SELL → guard 스킵(REJECTED)**.
+* enable 경로: `limited_paper_candidate.enable_limited_auto_trade`(TESTING·single-symbol·KR·paper·non-universe 가드).
+* rollback: 문제 시 즉시 `auto_trade_enabled=false`.
+
+**다음 단계: PAPER-RESUME-5 post-run report** — 첫 주문/스킵/리스크 결과를 관찰한다.
+
 ## PAPER-RESUME-4D-GUARD Result (SELL-without-holding guard added)
 
 auto-trade enable(4D) 전 필수 가드를 구현했다: `StrategyRunnerService._attempt_auto_trade`에서

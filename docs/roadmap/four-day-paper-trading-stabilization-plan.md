@@ -130,6 +130,9 @@ rollback/runbook 준비 · 별도 human approval. **이번주에는 `KIS_REAL_TR
   `universe_auto_trade=false`, status testing 유지). full-universe auto-trade attempt 차단 → 이번주 제한 paper scope 정렬.
 * **PAPER-RESUME-4D-GUARD 완료 — 미보유 SELL auto-trade 스킵 가드**(`_attempt_auto_trade`, broker 잔고 기준).
   보유 SELL/BUY 미영향. 4D(auto_trade_enabled=true) enable 전 필수 안전장치 완료.
+* **PAPER-RESUME-4D 완료 — v329 limited paper auto-trade ENABLED**(2026-07-01, `auto_trade_enabled=true`,
+  status TESTING 유지, 005930/KR/230/qty1/mopr1). 골든크로스 BUY만 paper 주문, 미보유 SELL은 guard 스킵.
+  broad universe·live 금지 유지. **post-run 관찰(PAPER-RESUME-5) 대기.**
 
 ### Day 4 — Stop/Take-Profit Baseline + AI Recommendation Design + Runbook
 * 목표: 기본 손절/익절 정책 확정 · AI는 recommendation-only 설계 · 이번주 운영 결과를 runbook으로 정리.
