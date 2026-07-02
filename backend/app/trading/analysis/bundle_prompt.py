@@ -54,6 +54,16 @@ def format_bundle_for_prompt(bundle: dict, assessment: dict | None = None) -> st
     else:
         lines.append("■ 전일 미국장 매크로: 데이터 없음(unknown)")
 
+    # C-6.11: 인트라데이 변동성 레짐 — 그날 장이 평소보다 얼마나 요동쳤는지.
+    regime = bundle.get("intraday_regime")
+    if regime:
+        lines.append(
+            f"■ 당일 변동성 레짐: {regime.get('regime')} "
+            f"(평소 대비 배율 {_fmt_num(regime.get('vol_ratio'))}, "
+            f"표본 {regime.get('symbols_used')}종목) — "
+            "elevated/extreme이면 신호 노이즈·슬리피지 증가 가능성을 감안하라"
+        )
+
     tape = bundle.get("trade_tape") or {}
     summ = tape.get("day_summary")
     if summ:

@@ -84,6 +84,24 @@ class AnalysisBundleService:
         # 룩어헤드 방지: trading_day 직전 미국 세션 기준 레짐(같은 날 미국장은 미래).
         macro = await self._macro_svc.regime_as_of(trading_day)
 
+        # C-6.11: 인트라데이 변동성 레짐 — "오늘 장이 평소보다 얼마나 요동쳤나"를
+        # LLM 컨텍스트에 제공한다. 조회 실패는 분석을 막지 않는다(None).
+        intraday_regime: dict | None = None
+        try:
+            from app.services.intraday_regime_service import IntradayRegimeService  # noqa: PLC0415
+
+            snap = await IntradayRegimeService(self._session).snapshot(
+                market=market.value if market else "KR"
+            )
+            if snap.regime != "unknown":
+                intraday_regime = {
+                    "regime": snap.regime,
+                    "vol_ratio": snap.vol_ratio,
+                    "symbols_used": snap.symbols_used,
+                }
+        except Exception:  # noqa: BLE001 - 레짐 조회 실패가 번들 생성을 막지 않도록
+            intraday_regime = None
+
         # 중요도 큐레이션(C-2.57): symbol_code 없는 universe 전략은 시장 수준 뉴스를 수집.
         news: list[dict] = await self._news_curator.curate(
             market=market, symbol_code=symbol_code, limit=news_limit
@@ -107,6 +125,7 @@ class AnalysisBundleService:
             if strategy_input is not None else None,
             "trade_tape": trade_tape,
             "macro": macro,
+            "intraday_regime": intraday_regime,
             "news": news,
             "financials": financials,
             "themes": themes,
