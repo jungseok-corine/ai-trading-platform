@@ -110,5 +110,19 @@
 - 홈(안전등+킬스위치+오늘 손익+AI 피드+승인 인박스) / 승인함 / 전략 성적표 / 운영(기존 섹션 접힘).
 - 기존 섹션 삭제 없음 — 재배치·강등만. frontend-only.
 
+### C-6 2차 구현분 (2026-07-03 야간, 전부 `DONE`)
+
+| # | 작업 | 내용 |
+|---|---|---|
+| C-6.1b | 제안-백테스트 자동 연결 | 제안 생성 시 base vs proposed 백테스트 자동 첨부 (`strategy_proposals.backtest_summary`, 마이그레이션 t1u2v3w4x5y6). **유니버스 전략도 지원**(상위 5종목 집계 — 가동 버전 70%가 유니버스라 필수였음). 제안 카드에 비교 표+verdict 배지. 게이트 `proposal_backtest_enabled=true`(read-only 계산이라 기본 on) |
+| C-6.7 | AI 의사결정 피드 | `GET /ai-activity-feed` — 분석 실행·제안 생성·사람 검토 타임라인. 홈 그룹 "AI 피드" |
+| C-6.8 | 백테스트 콘솔 UI | 전략 성적표 그룹에서 파라미터 즉시 시뮬레이션 (기존 API 사용) |
+| C-6.9 | 체결 품질 측정 | `GET /execution-quality` — 신호가 vs 체결가 슬리피지(양수=불리)·지연 집계 + UI |
+| C-6.10 | 다이제스트 슬리피지 경보 | 평균 슬리피지 ≥0.5% & 표본 ≥10건이면 attention 경보 (→ Telegram 연결 시 폰 도착) |
+| C-6.11 | LLM에 레짐 컨텍스트 주입 | 분석 번들·프롬프트에 당일 변동성 레짐 노출 — AI가 "장이 요동친 날"임을 알고 제안 |
+
+수동 테스트: `docs/testing/manual-test-checklist-c6.md` (A~E 섹션).
+
 ### 보류 (C-6 범위 외)
-- C-6.3b websocket 실시간, C-6.1b 제안-백테스트 자동 연결, 슬리피지 측정, Mac mini 배포.
+- C-6.3b websocket 실시간 (실장 검증 필요), Paper 승인 게이트 간소화 (승인 플로우 변경 — 사용자 결정 필요),
+  백테스트 verdict vs 회고 적중률 메타 분석, Mac mini 배포.

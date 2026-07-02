@@ -116,3 +116,23 @@ async def test_explicit_symbols_injection(db_session: AsyncSession):
     )
     assert snap.symbols_used == 3
     assert set(snap.detail["per_symbol_ratio"].keys()) == {"RG0001", "RG0002", "RG0003"}
+
+
+def test_bundle_prompt_includes_intraday_regime():
+    """C-6.11: 번들에 intraday_regime이 있으면 프롬프트에 노출된다."""
+    from app.trading.analysis.bundle_prompt import format_bundle_for_prompt
+
+    bundle = {
+        "meta": {"symbol_code": "005930", "trading_day": "2026-07-03", "market": "KR"},
+        "intraday_regime": {"regime": "extreme", "vol_ratio": 2.8, "symbols_used": 5},
+    }
+    text = format_bundle_for_prompt(bundle)
+    assert "당일 변동성 레짐: extreme" in text
+    assert "2.8" in text
+
+
+def test_bundle_prompt_omits_regime_when_absent():
+    from app.trading.analysis.bundle_prompt import format_bundle_for_prompt
+
+    bundle = {"meta": {"symbol_code": "005930", "trading_day": "2026-07-03", "market": "KR"}}
+    assert "당일 변동성 레짐" not in format_bundle_for_prompt(bundle)

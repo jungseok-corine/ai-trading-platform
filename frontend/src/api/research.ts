@@ -1450,3 +1450,43 @@ export async function getBacktests(limit = 20): Promise<BacktestRun[]> {
   const { data } = await apiClient.get<BacktestRun[]>("/backtests", { params: { limit } });
   return data;
 }
+
+// --- Execution Quality (C-6.9) ----------------------------------------------
+export interface ExecutionQualityAggregate {
+  count: number;
+  avg_slippage_pct?: number;
+  median_slippage_pct?: number;
+  max_slippage_pct?: number;
+  adverse_fill_ratio?: number;
+  avg_latency_seconds?: number | null;
+}
+
+export interface ExecutionQualityWorst {
+  signal_id: number;
+  trade_id: number;
+  symbol_code: string;
+  market: string;
+  side: string;
+  strategy_version_id: number | null;
+  signal_price: number;
+  fill_price: number;
+  slippage_pct: number;
+  latency_seconds: number | null;
+  generated_at: string;
+}
+
+export interface ExecutionQuality {
+  days: number;
+  pair_count: number;
+  aggregate: ExecutionQualityAggregate;
+  by_side: { buy: ExecutionQualityAggregate; sell: ExecutionQualityAggregate };
+  worst: ExecutionQualityWorst[];
+  note: string;
+}
+
+export async function getExecutionQuality(days = 30): Promise<ExecutionQuality> {
+  const { data } = await apiClient.get<ExecutionQuality>("/execution-quality", {
+    params: { days },
+  });
+  return data;
+}
