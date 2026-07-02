@@ -98,3 +98,8 @@
 - [ ] `curl "http://localhost:8000/api/v1/proposal-retrospective/backtest-accuracy"` →
   현재는 comparable=0이 정상 (백테스트 첨부 제안이 승인·회고까지 가려면 며칠 필요).
 - [ ] 며칠 뒤 재확인: comparable > 0이면 hit_rate로 백테스트 엔진 신뢰도 판단 시작.
+
+## H. C-6.14 백테스트 에쿼티 곡선
+
+- [ ] 백테스트 콘솔에서 실행 → 결과 아래 에쿼티 곡선 SVG (상승=초록/하락=빨강, 점선=초기 자본).
+- [ ] 긴 기간(90일 5m)에서도 곡선이 200포인트로 다운샘플되어 즉시 렌더링.

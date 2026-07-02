@@ -1415,6 +1415,7 @@ export interface BacktestMetrics {
   max_drawdown_pct: number;
   buy_hold_return_pct: number;
   total_fees: string;
+  equity_curve?: number[];
 }
 
 export interface BacktestRun {

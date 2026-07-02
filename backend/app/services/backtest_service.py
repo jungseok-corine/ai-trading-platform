@@ -176,10 +176,12 @@ class BacktestService:
             position = None
         equity_curve.append(cash)
 
-        return {
-            "trades": trades,
-            "metrics": self._metrics(trades, equity_curve, Decimal(initial_cash), candles),
-        }
+        metrics = self._metrics(trades, equity_curve, Decimal(initial_cash), candles)
+        # 에쿼티 커브 (C-6.14): UI 차트용 다운샘플 (최대 200포인트, 시작점 = 초기 자본)
+        metrics["equity_curve"] = _downsample(
+            [float(initial_cash)] + [float(e) for e in equity_curve], max_points=200
+        )
+        return {"trades": trades, "metrics": metrics}
 
     def _close(
         self,
@@ -268,3 +270,13 @@ class BacktestService:
 
 def _bar_ts(candle: MinuteCandle) -> str:
     return f"{candle.business_date} {candle.trade_time}"
+
+
+def _downsample(points: list[float], max_points: int) -> list[float]:
+    """균등 간격 다운샘플. 마지막 포인트(최종 에쿼티)는 항상 보존한다."""
+    if len(points) <= max_points:
+        return points
+    step = len(points) / max_points
+    sampled = [points[int(i * step)] for i in range(max_points - 1)]
+    sampled.append(points[-1])
+    return sampled

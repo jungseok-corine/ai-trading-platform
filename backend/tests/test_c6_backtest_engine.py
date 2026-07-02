@@ -171,3 +171,34 @@ async def test_backtest_persisted_and_listable(db_session: AsyncSession):
     recent = await service.list_recent(limit=5)
     assert any(r.id == run.id for r in recent)
     assert isinstance(fetched, BacktestRun)
+
+
+@pytest.mark.asyncio
+async def test_equity_curve_in_metrics(db_session: AsyncSession):
+    """C-6.14: metrics.equity_curve — 시작점=초기자본, 최대 200포인트."""
+    await _seed_candles(db_session, _cross_pattern())
+    run = await BacktestService(db_session).run(
+        strategy_type="moving_average_cross",
+        parameters={"short_window": 3, "long_window": 5},
+        symbol_code=SYMBOL,
+        timeframe="1m",
+        start_ts=BASE_TS,
+        end_ts=BASE_TS + timedelta(hours=1),
+        initial_cash=1_000_000,
+    )
+    curve = run.metrics["equity_curve"]
+    assert curve[0] == 1_000_000.0
+    assert len(curve) <= 200
+    # 최종 에쿼티 = 초기자본 + 총손익
+    assert curve[-1] == pytest.approx(1_000_000 + float(Decimal(run.metrics["total_pnl"])), abs=1)
+
+
+def test_downsample_preserves_last_point():
+    from app.services.backtest_service import _downsample
+
+    points = [float(i) for i in range(1000)]
+    sampled = _downsample(points, max_points=200)
+    assert len(sampled) == 200
+    assert sampled[0] == 0.0
+    assert sampled[-1] == 999.0
+    assert _downsample([1.0, 2.0], max_points=200) == [1.0, 2.0]

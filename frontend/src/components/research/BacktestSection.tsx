@@ -19,6 +19,37 @@ function pct(v: number | null | undefined): string {
   return v === null || v === undefined ? "—" : `${v.toFixed(2)}%`;
 }
 
+// C-6.14: 의존성 없는 SVG 에쿼티 곡선 (C-3.22 패턴)
+function EquityCurve({ points }: { points: number[] }) {
+  if (!points || points.length < 2) return null;
+  const w = 560;
+  const h = 120;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const coords = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((p - min) / range) * (h - 10) - 5;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const start = points[0];
+  const baseline = h - ((start - min) / range) * (h - 10) - 5;
+  const up = points[points.length - 1] >= start;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", maxWidth: w, display: "block" }}>
+      <line x1={0} y1={baseline} x2={w} y2={baseline} stroke="#666" strokeDasharray="4 3" />
+      <polyline
+        points={coords}
+        fill="none"
+        stroke={up ? "#2e7d32" : "#c62828"}
+        strokeWidth={1.5}
+      />
+    </svg>
+  );
+}
+
 function MetricsTable({ run }: { run: BacktestRun }) {
   if (run.status !== "succeeded" || !run.metrics) {
     return <p className="error">실패: {run.error_message}</p>;
@@ -163,6 +194,12 @@ export default function BacktestSection() {
             {result.strategy_type}
           </strong>
           <MetricsTable run={result} />
+          {result.metrics?.equity_curve && (
+            <>
+              <p className="muted">에쿼티 곡선 (점선 = 초기 자본)</p>
+              <EquityCurve points={result.metrics.equity_curve} />
+            </>
+          )}
         </div>
       )}
 
