@@ -27,6 +27,7 @@ import type {
   PaperSignalRecurringTickResult,
   PaperSignalRunOnceResult,
   RecurringDispatcherReadiness,
+  ProposalBacktestSummary,
   ProposalStatus,
   SignalChallengerPreparation,
 } from "../../types/research";
@@ -53,6 +54,88 @@ const SAFETY_BADGES = [
   "자동매매 아님",
   "runner 별도",
 ];
+
+const VERDICT_LABELS: Record<string, { label: string; color: string }> = {
+  proposed_better: { label: "제안이 우세", color: "#2e7d32" },
+  base_better: { label: "기존이 우세", color: "#c62828" },
+  inconclusive: { label: "판단 보류 (차이 미미)", color: "#f9a825" },
+  insufficient_data: { label: "표본 부족", color: "#757575" },
+};
+
+function btPct(v: number | undefined): string {
+  return v === undefined || v === null ? "—" : `${v.toFixed(2)}%`;
+}
+
+// C-6.1b: 제안 생성 시 자동 첨부된 base vs proposed 백테스트 비교 (검토 참고용)
+function BacktestComparisonBlock({ summary }: { summary: ProposalBacktestSummary | null }) {
+  if (!summary) return null;
+  if (summary.skipped) {
+    return (
+      <div className="approval-block">
+        <strong>백테스트 비교</strong>
+        <p className="muted">생략됨 — {summary.skipped}</p>
+      </div>
+    );
+  }
+  const verdict = VERDICT_LABELS[summary.verdict ?? ""] ?? {
+    label: summary.verdict ?? "?",
+    color: "#757575",
+  };
+  const legs: { name: string; leg?: typeof summary.base }[] = [
+    { name: "기존 (base)", leg: summary.base },
+    { name: "제안 (proposed)", leg: summary.proposed },
+  ];
+  return (
+    <div className="approval-block">
+      <strong>
+        백테스트 비교{" "}
+        <span className="badge" style={{ background: verdict.color, color: "#fff" }}>
+          {verdict.label}
+        </span>
+      </strong>
+      <p className="muted">
+        최근 {summary.window_days}일 · {summary.symbol_code} · 저장된 시세 시뮬레이션 — 참고용,
+        판정과 승인은 사람이 합니다.
+      </p>
+      <table className="compact-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>수익률</th>
+            <th>승률</th>
+            <th>거래</th>
+            <th>MDD</th>
+            <th>단순보유</th>
+          </tr>
+        </thead>
+        <tbody>
+          {legs.map(({ name, leg }) => (
+            <tr key={name}>
+              <td>{name}</td>
+              {leg?.status === "succeeded" ? (
+                <>
+                  <td>{btPct(leg.return_pct)}</td>
+                  <td>
+                    {leg.win_rate === null || leg.win_rate === undefined
+                      ? "—"
+                      : `${(leg.win_rate * 100).toFixed(0)}%`}
+                  </td>
+                  <td>{leg.trade_count ?? "—"}</td>
+                  <td>{btPct(leg.max_drawdown_pct)}</td>
+                  <td>{btPct(leg.buy_hold_return_pct)}</td>
+                </>
+              ) : (
+                <td colSpan={5} className="muted">
+                  실패: {leg?.error ?? "데이터 없음"}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function SafetyBadges() {
   return (
@@ -1182,6 +1265,8 @@ export default function StrategyProposalReportCard({
               </ul>
             )}
           </div>
+
+          <BacktestComparisonBlock summary={detail.backtest_summary} />
         </div>
       )}
 
