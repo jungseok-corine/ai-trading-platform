@@ -5,7 +5,27 @@
 
 ---
 
-## Current State
+## Current State (2026-07-02 갱신)
+
+**운영 마일스톤: 데이터 정리 완료 + AI 분석 루프 가동 시작** `DONE`
+
+1. **trades.exit_time 백필 29건** — open trade artifact 전량 해소 (open trades 0건).
+   근거·SQL·집행 결과: `docs/strategy/position-disposition-apply-preflight.md`
+2. **노이즈 전략 버전 18개 archive** (ARCHIVE_NOW 11 + 잔여 7: v297/v306/v312/v316/v301/v305/v311).
+   잔존 비보관: v300/304/317(신호전용), v307(리뷰보류), v329(스모크), v327/328(신규 DRAFT).
+3. **AI 분석 루프 4개 잡 활성화** (run-now 검증 후): `daily_analysis`(dual LLM),
+   `strategy_review`, `scanner_review`, `intelligence_evolution`.
+   → PROJECT-VISION §5의 "실험→AI분석→제안→회고" 무인 루프가 처음으로 가동됨.
+   제안은 전부 pending — 승인은 사람 (불변식 유지).
+
+**다음 작업 (Status = READY)**:
+- 사용자: pending 제안 3건 검토 (#13 v329 timeframe, #14 v307 exit_drop_pct, #15 v317 long_window)
+- 승인 시 TESTING 버전 생성 → auto_trade=off 확인 (안전 검증)
+- 며칠 실데이터 축적 후 → ROADMAP §4 "실데이터 기반 튜닝" (AI 비용 추이 확인 포함)
+
+---
+
+## Previous State
 
 **Candidate → Strategy Assignment Proposal — 읽기 전용 미리보기(Option A) `DONE` + 영속 PENDING(Option B/V1) `DONE`**
 
