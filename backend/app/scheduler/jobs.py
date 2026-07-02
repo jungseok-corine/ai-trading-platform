@@ -204,6 +204,7 @@ async def run_daily_analysis_job(app: FastAPI) -> None:
     provider/model/mode는 설정에서 읽으며 기본은 fake. 분석은 read-only 메타 작업이다.
     """
     from app.services.daily_analysis_service import DailyAnalysisService
+    from app.services.notifications import notify_proposals_created
 
     try:
         async with async_session_factory() as session:
@@ -212,6 +213,7 @@ async def run_daily_analysis_job(app: FastAPI) -> None:
             "daily analysis: versions=%s analyzed=%s skipped=%s mode=%s",
             summary.versions, summary.analyzed, summary.skipped, summary.mode,
         )
+        await notify_proposals_created("일일 AI 분석", summary.proposals)
         app.state.daily_analysis_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 분석 실패가 스케줄러를 중단시키지 않도록
         logger.error("daily analysis job failed: %s", exc_message(exc))
@@ -262,6 +264,7 @@ async def run_strategy_review_job(app: FastAPI) -> None:
 
     거래 성과 분석만 사용하는 메타 작업으로 주문/외부 API 호출이 없다.
     """
+    from app.services.notifications import notify_proposals_created
     from app.services.strategy_review_service import StrategyReviewService
 
     try:
@@ -271,6 +274,7 @@ async def run_strategy_review_job(app: FastAPI) -> None:
             "strategy review: versions=%s proposals=%s skipped=%s",
             summary.versions_reviewed, summary.proposals_created, summary.skipped_existing,
         )
+        await notify_proposals_created("전략 자동 점검", summary.proposals_created)
         app.state.strategy_review_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 점검 실패가 스케줄러를 중단시키지 않도록
         logger.error("strategy review job failed: %s", exc_message(exc))
@@ -283,6 +287,7 @@ async def run_scanner_review_job(app: FastAPI) -> None:
     후보 성과 분석만 사용하는 메타 작업으로 주문/외부 API 호출이 없다.
     """
     from app.core.config import get_settings
+    from app.services.notifications import notify_proposals_created
     from app.services.scanner_review_service import ScannerReviewService
 
     settings = get_settings()
@@ -295,6 +300,7 @@ async def run_scanner_review_job(app: FastAPI) -> None:
             "scanner review: versions=%s proposals=%s skipped=%s",
             summary.versions_reviewed, summary.proposals_created, summary.skipped_existing,
         )
+        await notify_proposals_created("스캐너 자동 점검", summary.proposals_created)
         app.state.scanner_review_last_run_at = datetime.now(KST)
     except Exception as exc:  # noqa: BLE001 - 점검 실패가 스케줄러를 중단시키지 않도록
         logger.error("scanner review job failed: %s", exc_message(exc))

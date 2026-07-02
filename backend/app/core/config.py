@@ -177,6 +177,9 @@ class Settings(BaseSettings):
     notification_timeout_seconds: float = 10.0
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    # 이벤트 즉시 알림 (C-6.2). 기본 off — 켜면 pending 제안 생성 등 조치 필요 이벤트를
+    # 위 채널로 즉시 보낸다(채널 none이면 켜도 no-op — 이중 게이트).
+    notification_events_enabled: bool = False
 
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
