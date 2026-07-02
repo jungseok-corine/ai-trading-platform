@@ -5,6 +5,7 @@ import WatchlistsPage from "./pages/WatchlistsPage";
 import ResearchPage from "./pages/ResearchPage";
 import { SettingsProvider, useSettings } from "./i18n/SettingsContext";
 import SettingsBar from "./i18n/SettingsBar";
+import GlobalSafetyStrip from "./components/GlobalSafetyStrip";
 
 type Tab = "dashboard" | "strategies" | "watchlists" | "research";
 
@@ -40,6 +41,7 @@ function AppContent() {
           {t.nav.research}
         </button>
         <SettingsBar />
+        <GlobalSafetyStrip />
       </nav>
       {tab === "dashboard" && <DashboardPage />}
       {tab === "strategies" && <StrategiesPage />}
