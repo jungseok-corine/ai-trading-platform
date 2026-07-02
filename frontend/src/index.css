@@ -1082,6 +1082,40 @@ tr.selected {
   gap: 6px;
   margin: 12px 0;
 }
+/* C-6.7: AI 의사결정 피드 */
+.feed-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.feed-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border, #333);
+}
+.feed-ts {
+  flex-shrink: 0;
+  font-size: 0.8em;
+  min-width: 90px;
+}
+/* C-6.1b: 제안 카드 백테스트 비교 표 */
+.compact-table {
+  border-collapse: collapse;
+  font-size: 0.85em;
+  margin: 6px 0;
+}
+.compact-table th,
+.compact-table td {
+  padding: 3px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border, #444);
+}
+.compact-table td:first-child,
+.compact-table th:first-child {
+  text-align: left;
+}
 /* C-6.6: 그룹 내 2차 내비게이션 — 1차(그룹)와 시각적으로 구분 */
 .sub-nav-secondary {
   margin-top: -6px;

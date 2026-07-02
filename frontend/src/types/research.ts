@@ -395,12 +395,37 @@ export interface StrategyProposal {
   risk_notes: string | null;
   suggested_parameters: Record<string, unknown>;
   source: string;
+  backtest_summary: ProposalBacktestSummary | null;
   status: ProposalStatus;
   created_version_id: number | null;
   reviewed_by: string | null;
   review_note: string | null;
   reviewed_at: string | null;
   created_at: string;
+}
+
+// C-6.1b: 제안 생성 시 자동 첨부되는 base vs proposed 백테스트 비교 (검토 참고용)
+export interface ProposalBacktestLeg {
+  status: string;
+  run_id?: number;
+  timeframe?: string;
+  trade_count?: number;
+  win_rate?: number | null;
+  return_pct?: number;
+  max_drawdown_pct?: number;
+  buy_hold_return_pct?: number;
+  error?: string | null;
+}
+
+export interface ProposalBacktestSummary {
+  skipped?: string;
+  window_days?: number;
+  symbol_code?: string;
+  generated_at?: string;
+  base?: ProposalBacktestLeg;
+  proposed?: ProposalBacktestLeg;
+  verdict?: string;
+  note?: string;
 }
 
 export interface ParamDiff {

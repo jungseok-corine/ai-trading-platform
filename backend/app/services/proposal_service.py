@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -16,6 +17,8 @@ from app.domain.repositories.strategy import (
 )
 from app.domain.repositories.strategy_proposal import StrategyProposalRepository
 from app.services.strategy_service import StrategyNotFoundError, StrategyService
+
+logger = logging.getLogger(__name__)
 from app.trading.strategy.registry import registered_types
 
 
@@ -108,6 +111,20 @@ class ProposalService:
             source=source,
         )
         await self._session.commit()
+
+        # C-6.1b: base vs proposed 백테스트 비교를 첨부한다(검토 참고용, best-effort).
+        # 실패해도 제안 생성은 이미 성공 — 승인 흐름에 어떤 영향도 없다.
+        from app.core.config import get_settings  # noqa: PLC0415
+
+        if get_settings().proposal_backtest_enabled:
+            try:
+                from app.services.proposal_backtest_service import (  # noqa: PLC0415
+                    ProposalBacktestService,
+                )
+
+                await ProposalBacktestService(self._session).attach(proposal)
+            except Exception as exc:  # noqa: BLE001 - 백테스트 실패가 제안 생성을 막지 않도록
+                logger.warning("제안 백테스트 첨부 실패 (proposal=%s): %s", proposal.id, exc)
         return proposal
 
     async def list_proposals(
