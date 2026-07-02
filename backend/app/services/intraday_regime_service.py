@@ -76,7 +76,8 @@ class IntradayRegimeService:
         """현재 변동성 레짐 스냅샷. as_of/symbols는 테스트·재현용 주입 지점."""
         s = self._settings
         cache_key = market
-        if use_cache and as_of is None and symbols is None:
+        injected = as_of is not None or symbols is not None
+        if use_cache and not injected:
             hit = _cache.get(cache_key)
             if hit is not None and time.monotonic() - hit[0] < s.intraday_regime_cache_seconds:
                 return hit[1]
@@ -118,7 +119,7 @@ class IntradayRegimeService:
                 },
             )
 
-        if use_cache and as_of is None and symbols is not None:
+        if use_cache and not injected:
             _cache[cache_key] = (time.monotonic(), snap)
         return snap
 

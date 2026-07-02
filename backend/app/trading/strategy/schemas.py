@@ -330,9 +330,19 @@ class StrategyVersionParameters(BaseModel):
     surge_lookback: int = Field(default=5, gt=0)
     surge_threshold_pct: float = Field(default=5.0, gt=0)
     exit_drop_pct: float = Field(default=3.0, gt=0)
+    # 변동성 레짐별 파라미터 오버라이드 (C-6.4). 사람이 버전 승인 시 밴드를 함께 승인하고,
+    # 러너가 현재 레짐(C-6.3)에 맞는 항목을 런타임에만 적용한다(원본 무변경).
+    # 안전 키(자동매매 토글/계좌/전략 정체성 등)는 오버라이드 불가.
+    volatility_overrides: dict[str, dict] | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":
+        if self.volatility_overrides is not None:
+            from app.trading.strategy.volatility_overrides import (  # noqa: PLC0415
+                validate_volatility_overrides,
+            )
+
+            validate_volatility_overrides(self.volatility_overrides)
         # short/long_window는 MA 계열 전략에서만 의미가 있으므로 해당 타입에만 적용한다.
         if self.strategy_type in _MA_WINDOW_STRATEGY_TYPES and self.long_window <= self.short_window:
             raise ValueError(
