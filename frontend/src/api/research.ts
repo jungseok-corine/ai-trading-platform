@@ -1377,3 +1377,25 @@ export async function getLeaderTrendCandidates(): Promise<LeaderTrendCandidatesR
   );
   return data;
 }
+
+// --- AI Activity Feed (C-6.7) -----------------------------------------------
+export interface AiActivityEvent {
+  ts: string;
+  kind: string;
+  title: string;
+  detail: string;
+  ref: { type: string; id: number };
+}
+
+export interface AiActivityFeed {
+  days: number;
+  count: number;
+  events: AiActivityEvent[];
+}
+
+export async function getAiActivityFeed(days = 1): Promise<AiActivityFeed> {
+  const { data } = await apiClient.get<AiActivityFeed>("/ai-activity-feed", {
+    params: { days },
+  });
+  return data;
+}

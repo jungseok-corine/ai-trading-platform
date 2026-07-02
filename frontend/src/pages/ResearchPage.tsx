@@ -25,6 +25,7 @@ import RiskEventsSection from "../components/research/RiskEventsSection";
 import PromotionReadinessSection from "../components/research/PromotionReadinessSection";
 import AutonomousJobsSection from "../components/research/AutonomousJobsSection";
 import LeaderTrendSection from "../components/research/LeaderTrendSection";
+import AiActivityFeedSection from "../components/research/AiActivityFeedSection";
 
 type Section =
   | "ops"
@@ -52,7 +53,8 @@ type Section =
   | "freshness"
   | "trade-activity"
   | "risk-events"
-  | "promotion-readiness";
+  | "promotion-readiness"
+  | "ai-feed";
 
 // C-6.6: 사용자 동선 4뷰 — "매일 내려야 하는 결정과 그 근거만 전면에".
 // 기존 섹션은 전부 유지하고 그룹으로 재배치만 했다 (삭제 없음).
@@ -64,6 +66,7 @@ const GROUPS: { key: Group; label: string; sections: { key: Section; label: stri
     label: "홈",
     sections: [
       { key: "ops", label: "오늘 요약" },
+      { key: "ai-feed", label: "AI 피드" },
       { key: "safety", label: "안전 점검" },
       { key: "portfolio", label: "포트폴리오" },
     ],
@@ -188,6 +191,7 @@ export default function ResearchPage() {
       {section === "trade-activity" && <TradeActivitySection />}
       {section === "risk-events" && <RiskEventsSection />}
       {section === "promotion-readiness" && <PromotionReadinessSection />}
+      {section === "ai-feed" && <AiActivityFeedSection />}
     </div>
   );
 }
