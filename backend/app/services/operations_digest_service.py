@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.data_freshness_service import DataFreshnessService
+from app.services.execution_quality_service import ExecutionQualityService
 from app.services.operations_overview_service import OperationsOverviewService
 from app.services.portfolio_summary_service import PortfolioSummaryService
 from app.services.scheduler_health_service import SchedulerHealthService
@@ -13,6 +14,9 @@ from app.services.scheduler_health_service import SchedulerHealthService
 _SEVERITY_ORDER = {"ok": 0, "attention": 1, "alert": 2}
 # 단일 종목 노출이 이 % 이상이면 집중 위험으로 본다.
 _CONCENTRATION_PCT = 40.0
+# 평균 슬리피지가 이 % 이상이면 체결 품질 악화로 본다 (C-6.10, 표본 최소 건수 충족 시).
+_SLIPPAGE_ALERT_PCT = 0.5
+_SLIPPAGE_MIN_PAIRS = 10
 
 
 class OperationsDigestService:
@@ -28,6 +32,7 @@ class OperationsDigestService:
         self._freshness = DataFreshnessService(session)
         self._scheduler = SchedulerHealthService(session)
         self._portfolio = PortfolioSummaryService(session)
+        self._execution = ExecutionQualityService(session)
 
     async def build(self, days: int = 30) -> dict:
         ov = await self._overview.overview(days=days)
@@ -114,6 +119,21 @@ class OperationsDigestService:
             alerts.append({
                 "level": "alert",
                 "text": f"자율 잡 이상: {', '.join(scheduler['unhealthy_jobs'])} — 스케줄러 점검",
+            })
+
+        # 체결 품질 악화 경보 (C-6.10): 표본이 충분할 때만 — 소표본 소음 방지.
+        execution = await self._execution.summary(days=days)
+        exec_agg = execution["aggregate"]
+        if (
+            exec_agg.get("count", 0) >= _SLIPPAGE_MIN_PAIRS
+            and exec_agg.get("avg_slippage_pct", 0) >= _SLIPPAGE_ALERT_PCT
+        ):
+            alerts.append({
+                "level": "attention",
+                "text": (
+                    f"체결 품질 악화: 평균 슬리피지 {exec_agg['avg_slippage_pct']}% "
+                    f"({exec_agg['count']}건) — 주문 방식/유동성 점검"
+                ),
             })
 
         portfolio = await self._portfolio.summary()
