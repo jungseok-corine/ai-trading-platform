@@ -1399,3 +1399,54 @@ export async function getAiActivityFeed(days = 1): Promise<AiActivityFeed> {
   });
   return data;
 }
+
+// --- Backtests (C-6.8) ------------------------------------------------------
+export interface BacktestMetrics {
+  bars: number;
+  trade_count: number;
+  win_count: number;
+  loss_count: number;
+  win_rate: number | null;
+  total_pnl: string;
+  return_pct: number;
+  avg_win: string;
+  avg_loss: string;
+  expectancy: string | null;
+  max_drawdown_pct: number;
+  buy_hold_return_pct: number;
+  total_fees: string;
+}
+
+export interface BacktestRun {
+  id: number;
+  strategy_type: string;
+  parameters: Record<string, unknown>;
+  symbol_code: string;
+  timeframe: string;
+  market: string;
+  start_ts: string;
+  end_ts: string;
+  status: string;
+  metrics: BacktestMetrics | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export async function runBacktest(payload: {
+  strategy_type: string;
+  parameters: Record<string, unknown>;
+  symbol_code: string;
+  timeframe: string;
+  start_ts: string;
+  end_ts: string;
+  market?: string;
+  initial_cash?: number;
+}): Promise<BacktestRun> {
+  const { data } = await apiClient.post<BacktestRun>("/backtests", payload);
+  return data;
+}
+
+export async function getBacktests(limit = 20): Promise<BacktestRun[]> {
+  const { data } = await apiClient.get<BacktestRun[]>("/backtests", { params: { limit } });
+  return data;
+}
