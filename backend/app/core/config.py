@@ -181,6 +181,16 @@ class Settings(BaseSettings):
     # 위 채널로 즉시 보낸다(채널 none이면 켜도 no-op — 이중 게이트).
     notification_events_enabled: bool = False
 
+    # 인트라데이 변동성 레짐 (C-6.3). read-only 분류 — 그 자체로 아무것도 실행하지 않는다.
+    # ratio = 최근 recent_bars TR% 평균 / baseline_bars TR% 평균 (심볼 중앙값).
+    intraday_regime_recent_bars: int = 30
+    intraday_regime_baseline_bars: int = 1170  # 1분봉 기준 약 3거래일(KR 390분×3)
+    intraday_regime_min_symbols: int = 3
+    intraday_regime_calm_ratio: float = 0.75
+    intraday_regime_elevated_ratio: float = 1.5
+    intraday_regime_extreme_ratio: float = 2.5
+    intraday_regime_cache_seconds: int = 60
+
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
     operations_digest_scheduler_enabled: bool = False
