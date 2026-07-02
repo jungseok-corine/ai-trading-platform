@@ -71,36 +71,42 @@
 
 > 안전 불변식 전부 유지: 실거래 off, AI 제안 자동 승인 금지, 새 잡 기본 비활성,
 > 버전 덮어쓰기 금지. 아래 전부 paper 영역.
+>
+> **구현 완료 (2026-07-03)**: C-6.1~C-6.6 전부 DONE. 커밋: f8b658b(6.1), 6d162f9(6.2),
+> 149f15e(6.3), 64cfdb1(6.4), 06cf565(6.5), e237fe6(6.6). 백엔드 2003 테스트 통과,
+> 프론트 빌드 통과. C-6.3은 계획의 "장중 잡" 대신 **온디맨드 계산 + 60초 TTL 캐시**로
+> 구현(신규 잡 표면 없이 러너·리스크가 필요 시 조회 — 더 단순하고 잡 관리 부담 없음).
+> 신규 게이트 기본값: notification_events_enabled=false, volatility_soft_kill_enabled=false.
 
-### C-6.1 — Backtest Engine `READY`
+### C-6.1 — Backtest Engine `DONE`
 - 저장된 market_data 위에서 전략 신호 생성기를 히스토리컬 리플레이 + 체결 시뮬레이션(다음 봉 시가,
   수수료 모델 재사용) + 지표 산출(승률·기대값·MDD·거래수).
 - API: `POST /backtests` (전략 타입 + 파라미터 + 기간 + 종목) → 결과 저장·조회.
 - 주문/브로커 호출 없음. 순수 read-only 계산.
 - AI 제안 검증 경로에 연결: 제안 카드에 "백테스트 결과" 첨부 (후속 C-6.1b).
 
-### C-6.2 — Telegram Notification Wiring `READY`
+### C-6.2 — Telegram Notification Wiring `DONE`
 - 기존 `TelegramChannel` + `operations_digest`를 이벤트에 배선:
   (a) pending 제안 생성 시, (b) 다이제스트 경보(이미 있음 — 채널만 설정), (c) 승격 후보 발생 시.
 - 신규 백엔드 이벤트 훅은 config 게이트(기본 off). 시크릿은 `.env`만.
 
-### C-6.3 — Intraday Volatility Regime `READY`
+### C-6.3 — Intraday Volatility Regime `DONE`
 - 최근 1분봉(기존 KIS polling 경로)으로 시장별 실현변동성·ATR z-score 계산 →
   calm / normal / elevated / extreme 분류. 스냅샷 저장 + `GET /intraday-regime`.
 - 장중 N분 주기 잡(기본 off). websocket은 후속(C-6.3b) — 데이터 소스 어댑터로 교체 가능하게 설계.
 
-### C-6.4 — Parameter Bands + In-Band Auto-Switching `READY`
+### C-6.4 — Parameter Bands + In-Band Auto-Switching `DONE`
 - StrategyVersion parameters에 선택 필드 `volatility_overrides`:
   `{"elevated": {"quantity_pct_scale": 0.5, "exit_drop_pct": 1.0}, "extreme": {...}}`.
 - **사람이 밴드를 포함한 버전을 승인** → 러너가 현재 레짐에 맞는 오버라이드를 신호 생성 시 적용.
 - 버전 상태·파라미터 원본 무변경(런타임 적용만). 적용 여부는 signal_logs에 기록.
 
-### C-6.5 — Volatility Sizing + Soft Kill `READY`
+### C-6.5 — Volatility Sizing + Soft Kill `DONE`
 - 사이징: `quantity_mode=vol_scaled` — cash_pct를 현재 레짐 배율로 스케일.
 - Soft kill: 리스크 룰 추가 — 레짐 extreme이면 신규 BUY 차단(SELL/청산은 허용). config 기본 off.
 - 기존 포지션 자동 축소(강제 매도)는 **범위 제외** — 사람 결정 영역으로 보류.
 
-### C-6.6 — UI 4-View Reorg `READY`
+### C-6.6 — UI 4-View Reorg `DONE`
 - 홈(안전등+킬스위치+오늘 손익+AI 피드+승인 인박스) / 승인함 / 전략 성적표 / 운영(기존 섹션 접힘).
 - 기존 섹션 삭제 없음 — 재배치·강등만. frontend-only.
 
