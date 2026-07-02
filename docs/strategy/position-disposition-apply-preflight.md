@@ -2,7 +2,7 @@
 # trades.exit_time 백필 — 프리플라이트 체크 + 정합성 맵
 
 작성일: 2026-07-02  
-상태: **PREFLIGHT PASSED / UPDATE 미집행**  
+상태: **APPLIED (2026-07-02) — §11 집행 결과 참조**  
 목적: 29개 open trade의 exit_time 백필을 위한 사전 검증 및 정밀 매핑
 
 ---
@@ -342,9 +342,38 @@ WHERE id IN (
 
 집행 전 사람이 확인해야 할 항목:
 
-- [ ] 29개 trade_id 목록이 현재 DB 상태와 일치하는지 재확인
-- [ ] broker_holdings_count = 0 재확인 (집행 직전)
-- [ ] MEDIUM 신뢰도 14건에 sync 타임스탬프 사용 동의
-- [ ] v329 (ACTIVE) exit_time 백필 동의 — 현재 실행 중 아님 확인
-- [ ] BEGIN; ... ROLLBACK; 로 드라이런 먼저 수행할 것
-- [ ] COMMIT 전 집행 쿼리 검증값 확인 (29개 → 0개)
+- [x] 29개 trade_id 목록이 현재 DB 상태와 일치하는지 재확인
+- [x] broker_holdings_count = 0 재확인 (집행 직전)
+- [x] MEDIUM 신뢰도 14건에 sync 타임스탬프 사용 동의
+- [x] v329 exit_time 백필 동의
+- [x] 트랜잭션 내 사전/사후 검증 (DO 블록으로 count 불일치 시 자동 EXCEPTION → ROLLBACK)
+- [x] COMMIT 전 집행 쿼리 검증값 확인 (29개 → 0개)
+
+---
+
+## 11. 집행 결과 (POSITION-DISPOSITION-APPLY-1 — 2026-07-02)
+
+사용자 승인 후 §6 SQL을 트랜잭션(사전/사후 검증 DO 블록 포함)으로 집행했다.
+
+| 항목 | 결과 |
+|------|------|
+| 백필된 trade 수 | 29 / 29 |
+| 집행 후 open trades (exit_time IS NULL) | **0** |
+| positions 테이블 | 무변경 (qty 합계 0 유지) |
+| broker holdings | 0 (무변경) |
+| 롤백 필요 | 없음 |
+
+### 후속 집행 (같은 날, 사용자 승인)
+
+**STRATEGY-ARCHIVE-APPLY-2**: 잔여 버전 7개 archive API 집행 — 전부 HTTP 200, status=archived.
+- TESTING: v297, v306, v312, v316 (strategy 275)
+- DRAFT: v301, v305, v311 (strategy 279)
+- 집행 후 분포: archived=18, testing=5, draft=2
+- 잔존 비보관: v300/v304/v317(KEEP_SIGNAL_ONLY), v307(DEFER_REVIEW), v329(스모크 테스트), v327/v328(신규 DRAFT — 정리 대상 아님)
+
+**AI 분석 루프 활성화**: run-now 검증(4개 잡 전부 success) 후 활성화.
+- `strategy_review` ✅ (versions_reviewed=5 — archive 정리로 11→5 감소 확인)
+- `scanner_review` ✅ (versions_reviewed=3)
+- `daily_analysis` ✅ (dual, analyzed=3, pending 제안 3건 생성: #13 v329, #14 v307, #15 v317)
+- `intelligence_evolution` ✅ (last_error=null, 분석 대상 COMPLETED 실험 없어 no-op)
+- 4개 잡 모두 `enabled=true`로 전환 (scheduler_job_overrides). 제안은 전부 pending — 승인은 사람.
