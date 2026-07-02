@@ -1082,6 +1082,16 @@ tr.selected {
   gap: 6px;
   margin: 12px 0;
 }
+/* C-6.6: 그룹 내 2차 내비게이션 — 1차(그룹)와 시각적으로 구분 */
+.sub-nav-secondary {
+  margin-top: -6px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--border, #444);
+  opacity: 0.95;
+}
+.sub-nav-secondary button {
+  font-size: 0.85em;
+}
 .form-row {
   display: flex;
   flex-wrap: wrap;
