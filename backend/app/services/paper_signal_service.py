@@ -234,8 +234,12 @@ class PaperSignalService:
                     exchange=params.get("exchange"),
                 )
             except Exception as exc:  # noqa: BLE001 - 한 세션 실패가 잡을 중단하지 않도록
-                errors.append(f"session {s.id}: {exc}")
-                await self._repo.update(s, last_run_at=run_at, last_error=str(exc))
+                from app.trading.broker.error_classifier import exc_message  # noqa: PLC0415
+
+                # str(exc)가 빈 예외(httpx 일부)도 원인이 남도록 exc_message 사용.
+                message = exc_message(exc)
+                errors.append(f"session {s.id}: {message}")
+                await self._repo.update(s, last_run_at=run_at, last_error=message)
                 continue
             created = log is not None
             if created:
