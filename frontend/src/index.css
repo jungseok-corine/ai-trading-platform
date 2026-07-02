@@ -1082,6 +1082,33 @@ tr.selected {
   gap: 6px;
   margin: 12px 0;
 }
+/* C-6.12: 전역 안전 스트립 */
+.safety-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+.safety-strip.safety-ok {
+  background: rgba(46, 125, 50, 0.15);
+}
+.safety-strip.safety-alert {
+  background: rgba(198, 40, 40, 0.2);
+  font-weight: 600;
+}
+.safety-strip-warn {
+  color: #f9a825;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  .safety-strip span:nth-child(2) {
+    display: none; /* 모바일: 등급 아이콘/경고 수만 */
+  }
+}
 /* C-6.7: AI 의사결정 피드 */
 .feed-list {
   list-style: none;
