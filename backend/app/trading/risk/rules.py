@@ -30,6 +30,24 @@ class EmergencyStopRule(RiskRule):
         return RiskCheckResult(approved=True)
 
 
+class VolatilitySoftKillRule(RiskRule):
+    """변동성 soft kill (C-6.5): 레짐 extreme이면 신규 위험 추가(BUY)만 차단한다.
+
+    - SELL(청산/손절)은 항상 허용 — 위험을 줄이는 주문을 막지 않는다.
+    - context.intraday_regime이 None이면(기본: 게이트 off 또는 조회 실패) 통과.
+    - 기존 포지션 강제 축소는 하지 않는다 — 사람 결정 영역.
+    """
+
+    name = "volatility_soft_kill"
+
+    def check(self, signal: Signal, config: RiskConfig, context: RiskContext) -> RiskCheckResult:
+        if context.intraday_regime == "extreme" and signal.side == TradeSide.BUY:
+            return RiskCheckResult(
+                False, self.name, "변동성 레짐 extreme — 신규 진입(BUY) 일시 차단 (청산은 허용)"
+            )
+        return RiskCheckResult(approved=True)
+
+
 class MaxDailyLossRule(RiskRule):
     name = "max_daily_loss"
 
@@ -116,6 +134,7 @@ class ConsecutiveLossLimitRule(RiskRule):
 # emergency_stop을 가장 먼저 평가해 활성화 시 다른 룰 평가 없이 즉시 거부되도록 한다.
 DEFAULT_RULES: list[RiskRule] = [
     EmergencyStopRule(),
+    VolatilitySoftKillRule(),
     MaxDailyLossRule(),
     MaxPositionSizeRule(),
     MaxOpenPositionsRule(),

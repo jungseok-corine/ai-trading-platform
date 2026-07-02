@@ -249,7 +249,7 @@ _VALID_UNIVERSES = frozenset({"scanner_candidates", "watchlist"})
 
 # 멀티마켓: 시장 구분 + 미국 거래소 코드(EXCD).
 _VALID_MARKETS = frozenset({"KR", "US"})
-_VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct"})
+_VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct", "vol_scaled"})
 _VALID_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
 
 
@@ -330,9 +330,19 @@ class StrategyVersionParameters(BaseModel):
     surge_lookback: int = Field(default=5, gt=0)
     surge_threshold_pct: float = Field(default=5.0, gt=0)
     exit_drop_pct: float = Field(default=3.0, gt=0)
+    # 변동성 레짐별 파라미터 오버라이드 (C-6.4). 사람이 버전 승인 시 밴드를 함께 승인하고,
+    # 러너가 현재 레짐(C-6.3)에 맞는 항목을 런타임에만 적용한다(원본 무변경).
+    # 안전 키(자동매매 토글/계좌/전략 정체성 등)는 오버라이드 불가.
+    volatility_overrides: dict[str, dict] | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":
+        if self.volatility_overrides is not None:
+            from app.trading.strategy.volatility_overrides import (  # noqa: PLC0415
+                validate_volatility_overrides,
+            )
+
+            validate_volatility_overrides(self.volatility_overrides)
         # short/long_window는 MA 계열 전략에서만 의미가 있으므로 해당 타입에만 적용한다.
         if self.strategy_type in _MA_WINDOW_STRATEGY_TYPES and self.long_window <= self.short_window:
             raise ValueError(
@@ -382,6 +392,11 @@ class StrategyVersionParameters(BaseModel):
             raise ValueError("quantity_mode=cash_amount 이려면 cash_amount > 0 이어야 합니다.")
         if self.quantity_mode == "cash_pct" and not (0 < self.cash_pct <= 100):
             raise ValueError("quantity_mode=cash_pct 이려면 cash_pct가 0 초과 100 이하여야 합니다.")
+        if self.quantity_mode == "vol_scaled" and not (0 < self.cash_pct <= 100):
+            raise ValueError(
+                "quantity_mode=vol_scaled 이려면 cash_pct가 0 초과 100 이하여야 합니다 "
+                "(레짐 배율이 곱해질 기준 예산)."
+            )
         if self.flow_mode not in _VALID_FLOW_MODES:
             raise ValueError(
                 f"flow_mode={self.flow_mode!r}은 유효하지 않습니다. "

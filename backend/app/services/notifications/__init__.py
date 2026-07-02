@@ -5,6 +5,7 @@
 (us_market provider 패턴과 동일: 기본 비활성, 키 없으면 no-op).
 """
 from app.services.notifications.base import NotificationChannel, NotificationResult
+from app.services.notifications.events import notify_event, notify_proposals_created
 from app.services.notifications.factory import get_notification_channel
 from app.services.notifications.telegram import TelegramChannel
 
@@ -13,4 +14,6 @@ __all__ = [
     "NotificationResult",
     "TelegramChannel",
     "get_notification_channel",
+    "notify_event",
+    "notify_proposals_created",
 ]

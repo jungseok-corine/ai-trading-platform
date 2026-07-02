@@ -12,12 +12,14 @@ from app.domain.models.signal_log import SignalLog
 from app.domain.models.strategy import StrategyVersion
 from app.domain.repositories.signal_log import SignalLogRepository
 from app.domain.repositories.strategy import StrategyVersionRepository
+from app.services.intraday_regime_service import IntradayRegimeService
 from app.services.signal_service import SignalService
 from app.services.trade_service import TradeService
 from app.services.universe_resolver import ResolvedSymbol, UniverseResolver
 from app.trading.broker.error_classifier import classify_exception, exc_message
 from app.trading.strategy.base import Signal, Strategy
 from app.trading.strategy.registry import create_strategy
+from app.trading.strategy.volatility_overrides import apply_volatility_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,25 @@ class StrategyRunnerService:
         if not params.get("enabled", True):
             return []
 
+        # C-6.4: 변동성 레짐 오버라이드 — 사람이 승인한 밴드를 현재 레짐에 맞춰 런타임 적용.
+        # 버전 원본(version.parameters)은 수정하지 않는다. 레짐 조회 실패 시 원본 그대로.
+        regime_note: str | None = None
+        if isinstance(params.get("volatility_overrides"), dict):
+            try:
+                snap = await IntradayRegimeService(self._session).snapshot(
+                    market=params.get("market", "KR")
+                )
+                effective, applied_keys = apply_volatility_overrides(
+                    params, params.get("volatility_overrides"), snap.regime
+                )
+                if applied_keys:
+                    params = effective
+                    regime_note = (
+                        f"[변동성 레짐 {snap.regime}: {', '.join(applied_keys)} 오버라이드 적용]"
+                    )
+            except Exception as exc:  # noqa: BLE001 - 레짐 조회 실패가 러너를 중단시키지 않도록
+                logger.warning("변동성 레짐 조회 실패 — 기본 파라미터 사용: %s", exc_message(exc))
+
         strategy_type = params.get("strategy_type", "")
         strategy = create_strategy(strategy_type, params)
         if strategy is None:
@@ -193,6 +214,7 @@ class StrategyRunnerService:
                 candle_cache, force_exit,
                 force_sell_reason=force_sell_reason,
                 force_sell_quantity=force_sell_quantity,
+                regime_note=regime_note,
             )
             results.append(result)
             if result.trade_attempted:
@@ -240,6 +262,7 @@ class StrategyRunnerService:
         force_exit: bool = False,
         force_sell_reason: str | None = None,
         force_sell_quantity: int | None = None,
+        regime_note: str | None = None,
     ) -> StrategyRunResult:
         symbol_code = resolved.symbol_code
         result = StrategyRunResult(
@@ -274,6 +297,11 @@ class StrategyRunnerService:
         result.signal_created = True
         result.signal_id = log.id
 
+        # C-6.4: 레짐 오버라이드가 적용된 신호임을 기록에 남긴다(감사 추적).
+        if regime_note:
+            log.reason = f"{log.reason or ''} {regime_note}".strip()
+            await self._session.commit()
+
         if not auto_trade_enabled:
             return result
 
@@ -281,18 +309,33 @@ class StrategyRunnerService:
         return result
 
     async def _resolve_quantity(self, params: dict, log: SignalLog) -> int:
-        """포지션 사이징(fixed/cash_amount/cash_pct)으로 주문 수량을 정한다."""
+        """포지션 사이징(fixed/cash_amount/cash_pct/vol_scaled)으로 주문 수량을 정한다."""
         from app.trading.pricing.sizing import compute_order_quantity  # noqa: PLC0415
 
         mode = params.get("quantity_mode", "fixed")
         available_cash = None
-        if mode == "cash_pct" and self._trade_service is not None:
+        if mode in ("cash_pct", "vol_scaled") and self._trade_service is not None:
             try:
                 available_cash = await self._trade_service.get_available_cash(
                     params.get("market", "KR")
                 )
             except Exception:  # noqa: BLE001 - 잔고 조회 실패 시 고정 수량으로 폴백
                 available_cash = None
+        # vol_scaled (C-6.5): 현재 레짐에 따라 cash_pct 예산을 줄인다. 조회 실패 시 배율 1.
+        vol_multiplier = None
+        if mode == "vol_scaled":
+            vol_multiplier = 1.0
+            try:
+                snap = await IntradayRegimeService(self._session).snapshot(
+                    market=params.get("market", "KR")
+                )
+                settings = get_settings()
+                if snap.regime == "elevated":
+                    vol_multiplier = settings.vol_scaled_elevated_multiplier
+                elif snap.regime == "extreme":
+                    vol_multiplier = settings.vol_scaled_extreme_multiplier
+            except Exception as exc:  # noqa: BLE001 - 레짐 조회 실패 시 배율 1로 폴백
+                logger.warning("vol_scaled 레짐 조회 실패 — 배율 1 사용: %s", exc_message(exc))
         return compute_order_quantity(
             mode=mode,
             fixed_quantity=log.quantity or params.get("quantity", 1),
@@ -300,6 +343,7 @@ class StrategyRunnerService:
             cash_amount=params.get("cash_amount"),
             cash_pct=params.get("cash_pct"),
             available_cash=available_cash,
+            vol_multiplier=vol_multiplier,
         )
 
     async def _attempt_auto_trade(

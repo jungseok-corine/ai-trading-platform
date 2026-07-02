@@ -31,6 +31,8 @@ from app.api.v1 import news_context as news_context_api
 from app.api.v1 import live_promotion as live_promotion_api
 from app.api.v1 import promotions as promotions_api
 from app.api.v1 import ai_cost as ai_cost_api
+from app.api.v1 import backtests as backtests_api
+from app.api.v1 import intraday_regime as intraday_regime_api
 from app.api.v1 import analysis_audit as analysis_audit_api
 from app.api.v1 import operations_digest as operations_digest_api
 from app.api.v1 import operations_overview as operations_overview_api
@@ -200,6 +202,8 @@ app.include_router(research_pipeline_api.router, prefix="/api/v1")
 app.include_router(research_status_api.router, prefix="/api/v1")
 app.include_router(research_funnel_api.router, prefix="/api/v1")
 app.include_router(ai_cost_api.router, prefix="/api/v1")
+app.include_router(backtests_api.router, prefix="/api/v1")
+app.include_router(intraday_regime_api.router, prefix="/api/v1")
 app.include_router(proposal_funnel_api.router, prefix="/api/v1")
 app.include_router(safety_status_api.router, prefix="/api/v1")
 app.include_router(analysis_audit_api.router, prefix="/api/v1")
