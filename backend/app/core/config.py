@@ -198,6 +198,11 @@ class Settings(BaseSettings):
     vol_scaled_elevated_multiplier: float = 0.5
     vol_scaled_extreme_multiplier: float = 0.25
 
+    # 제안 백테스트 자동 첨부 (C-6.1b). 제안 생성 시 base vs proposed를 저장된 시세로
+    # 백테스트해 비교를 첨부한다. read-only 계산 + 제안 행 갱신 — 주문/LLM/외부 호출 없음.
+    proposal_backtest_enabled: bool = True
+    proposal_backtest_days: int = 14
+
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
     operations_digest_scheduler_enabled: bool = False

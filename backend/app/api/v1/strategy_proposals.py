@@ -105,6 +105,8 @@ class ProposalRead(BaseModel):
     risk_notes: str | None
     suggested_parameters: dict
     source: str
+    # base vs proposed 백테스트 비교 (C-6.1b, 검토 참고용)
+    backtest_summary: dict | None = None
     status: ProposalStatus
     created_version_id: int | None
     reviewed_by: str | None

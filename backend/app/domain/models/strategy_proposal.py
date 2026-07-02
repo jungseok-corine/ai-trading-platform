@@ -49,6 +49,8 @@ class StrategyProposal(Base):
     risk_notes: Mapped[str | None] = mapped_column(Text)  # 리스크
     suggested_parameters: Mapped[dict] = mapped_column(JSONB, nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="ai")
+    # base vs proposed 파라미터 백테스트 비교 (C-6.1b). 검토 참고용 — 판정은 사람.
+    backtest_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     status: Mapped[ProposalStatus] = mapped_column(
         pg_enum(ProposalStatus, "proposal_status"),
