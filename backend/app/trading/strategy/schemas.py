@@ -249,7 +249,7 @@ _VALID_UNIVERSES = frozenset({"scanner_candidates", "watchlist"})
 
 # 멀티마켓: 시장 구분 + 미국 거래소 코드(EXCD).
 _VALID_MARKETS = frozenset({"KR", "US"})
-_VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct"})
+_VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct", "vol_scaled"})
 _VALID_US_EXCHANGES = frozenset({"NAS", "NYS", "AMS"})
 
 
@@ -392,6 +392,11 @@ class StrategyVersionParameters(BaseModel):
             raise ValueError("quantity_mode=cash_amount 이려면 cash_amount > 0 이어야 합니다.")
         if self.quantity_mode == "cash_pct" and not (0 < self.cash_pct <= 100):
             raise ValueError("quantity_mode=cash_pct 이려면 cash_pct가 0 초과 100 이하여야 합니다.")
+        if self.quantity_mode == "vol_scaled" and not (0 < self.cash_pct <= 100):
+            raise ValueError(
+                "quantity_mode=vol_scaled 이려면 cash_pct가 0 초과 100 이하여야 합니다 "
+                "(레짐 배율이 곱해질 기준 예산)."
+            )
         if self.flow_mode not in _VALID_FLOW_MODES:
             raise ValueError(
                 f"flow_mode={self.flow_mode!r}은 유효하지 않습니다. "

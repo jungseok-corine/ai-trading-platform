@@ -4,11 +4,13 @@
 - fixed: 고정 주식 수.
 - cash_amount: 1회 거래에 투입할 금액(통화) → floor(금액 / 가격).
 - cash_pct: 가용 현금의 % → floor((현금 × %/100) / 가격).
+- vol_scaled: cash_pct 예산에 변동성 레짐 배율(C-6.5)을 곱한다 —
+  변동성이 높을수록 포지션을 줄인다(배율은 config, 레짐은 C-6.3).
 순수 계산만 한다(외부 의존 없음).
 """
 from decimal import Decimal
 
-VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct"})
+VALID_QUANTITY_MODES = frozenset({"fixed", "cash_amount", "cash_pct", "vol_scaled"})
 
 
 def compute_order_quantity(
@@ -19,11 +21,12 @@ def compute_order_quantity(
     cash_amount: float | Decimal | None = None,
     cash_pct: float | Decimal | None = None,
     available_cash: Decimal | None = None,
+    vol_multiplier: float | Decimal | None = None,
 ) -> int:
     """모드에 따라 주문 수량을 계산한다.
 
-    cash_* 모드에서 예산이 1주 가격에 못 미치면 0을 반환한다(호출자가 주문을 건너뛴다).
-    가격이 없거나 0 이하이면 0.
+    cash_* / vol_scaled 모드에서 예산이 1주 가격에 못 미치면 0을 반환한다
+    (호출자가 주문을 건너뛴다). 가격이 없거나 0 이하이면 0.
     """
     if mode == "fixed":
         return int(fixed_quantity)
@@ -33,6 +36,10 @@ def compute_order_quantity(
         return int(Decimal(str(cash_amount)) / price)
     if mode == "cash_pct" and cash_pct and available_cash is not None:
         budget = available_cash * Decimal(str(cash_pct)) / Decimal("100")
+        return int(budget / price)
+    if mode == "vol_scaled" and cash_pct and available_cash is not None:
+        multiplier = Decimal(str(vol_multiplier)) if vol_multiplier is not None else Decimal("1")
+        budget = available_cash * Decimal(str(cash_pct)) / Decimal("100") * multiplier
         return int(budget / price)
     # 정보 부족(예: cash_pct인데 잔고 모름) → 고정 수량으로 폴백
     return int(fixed_quantity)

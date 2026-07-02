@@ -191,6 +191,13 @@ class Settings(BaseSettings):
     intraday_regime_extreme_ratio: float = 2.5
     intraday_regime_cache_seconds: int = 60
 
+    # 변동성 사이징 + soft kill (C-6.5). soft kill은 기본 off —
+    # 켜면 레짐 extreme일 때 신규 BUY만 차단(SELL/청산은 항상 허용).
+    volatility_soft_kill_enabled: bool = False
+    # quantity_mode=vol_scaled 의 레짐별 예산 배율 (calm/normal/unknown은 1.0)
+    vol_scaled_elevated_multiplier: float = 0.5
+    vol_scaled_extreme_multiplier: float = 0.25
+
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
     operations_digest_scheduler_enabled: bool = False

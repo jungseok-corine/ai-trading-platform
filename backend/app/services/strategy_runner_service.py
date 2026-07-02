@@ -309,18 +309,33 @@ class StrategyRunnerService:
         return result
 
     async def _resolve_quantity(self, params: dict, log: SignalLog) -> int:
-        """포지션 사이징(fixed/cash_amount/cash_pct)으로 주문 수량을 정한다."""
+        """포지션 사이징(fixed/cash_amount/cash_pct/vol_scaled)으로 주문 수량을 정한다."""
         from app.trading.pricing.sizing import compute_order_quantity  # noqa: PLC0415
 
         mode = params.get("quantity_mode", "fixed")
         available_cash = None
-        if mode == "cash_pct" and self._trade_service is not None:
+        if mode in ("cash_pct", "vol_scaled") and self._trade_service is not None:
             try:
                 available_cash = await self._trade_service.get_available_cash(
                     params.get("market", "KR")
                 )
             except Exception:  # noqa: BLE001 - 잔고 조회 실패 시 고정 수량으로 폴백
                 available_cash = None
+        # vol_scaled (C-6.5): 현재 레짐에 따라 cash_pct 예산을 줄인다. 조회 실패 시 배율 1.
+        vol_multiplier = None
+        if mode == "vol_scaled":
+            vol_multiplier = 1.0
+            try:
+                snap = await IntradayRegimeService(self._session).snapshot(
+                    market=params.get("market", "KR")
+                )
+                settings = get_settings()
+                if snap.regime == "elevated":
+                    vol_multiplier = settings.vol_scaled_elevated_multiplier
+                elif snap.regime == "extreme":
+                    vol_multiplier = settings.vol_scaled_extreme_multiplier
+            except Exception as exc:  # noqa: BLE001 - 레짐 조회 실패 시 배율 1로 폴백
+                logger.warning("vol_scaled 레짐 조회 실패 — 배율 1 사용: %s", exc_message(exc))
         return compute_order_quantity(
             mode=mode,
             fixed_quantity=log.quantity or params.get("quantity", 1),
@@ -328,6 +343,7 @@ class StrategyRunnerService:
             cash_amount=params.get("cash_amount"),
             cash_pct=params.get("cash_pct"),
             available_cash=available_cash,
+            vol_multiplier=vol_multiplier,
         )
 
     async def _attempt_auto_trade(
