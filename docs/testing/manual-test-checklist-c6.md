@@ -92,3 +92,9 @@
 - [ ] 안전 점검 섹션과 값 일치 확인.
 - [ ] (선택) `.env`로 위반 상황을 만들지 말 것 — 대신 warnings가 있을 때 "경고 N건" 노출만 확인.
 - [ ] 모바일 폭에서 아이콘만 남는지.
+
+## G. C-6.13 백테스트 예측 적중률
+
+- [ ] `curl "http://localhost:8000/api/v1/proposal-retrospective/backtest-accuracy"` →
+  현재는 comparable=0이 정상 (백테스트 첨부 제안이 승인·회고까지 가려면 며칠 필요).
+- [ ] 며칠 뒤 재확인: comparable > 0이면 hit_rate로 백테스트 엔진 신뢰도 판단 시작.

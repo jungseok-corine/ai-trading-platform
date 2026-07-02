@@ -53,3 +53,12 @@ async def get_summary(
     service: ProposalRetrospectiveService = Depends(get_service),
 ) -> dict:
     return await service.summary()
+
+
+@router.get("/backtest-accuracy")
+async def get_backtest_accuracy(
+    limit: int = 100,
+    service: ProposalRetrospectiveService = Depends(get_service),
+) -> dict:
+    """백테스트 예측 적중률 (C-6.13) — 백테스트 verdict vs 실제 회고 판정."""
+    return await service.backtest_accuracy(limit=limit)

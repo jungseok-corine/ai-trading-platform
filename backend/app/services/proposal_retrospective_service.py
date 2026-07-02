@@ -155,3 +155,48 @@ class ProposalRetrospectiveService:
         for r in retros:
             counts[r.verdict] = counts.get(r.verdict, 0) + 1
         return {"total": len(retros), **counts}
+
+    async def backtest_accuracy(self, limit: int = 100) -> dict:
+        """백테스트 예측 적중률 (C-6.13): 제안 생성 시 첨부된 백테스트 verdict가
+        나중에 실제 paper 회고 판정과 얼마나 일치했는가.
+
+        양쪽 모두 확정 판정일 때만 비교한다:
+        - backtest proposed_better + retro improved → 적중
+        - backtest base_better + retro worse → 적중 (거절했어야 할 제안을 예측)
+        - 교차 → 빗나감. inconclusive/insufficient는 비교 제외.
+        백테스트 엔진을 얼마나 신뢰할지 데이터로 답하는 메타 지표. read-only.
+        """
+        proposals = await self._strategy_repo.list_filtered(
+            status=ProposalStatus.APPROVED, limit=limit
+        )
+        entries: list[dict] = []
+        hits = misses = 0
+        for p in proposals:
+            if p.created_version_id is None:
+                continue
+            bt_verdict = (p.backtest_summary or {}).get("verdict")
+            if bt_verdict not in ("proposed_better", "base_better"):
+                continue
+            retro = await self.retrospect_strategy(p)
+            if retro.verdict not in (VERDICT_IMPROVED, VERDICT_WORSE):
+                continue
+            hit = (bt_verdict == "proposed_better") == (retro.verdict == VERDICT_IMPROVED)
+            hits += 1 if hit else 0
+            misses += 0 if hit else 1
+            entries.append(
+                {
+                    "proposal_id": p.id,
+                    "backtest_verdict": bt_verdict,
+                    "retro_verdict": retro.verdict,
+                    "hit": hit,
+                }
+            )
+        comparable = hits + misses
+        return {
+            "comparable": comparable,
+            "hits": hits,
+            "misses": misses,
+            "hit_rate": round(hits / comparable, 4) if comparable else None,
+            "entries": entries,
+            "note": "양쪽 판정이 모두 확정된 제안만 비교. 표본이 쌓일수록 의미가 생긴다.",
+        }
