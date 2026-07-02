@@ -202,6 +202,8 @@ class Settings(BaseSettings):
     # 백테스트해 비교를 첨부한다. read-only 계산 + 제안 행 갱신 — 주문/LLM/외부 호출 없음.
     proposal_backtest_enabled: bool = True
     proposal_backtest_days: int = 14
+    # 유니버스 전략 제안 백테스트 시 심볼 상한 (2×N회 리플레이 — 지연 통제)
+    proposal_backtest_universe_symbols: int = 5
 
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).

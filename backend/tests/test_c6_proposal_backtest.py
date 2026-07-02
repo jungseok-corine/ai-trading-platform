@@ -86,7 +86,8 @@ async def test_proposal_gets_backtest_summary(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_universe_strategy_skipped(db_session: AsyncSession):
+async def test_universe_strategy_empty_universe_skipped(db_session: AsyncSession):
+    """유니버스가 비어 있으면(관심종목 없음) 사유를 남기고 생략한다."""
     params = {**_BASE_PARAMS, "symbol_code": "", "universe": "watchlist"}
     strategy, version = await _strategy_with_version(db_session, params)
 
@@ -97,7 +98,54 @@ async def test_universe_strategy_skipped(db_session: AsyncSession):
         base_version_id=version.id,
     )
     assert proposal.backtest_summary is not None
-    assert "유니버스" in proposal.backtest_summary["skipped"]
+    assert "해석 결과 없음" in proposal.backtest_summary["skipped"]
+
+
+@pytest.mark.asyncio
+async def test_universe_strategy_aggregates_symbols(db_session: AsyncSession):
+    """유니버스 전략은 종목별 백테스트를 집계한다 (C-6.1b 유니버스 지원)."""
+    from app.domain.models.watchlist import Watchlist, WatchlistSymbol
+
+    # 두 종목에 데이터 시드 + 관심종목 등록
+    now = datetime.now(timezone.utc)
+    for sym in ("PB0002", "PB0003"):
+        closes = [100] * 30 + [100 + i * 3 for i in range(1, 31)] + [190 - i * 3 for i in range(1, 31)]
+        prev = closes[0]
+        for i, c in enumerate(closes):
+            db_session.add(
+                MarketData(
+                    symbol_code=sym, timeframe="1m",
+                    ts=now - timedelta(minutes=len(closes) - i),
+                    open=Decimal(prev), high=Decimal(max(prev, c)),
+                    low=Decimal(min(prev, c)), close=Decimal(c), volume=1000,
+                )
+            )
+            prev = c
+    wl = Watchlist(name="bt", enabled=True)
+    db_session.add(wl)
+    await db_session.flush()
+    for sym in ("PB0002", "PB0003"):
+        db_session.add(WatchlistSymbol(watchlist_id=wl.id, symbol_code=sym, market="KR", enabled=True))
+    await db_session.commit()
+
+    params = {**_BASE_PARAMS, "symbol_code": "", "universe": "watchlist"}
+    strategy, version = await _strategy_with_version(db_session, params)
+    proposal = await ProposalService(db_session).create_proposal(
+        strategy_id=strategy.id,
+        suggested_parameters={**params, "short_window": 4},
+        title="universe aggregate",
+        base_version_id=version.id,
+    )
+
+    s = proposal.backtest_summary
+    assert s is not None and "skipped" not in s
+    assert set(s["symbols"]) == {"PB0002", "PB0003"}
+    assert s["base"]["mode"] == "universe"
+    assert s["base"]["symbols_used"] == 2
+    assert len(s["base"]["per_symbol"]) == 2
+    assert s["base"]["trade_count"] == sum(
+        leg["trade_count"] for leg in s["base"]["per_symbol"]
+    )
 
 
 @pytest.mark.asyncio

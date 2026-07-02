@@ -58,29 +58,85 @@ class ProposalBacktestService:
             return {"skipped": "base 버전 조회 실패"}
 
         base_params: dict[str, Any] = dict(base_version.parameters or {})
-        symbol = base_params.get("symbol_code") or ""
-        if base_params.get("universe") or not symbol:
-            return {"skipped": "유니버스/무심볼 전략 — 단일 종목 백테스트 대상 아님 (v1)"}
-
         # 제안 파라미터: suggested가 완전한 파라미터면 그대로, 부분이면 base 위에 병합.
         suggested = dict(proposal.suggested_parameters or {})
         proposed_params = {**base_params, **suggested}
+
+        # 대상 심볼: 단일 종목이면 그 종목, 유니버스면 유니버스 종목 중 상위 N개.
+        if base_params.get("universe"):
+            symbols = await self._universe_symbols(base_params, settings)
+            if not symbols:
+                return {"skipped": "유니버스 종목 해석 결과 없음 — 백테스트 생략"}
+        else:
+            symbol = base_params.get("symbol_code") or ""
+            if not symbol:
+                return {"skipped": "symbol_code 없음 — 백테스트 생략"}
+            symbols = [symbol]
 
         end_ts = datetime.now(timezone.utc)
         start_ts = end_ts - timedelta(days=settings.proposal_backtest_days)
         market = base_params.get("market", "KR")
 
-        base_result = await self._run_leg(base_params, symbol, market, start_ts, end_ts)
-        proposed_result = await self._run_leg(proposed_params, symbol, market, start_ts, end_ts)
+        base_result = await self._run_symbols(base_params, symbols, market, start_ts, end_ts)
+        proposed_result = await self._run_symbols(proposed_params, symbols, market, start_ts, end_ts)
 
         return {
             "window_days": settings.proposal_backtest_days,
-            "symbol_code": symbol,
+            "symbol_code": symbols[0] if len(symbols) == 1 else None,
+            "symbols": symbols,
             "generated_at": end_ts.isoformat(),
             "base": base_result,
             "proposed": proposed_result,
             "verdict": _verdict(base_result, proposed_result),
             "note": "저장된 시세 기반 시뮬레이션 — 참고용. 판정과 승인은 사람이 한다.",
+        }
+
+    async def _universe_symbols(self, params: dict[str, Any], settings) -> list[str]:
+        """유니버스 종목을 해석해 상위 N개(설정)를 반환한다. 실패 시 빈 리스트."""
+        from app.domain.models.enums import MarketCode  # noqa: PLC0415
+        from app.services.universe_resolver import UniverseResolver  # noqa: PLC0415
+
+        market_filter = params.get("universe_market")
+        market = MarketCode(market_filter) if market_filter else None
+        resolved = await UniverseResolver(self._session).resolve(
+            params["universe"],
+            market=market,
+            lookback_days=int(params.get("universe_lookback_days", 5)),
+        )
+        return [r.symbol_code for r in resolved[: settings.proposal_backtest_universe_symbols]]
+
+    async def _run_symbols(
+        self,
+        params: dict[str, Any],
+        symbols: list[str],
+        market: str,
+        start_ts: datetime,
+        end_ts: datetime,
+    ) -> dict[str, Any]:
+        """심볼별 백테스트 후 집계. 단일 심볼이면 그대로, 복수면 평균/합산."""
+        legs = [await self._run_leg(params, s, market, start_ts, end_ts) for s in symbols]
+        ok = [leg for leg in legs if leg["status"] == "succeeded"]
+        if not ok:
+            first_err = next((leg.get("error") for leg in legs if leg.get("error")), None)
+            return {"status": "failed", "error": first_err or "모든 심볼 데이터 부족", "per_symbol": legs}
+        if len(legs) == 1:
+            return legs[0]
+
+        total_trades = sum(leg["trade_count"] for leg in ok)
+        total_wins = sum(
+            round((leg["win_rate"] or 0) * leg["trade_count"]) for leg in ok
+        )
+        return {
+            "status": "succeeded",
+            "mode": "universe",
+            "symbols_used": len(ok),
+            "timeframe": params.get("timeframe", "1m"),
+            "trade_count": total_trades,
+            "win_rate": (total_wins / total_trades) if total_trades else None,
+            "return_pct": sum(leg["return_pct"] for leg in ok) / len(ok),
+            "max_drawdown_pct": sum(leg["max_drawdown_pct"] for leg in ok) / len(ok),
+            "buy_hold_return_pct": sum(leg["buy_hold_return_pct"] for leg in ok) / len(ok),
+            "per_symbol": legs,
         }
 
     async def _run_leg(
