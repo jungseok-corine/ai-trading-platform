@@ -136,3 +136,56 @@ def test_bundle_prompt_omits_regime_when_absent():
 
     bundle = {"meta": {"symbol_code": "005930", "trading_day": "2026-07-03", "market": "KR"}}
     assert "당일 변동성 레짐" not in format_bundle_for_prompt(bundle)
+
+
+async def _seed_5m(
+    session: AsyncSession, symbol: str, *, bars: int, base_range: float,
+    recent_range: float | None = None, recent_bars: int = 6,
+) -> None:
+    """5분봉 시드 (C-6.15)."""
+    price = 10_000
+    for i in range(bars):
+        ts = AS_OF - timedelta(minutes=(bars - i) * 5)
+        rng = recent_range if (recent_range is not None and i >= bars - recent_bars) else base_range
+        half = price * rng / 2
+        session.add(
+            MarketData(
+                symbol_code=symbol, timeframe="5m", ts=ts,
+                open=Decimal(price), high=Decimal(price + half),
+                low=Decimal(price - half), close=Decimal(price), volume=1000,
+            )
+        )
+    await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_5m_only_data_classifies_regime(db_session: AsyncSession):
+    """C-6.15: 1분봉이 없어도 5분봉으로 레짐을 분류한다 (unknown 탈출)."""
+    for sym in ("R5001", "R5002", "R5003"):
+        await _seed_5m(db_session, sym, bars=60, base_range=0.01)
+
+    snap = await IntradayRegimeService(db_session).snapshot(as_of=AS_OF)
+    assert snap.regime == REGIME_NORMAL
+    assert snap.symbols_used == 3
+    assert set(snap.detail["per_symbol_timeframe"].values()) == {"5m"}
+
+
+@pytest.mark.asyncio
+async def test_5m_spike_detected(db_session: AsyncSession):
+    for sym in ("R5001", "R5002", "R5003"):
+        await _seed_5m(db_session, sym, bars=60, base_range=0.01, recent_range=0.06)
+
+    snap = await IntradayRegimeService(db_session).snapshot(as_of=AS_OF)
+    assert snap.regime == REGIME_EXTREME
+
+
+@pytest.mark.asyncio
+async def test_prefers_timeframe_with_more_coverage(db_session: AsyncSession):
+    """같은 심볼에 1m(짧게)과 5m(길게) 둘 다 있으면 커버리지 큰 5m을 쓴다."""
+    await _seed(db_session, "RMIX1", bars=70, base_range=0.01)      # 1m 70분 커버
+    await _seed_5m(db_session, "RMIX1", bars=60, base_range=0.01)   # 5m 300분 커버
+    for sym in ("RMIX2", "RMIX3"):
+        await _seed_5m(db_session, sym, bars=60, base_range=0.01)
+
+    snap = await IntradayRegimeService(db_session).snapshot(as_of=AS_OF)
+    assert snap.detail["per_symbol_timeframe"]["RMIX1"] == "5m"

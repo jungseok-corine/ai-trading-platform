@@ -103,3 +103,9 @@
 
 - [ ] 백테스트 콘솔에서 실행 → 결과 아래 에쿼티 곡선 SVG (상승=초록/하락=빨강, 점선=초기 자본).
 - [ ] 긴 기간(90일 5m)에서도 곡선이 200포인트로 다운샘플되어 즉시 렌더링.
+
+## I. C-6.15 레짐 5m 병용
+
+- [ ] 백엔드 재시작 후 **장중에** `curl http://localhost:8000/api/v1/intraday-regime` →
+  `regime`이 unknown이 아니고 `symbols_used >= 3`, `detail.per_symbol_timeframe`에 5m 심볼 포함.
+- [ ] A-1 항목 재검증 (이전에 unknown이었다면 이 수정으로 해소됐는지).
