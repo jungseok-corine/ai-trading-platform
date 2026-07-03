@@ -103,14 +103,17 @@ Step 3. 선택한 작업을 docs/NEXT-TASK.md에 업데이트하고 시작한다
 - 프론트 변경 시 `npm run build` 통과 확인.
 
 ```bash
-# Postgres 시작 + 테스트 DB 재생성
-pg_ctlcluster 16 main start
-su postgres -c "psql -c \"DROP DATABASE IF EXISTS trading_platform_test;\" -c \"CREATE DATABASE trading_platform_test OWNER trading;\""
-# 백엔드 테스트
-cd backend && source .venv/bin/activate && python -m pytest -q
+# 백엔드 테스트 (macOS 로컬 — PYTHONPATH 필수, DB는 docker backend-db-1)
+cd backend && PYTHONPATH=$PWD .venv/bin/pytest -q
 # 프론트 빌드
-cd frontend && npm run build
+npm --prefix frontend run build
 ```
+
+⚠️ **pytest 결과를 `| tail` 등으로 파이프한 채 `&&`로 커밋을 잇지 마라** — exit code가
+가려져 실패한 채 커밋된다(실제 사고 2회). 결과 파일로 받아 확인 후 커밋하라.
+⚠️ `docker exec`에 SQL을 stdin으로 넣을 땐 `-i` 필수 (없으면 조용히 no-op).
+⚠️ 서버는 사용자가 `uvicorn --reload`로 직접 운영 — .py는 자동 반영, **.env 변경과
+재시작은 사용자에게 요청**하라 (임의 재시작 금지).
 
 ---
 
@@ -193,6 +196,7 @@ cd frontend && npm run build
 
 ## 13. 현재 상태 / 다음 할 일
 
+→ 2026-07 인수인계: **`docs/HANDOFF-2026-07.md`** (C-6 시대 시스템 변화·함정·판단 원칙)
 → **`docs/NEXT-TASK.md`** 를 먼저 읽는다.
 → 전체 로드맵은 **`docs/ROADMAP.md`**.
 → 방향 판단이 필요하면 **`docs/PROJECT-VISION.md`**.
