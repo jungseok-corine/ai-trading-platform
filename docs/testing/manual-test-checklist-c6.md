@@ -1,8 +1,21 @@
 # C-6.x 수동 테스트 체크리스트
 
-> 자동 테스트(pytest 2013개, npm build)로 검증 못 하는 **사람/보조 모델의 노가다 테스트** 목록.
+> 자동 테스트(pytest 2036개, npm build)로 검증 못 하는 **사람/보조 모델의 노가다 테스트** 목록.
 > 각 항목은 실행 명령/절차와 기대 결과를 포함한다. 완료하면 체크한다.
 > 서버: `http://localhost:8000`, 프론트: Vite dev 또는 빌드본.
+
+## 검증 결과 (2026-07-03)
+
+**API/데이터 계층 전부 통과** + 사용자 UI 확인분:
+- ✅ A-1/I 레짐(5m 병용, regime=normal·19심볼) · A-5 Telegram(폰 수신)
+- ✅ B-1 제안 백테스트 첨부(#16 verdict=base_better) · B-2 카드 블록(사용자 확인)
+- ✅ C-1 AI 피드 · D/H 백테스트+에쿼티곡선(200pt) · E 체결품질(37쌍) · F 안전스트립 · G 적중률(comparable=0 예상대로)
+
+**옵트인 필요 — 라이브 관찰은 기능을 켜야 가능 (로직은 pytest로 검증 완료)**:
+- ⏸️ A-2 밴드 마커: `volatility_overrides` 든 전략 버전 + elevated/extreme 레짐 필요
+- ⏸️ A-3 soft kill: `VOLATILITY_SOFT_KILL_ENABLED=true` + 재시작 필요
+
+→ A-2/A-3은 C-6.4/6.5 기능을 실제로 켤 때 함께 확인. 그 외 항목은 클리어.
 
 ---
 
