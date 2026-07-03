@@ -222,8 +222,11 @@ class SignalService:
         # 같은 run에서 여러 전략이 동일 종목을 볼 때 캔들을 1회만 조회하도록 캐시한다.
         # (KIS 호출 수를 전략 수만큼 줄여 rate limit/지연을 완화)
         # market/exchange 인자(유니버스 종목별 라우팅)가 주어지면 전략 파라미터보다 우선한다.
-        if candle_cache is not None and symbol_code in candle_cache:
-            candles = candle_cache[symbol_code]
+        # C-6.18: 캐시 키에 timeframe 포함 — 이전엔 symbol만 키여서 1m 전략이 캐시한 캔들을
+        # 5m 전략이 그대로 받는 교차 오염이 있었다.
+        cache_key = (symbol_code, (strategy_params or {}).get("timeframe", "1m"))
+        if candle_cache is not None and cache_key in candle_cache:
+            candles = candle_cache[cache_key]
         else:
             params = strategy_params or {}
             candles = await self._market_data_service.get_recent_candles(
@@ -233,7 +236,7 @@ class SignalService:
                 exchange=exchange or params.get("exchange", "NAS"),
             )
             if candle_cache is not None:
-                candle_cache[symbol_code] = candles
+                candle_cache[cache_key] = candles
 
         # 신선도 가드: 장 마감/휴장으로 시세가 멈춰 캔들이 오래되면 신호를 만들지 않는다.
         # (KIS는 장이 끝났음을 알려주지 않고 마지막 캔들을 계속 돌려주므로 서버에서 판단)

@@ -95,7 +95,7 @@ async def test_signal_log_records_market_us(db_session: AsyncSession) -> None:
     svc = SignalService(db_session, MarketDataService(FakeBrokerClient({})))
     log = await svc.generate_and_log_signal(
         RsiReversionStrategy.from_params({"rsi_period": 14}), "AAPL", version.id,
-        strategy_params={"timeframe": "1m"}, candle_cache={"AAPL": rising},
+        strategy_params={"timeframe": "1m"}, candle_cache={("AAPL", "1m"): rising},
         market="US", exchange="NAS",
     )
 
