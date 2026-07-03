@@ -29,19 +29,19 @@ LLM 전략 리서처(신규 발굴)     rule_based 룰 엔진 해석        → 
    (§C-7.5) → pending 제안 → 사람 승인 → paper → 회고. 실전은 승격 게이트(사람).
 3. **출처 보존**: 전략마다 출처(문헌/유명 트레이더/LLM 리서치)와 원리 설명을 스펙에 동봉.
 
-## C-7.1 — Strategy DSL + 룰 엔진 `IN_PROGRESS`
+## C-7.1 — Strategy DSL + 룰 엔진 `DONE`
 - `rule_based` 전략 타입: parameters.rule_spec = {indicators, entry(조건 AST), exit(조건 AST)}
 - 조건 AST: 비교(gt/lt/…), 교차(crosses_above/below), and/or, 지표 참조, 상수, 가격 참조
 - 지표 어휘 v1: sma/ema/rsi/macd(기존) + bollinger/atr/highest/lowest/stochastic/return_pct(신규)
 - 백테스트·러너·제안 파이프라인에서 기존 전략과 동일하게 동작 (registry 등록만으로)
 
-## C-7.2 — 유명 전략 카탈로그 시드 `READY`
+## C-7.2 — 유명 전략 카탈로그 시드 `DONE`
 - 검증된 고전 전략을 DSL로 시드: 볼린저 하단 반등, 터틀(돈치안 20/10 — breakout_high의 DSL판),
   골든크로스+거래량, 스토캐스틱 과매도, 변동성 돌파(래리 윌리엄스), 듀얼 모멘텀(단순화) 등
 - `POST /strategy-catalog/seed` — 시드 시 자동 백테스트 → 기준 통과분만 pending 제안 생성
 - 출처·원리 설명 동봉
 
-## C-7.3 — LLM 전략 리서처 `READY`
+## C-7.3 — LLM 전략 리서처 `DONE` (수동 트리거 API, 잡 없음)
 - LLM(기존 provider 패턴)에게 "유명/검증된 매매 전략을 DSL 스펙으로 제안하라" 프롬프트
   → JSON 파싱 → 스키마 검증 → 자동 백테스트 → 통과 시 pending 제안
 - 잡 기본 off (LLM 비용). 중복 방지: 기존 카탈로그와 스펙 해시 비교

@@ -36,6 +36,8 @@ from app.api.v1 import ai_cost as ai_cost_api
 from app.api.v1 import ai_activity_feed as ai_activity_feed_api
 from app.api.v1 import backtests as backtests_api
 from app.api.v1 import execution_quality as execution_quality_api
+from app.api.v1 import strategy_catalog as strategy_catalog_api
+from app.api.v1 import strategy_researcher as strategy_researcher_api
 from app.api.v1 import intraday_regime as intraday_regime_api
 from app.api.v1 import analysis_audit as analysis_audit_api
 from app.api.v1 import operations_digest as operations_digest_api
@@ -244,6 +246,8 @@ app.include_router(ai_cost_api.router, prefix="/api/v1")
 app.include_router(ai_activity_feed_api.router, prefix="/api/v1")
 app.include_router(backtests_api.router, prefix="/api/v1")
 app.include_router(execution_quality_api.router, prefix="/api/v1")
+app.include_router(strategy_catalog_api.router, prefix="/api/v1")
+app.include_router(strategy_researcher_api.router, prefix="/api/v1")
 app.include_router(intraday_regime_api.router, prefix="/api/v1")
 app.include_router(proposal_funnel_api.router, prefix="/api/v1")
 app.include_router(safety_status_api.router, prefix="/api/v1")

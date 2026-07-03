@@ -123,3 +123,80 @@ def calculate_volume_ratio(candles: list[MinuteCandle], period: int) -> Decimal 
     if vsma is None or vsma == Decimal(0):
         return None
     return Decimal(candles[-1].volume) / vsma
+
+
+# ── C-7.1 DSL 지표 어휘 확장 ──────────────────────────────────────────────
+
+
+def calculate_stddev(candles: list[MinuteCandle], period: int) -> Decimal | None:
+    """종가 표준편차 (모집단). 데이터 부족 시 None."""
+    if period <= 0 or len(candles) < period:
+        return None
+    closes = [c.close_price for c in candles[-period:]]
+    mean = sum(closes) / period
+    variance = sum((c - mean) ** 2 for c in closes) / period
+    return variance.sqrt()
+
+
+def calculate_bollinger(
+    candles: list[MinuteCandle], period: int = 20, num_std: float = 2.0
+) -> tuple[Decimal, Decimal, Decimal] | None:
+    """볼린저 밴드 (mid, upper, lower). 데이터 부족 시 None."""
+    mid = calculate_sma(candles, period)
+    std = calculate_stddev(candles, period)
+    if mid is None or std is None:
+        return None
+    width = std * Decimal(str(num_std))
+    return mid, mid + width, mid - width
+
+
+def calculate_atr(candles: list[MinuteCandle], period: int = 14) -> Decimal | None:
+    """ATR (True Range 단순평균). 데이터 부족 시 None."""
+    if period <= 0 or len(candles) < period + 1:
+        return None
+    trs = []
+    window = candles[-(period + 1):]
+    for prev, cur in zip(window, window[1:]):
+        tr = max(
+            cur.high_price - cur.low_price,
+            abs(cur.high_price - prev.close_price),
+            abs(cur.low_price - prev.close_price),
+        )
+        trs.append(tr)
+    return sum(trs) / len(trs)
+
+
+def calculate_highest_high(candles: list[MinuteCandle], period: int) -> Decimal | None:
+    """직전 period봉(현재 봉 제외)의 최고가 — 돌파 판정용 (돈치안 상단)."""
+    if period <= 0 or len(candles) < period + 1:
+        return None
+    return max(c.high_price for c in candles[-(period + 1):-1])
+
+
+def calculate_lowest_low(candles: list[MinuteCandle], period: int) -> Decimal | None:
+    """직전 period봉(현재 봉 제외)의 최저가 (돈치안 하단)."""
+    if period <= 0 or len(candles) < period + 1:
+        return None
+    return min(c.low_price for c in candles[-(period + 1):-1])
+
+
+def calculate_stochastic_k(candles: list[MinuteCandle], period: int = 14) -> Decimal | None:
+    """스토캐스틱 %K (fast). 레인지 0이면 None."""
+    if period <= 0 or len(candles) < period:
+        return None
+    window = candles[-period:]
+    hi = max(c.high_price for c in window)
+    lo = min(c.low_price for c in window)
+    if hi == lo:
+        return None
+    return (candles[-1].close_price - lo) / (hi - lo) * 100
+
+
+def calculate_return_pct(candles: list[MinuteCandle], lookback: int) -> Decimal | None:
+    """lookback봉 전 종가 대비 수익률(%)."""
+    if lookback <= 0 or len(candles) < lookback + 1:
+        return None
+    base = candles[-(lookback + 1)].close_price
+    if base <= 0:
+        return None
+    return (candles[-1].close_price - base) / base * 100
