@@ -132,3 +132,10 @@
 - [ ] DB 검증: 해당 제안 experiment_id NOT NULL + suggested_parameters._paper_testing_ready_at 존재
   + 연결 버전 status='draft' + auto_trade_enabled=false.
 - [ ] "승인만" 클릭 → 기존처럼 "Paper 실험 준비" 개별 버튼 경로 유지 (하위호환).
+
+## K. C-6.19 전략 분류 요약
+
+- [ ] 전략 관리 탭 상단 "전략 분류 요약" 표: 살아있는 전략 6개만 기본 표시,
+  "아카이브 전략 7개 보기" 토글 동작.
+- [ ] 배지: 🟢 신호 발생 중 / 💤 휴면 / 📦 아카이브 / 🤖 자동매매 구분.
+- [ ] 행 클릭 시 아래 버전 목록이 해당 전략으로 전환.

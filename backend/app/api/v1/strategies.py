@@ -336,3 +336,66 @@ async def delete_strategy_version(
     except StrategyVersionNotDeletableError as e:
         raise HTTPException(status_code=409, detail=e.reason) from e
     return Response(status_code=204)
+
+
+@router.get("/overview")
+async def strategies_overview(session: AsyncSession = Depends(get_db)) -> list[dict]:
+    """전략별 분류 요약 (C-6.19): 어떤 전략이 살아 있고, 신호를 내고, 자동매매 중인가.
+
+    read-only 집계 — 전략 관리 페이지의 분류/정리용.
+    - live_versions: archived/retired 아닌 버전 수 (0이면 '전량 아카이브' — 목록에서 접을 대상)
+    - signals_3d / last_signal_at: 최근 3일 신호 활동 (0이면 휴면)
+    - auto_trade: 살아있는 버전 중 자동매매 파라미터(단일 auto_trade_enabled 또는
+      universe_auto_trade)가 켜진 버전 존재 여부
+    """
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+    from sqlalchemy import func, select  # noqa: PLC0415
+
+    from app.domain.models.signal_log import SignalLog  # noqa: PLC0415
+    from app.domain.models.strategy import Strategy, StrategyVersion  # noqa: PLC0415
+    from app.trading.strategy.schemas import params_auto_trades  # noqa: PLC0415
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+
+    strategies = (await session.execute(select(Strategy).order_by(Strategy.id))).scalars().all()
+    versions = (await session.execute(select(StrategyVersion))).scalars().all()
+    by_strategy: dict[int, list[StrategyVersion]] = {}
+    for v in versions:
+        by_strategy.setdefault(v.strategy_id, []).append(v)
+
+    signal_rows = (
+        await session.execute(
+            select(
+                StrategyVersion.strategy_id,
+                func.count(SignalLog.id),
+                func.max(SignalLog.generated_at),
+            )
+            .join(StrategyVersion, StrategyVersion.id == SignalLog.strategy_version_id)
+            .where(SignalLog.generated_at >= cutoff)
+            .group_by(StrategyVersion.strategy_id)
+        )
+    ).all()
+    signals = {sid: (cnt, last) for sid, cnt, last in signal_rows}
+
+    out: list[dict] = []
+    for s in strategies:
+        vs = by_strategy.get(s.id, [])
+        live = [v for v in vs if v.status.value not in ("archived", "retired")]
+        sig_count, last_sig = signals.get(s.id, (0, None))
+        out.append(
+            {
+                "id": s.id,
+                "name": s.name,
+                "versions_total": len(vs),
+                "live_versions": len(live),
+                "live_statuses": sorted({v.status.value for v in live}),
+                "timeframes": sorted(
+                    {str((v.parameters or {}).get("timeframe", "1m")) for v in live}
+                ),
+                "signals_3d": sig_count,
+                "last_signal_at": last_sig.isoformat() if last_sig else None,
+                "auto_trade": any(params_auto_trades(v.parameters) for v in live),
+            }
+        )
+    return out

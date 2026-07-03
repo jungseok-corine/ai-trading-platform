@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getStrategies, getStrategyVersions } from "../api/client";
 import StrategyList from "../components/StrategyList";
+import StrategyOverviewTable from "../components/StrategyOverviewTable";
 import StrategyVersionList from "../components/StrategyVersionList";
 
 export default function StrategiesPage() {
@@ -34,6 +35,8 @@ export default function StrategiesPage() {
           active 상태이면 자동매매 시 의도치 않은 중복 주문이 발생할 수 있습니다. 운영 전 확인하세요.
         </div>
       )}
+
+      <StrategyOverviewTable onSelect={setSelectedStrategyId} />
 
       <StrategyList selectedStrategyId={selectedStrategyId} onSelect={setSelectedStrategyId} />
 

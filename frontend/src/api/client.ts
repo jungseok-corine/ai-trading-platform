@@ -363,3 +363,21 @@ export async function getAnalysisRun(runId: number): Promise<AnalysisRun> {
   const { data } = await apiClient.get<AnalysisRun>(`/analysis-runs/${runId}`);
   return data;
 }
+
+// C-6.19: 전략 분류 요약 — 어떤 전략이 살아 있고, 신호를 내고, 자동매매 중인가
+export interface StrategyOverviewRow {
+  id: number;
+  name: string;
+  versions_total: number;
+  live_versions: number;
+  live_statuses: string[];
+  timeframes: string[];
+  signals_3d: number;
+  last_signal_at: string | null;
+  auto_trade: boolean;
+}
+
+export async function getStrategiesOverview(): Promise<StrategyOverviewRow[]> {
+  const { data } = await apiClient.get<StrategyOverviewRow[]>("/strategies/overview");
+  return data;
+}
