@@ -94,7 +94,9 @@ function BacktestComparisonBlock({ summary }: { summary: ProposalBacktestSummary
         </span>
       </strong>
       <p className="muted">
-        최근 {summary.window_days}일 · {summary.symbol_code} · 저장된 시세 시뮬레이션 — 참고용,
+        최근 {summary.window_days}일(일봉 레그는 1년) ·{" "}
+        {(summary.base?.symbols ?? summary.proposed?.symbols ?? []).join(", ") || "—"} · 저장된
+        시세 시뮬레이션 — 참고용,
         판정과 승인은 사람이 합니다.
       </p>
       <table className="compact-table">

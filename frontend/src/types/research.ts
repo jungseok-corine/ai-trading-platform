@@ -407,6 +407,7 @@ export interface StrategyProposal {
 // C-6.1b: 제안 생성 시 자동 첨부되는 base vs proposed 백테스트 비교 (검토 참고용)
 export interface ProposalBacktestLeg {
   status: string;
+  symbols?: string[];
   run_id?: number;
   timeframe?: string;
   trade_count?: number;

@@ -78,7 +78,7 @@ async def test_proposal_gets_backtest_summary(db_session: AsyncSession):
     assert proposal.status == ProposalStatus.PENDING  # 판정은 사람 — status 불변
     s = proposal.backtest_summary
     assert s is not None and "skipped" not in s
-    assert s["symbol_code"] == SYMBOL
+    assert s["base"]["symbols"] == [SYMBOL]
     assert s["base"]["status"] == "succeeded"
     assert s["proposed"]["status"] == "succeeded"
     assert s["verdict"] in {"proposed_better", "base_better", "inconclusive", "insufficient_data"}
@@ -86,8 +86,8 @@ async def test_proposal_gets_backtest_summary(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_universe_strategy_empty_universe_skipped(db_session: AsyncSession):
-    """유니버스가 비어 있으면(관심종목 없음) 사유를 남기고 생략한다."""
+async def test_universe_strategy_empty_universe_failed_leg(db_session: AsyncSession):
+    """유니버스가 비어 있으면(관심종목 없음) 레그 실패 사유가 남는다."""
     params = {**_BASE_PARAMS, "symbol_code": "", "universe": "watchlist"}
     strategy, version = await _strategy_with_version(db_session, params)
 
@@ -97,8 +97,11 @@ async def test_universe_strategy_empty_universe_skipped(db_session: AsyncSession
         title="universe proposal",
         base_version_id=version.id,
     )
-    assert proposal.backtest_summary is not None
-    assert "해석 결과 없음" in proposal.backtest_summary["skipped"]
+    s = proposal.backtest_summary
+    assert s is not None
+    assert s["base"]["status"] == "failed"
+    assert "해석 결과 없음" in s["base"]["error"]
+    assert s["verdict"] == "insufficient_data"
 
 
 @pytest.mark.asyncio
@@ -139,7 +142,7 @@ async def test_universe_strategy_aggregates_symbols(db_session: AsyncSession):
 
     s = proposal.backtest_summary
     assert s is not None and "skipped" not in s
-    assert set(s["symbols"]) == {"PB0002", "PB0003"}
+    assert set(s["base"]["symbols"]) == {"PB0002", "PB0003"}
     assert s["base"]["mode"] == "universe"
     assert s["base"]["symbols_used"] == 2
     assert len(s["base"]["per_symbol"]) == 2

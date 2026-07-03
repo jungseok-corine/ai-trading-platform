@@ -58,36 +58,39 @@ class ProposalBacktestService:
             return {"skipped": "base 버전 조회 실패"}
 
         base_params: dict[str, Any] = dict(base_version.parameters or {})
-        # 제안 파라미터: suggested가 완전한 파라미터면 그대로, 부분이면 base 위에 병합.
-        suggested = dict(proposal.suggested_parameters or {})
-        proposed_params = {**base_params, **suggested}
-
-        # 대상 심볼: 단일 종목이면 그 종목, 유니버스면 유니버스 종목 중 상위 N개.
-        if base_params.get("universe"):
-            symbols = await self._universe_symbols(base_params, settings)
-            if not symbols:
-                return {"skipped": "유니버스 종목 해석 결과 없음 — 백테스트 생략"}
-        else:
-            symbol = base_params.get("symbol_code") or ""
-            if not symbol:
-                return {"skipped": "symbol_code 없음 — 백테스트 생략"}
-            symbols = [symbol]
+        # 제안 파라미터: 승인(approve)이 suggested_parameters를 **그대로** 새 버전으로 만들므로,
+        # 백테스트도 병합 없이 suggested 원문을 검증한다 (승인 결과와 정확히 일치).
+        proposed_params = dict(proposal.suggested_parameters or {})
 
         end_ts = datetime.now(timezone.utc)
-        market = base_params.get("market", "KR")
 
-        base_result = await self._run_symbols(
-            base_params, symbols, market, self._leg_start(base_params, end_ts, settings), end_ts
-        )
-        proposed_result = await self._run_symbols(
-            proposed_params, symbols, market,
-            self._leg_start(proposed_params, end_ts, settings), end_ts,
-        )
+        async def _leg(params: dict[str, Any]) -> dict[str, Any]:
+            # 레그별로 자기 자신의 대상(단일 종목 또는 유니버스)을 해석한다 —
+            # base가 유니버스, 제안이 단일 종목처럼 서로 다른 구조일 수 있다.
+            if params.get("universe"):
+                leg_symbols = await self._universe_symbols(params, settings)
+                if not leg_symbols:
+                    return {"status": "failed", "error": "유니버스 종목 해석 결과 없음"}
+            else:
+                symbol = params.get("symbol_code") or ""
+                if not symbol:
+                    return {"status": "failed", "error": "symbol_code 없음"}
+                leg_symbols = [symbol]
+            market = params.get("market", "KR")
+            start_ts = self._leg_start(params, end_ts, settings)
+            result = await self._run_symbols(params, leg_symbols, market, start_ts, end_ts)
+            result["symbols"] = leg_symbols
+            return result
+
+        base_result = await _leg(base_params)
+        proposed_result = await _leg(proposed_params)
+        if base_result.get("error") == "symbol_code 없음" and proposed_result.get(
+            "error"
+        ) == "symbol_code 없음":
+            return {"skipped": "양쪽 모두 대상 심볼 없음 — 백테스트 생략"}
 
         return {
             "window_days": settings.proposal_backtest_days,
-            "symbol_code": symbols[0] if len(symbols) == 1 else None,
-            "symbols": symbols,
             "generated_at": end_ts.isoformat(),
             "base": base_result,
             "proposed": proposed_result,
