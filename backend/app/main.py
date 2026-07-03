@@ -1,6 +1,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import asyncio
+
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -143,8 +145,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     await start_scheduler(app)
 
+    # KIS 실시간 웹소켓 수집 (C-6.21, 기본 off) — 시세 수신 전용, 주문 TR 없음.
+    app.state.ws_collector = None
+    app.state.ws_collector_task = None
+    if settings.kis_ws_enabled:
+        from app.db.session import async_session_factory  # noqa: PLC0415
+        from app.services.market_data_service import MarketDataService  # noqa: PLC0415
+        from app.trading.broker.kis_websocket import (  # noqa: PLC0415
+            KISRealtimeCollector,
+            fetch_approval_key,
+        )
+
+        async def _approval_key() -> str:
+            return await fetch_approval_key(
+                http_client, settings.kis_paper_base_url,
+                settings.kis_app_key, settings.kis_app_secret,
+            )
+
+        async def _save_ws_candles(symbol: str, candles) -> None:
+            async with async_session_factory() as session:
+                await MarketDataService(session=session).save_candles(symbol, "1m", candles)
+                await session.commit()
+
+        symbols = [s.strip() for s in settings.kis_ws_symbols.split(",") if s.strip()]
+        app.state.ws_collector = KISRealtimeCollector(
+            ws_url=settings.kis_ws_url,
+            approval_key_provider=_approval_key,
+            symbols=symbols,
+            on_candles=_save_ws_candles,
+            flush_seconds=settings.kis_ws_flush_seconds,
+        )
+        app.state.ws_collector_task = asyncio.create_task(app.state.ws_collector.run_forever())
+
     yield
 
+    if app.state.ws_collector is not None:
+        app.state.ws_collector.stop()
+        app.state.ws_collector_task.cancel()
     shutdown_scheduler(app)
     await http_client.aclose()
     await engine.dispose()
