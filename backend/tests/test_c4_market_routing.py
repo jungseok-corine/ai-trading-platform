@@ -56,7 +56,8 @@ def test_timeframe_to_nmin() -> None:
     assert _timeframe_to_nmin("5m") == 5
     assert _timeframe_to_nmin("1m") == 1
     assert _timeframe_to_nmin("15m") == 15
-    assert _timeframe_to_nmin("1d") == 1  # 미지원 형식은 1로 폴백
+    assert _timeframe_to_nmin("1d") == 1440  # C-6.20: 일봉 = 1440분 (신선도 가드용)
+    assert _timeframe_to_nmin("2h") == 1  # 미지원 형식은 1로 폴백
 
 
 def test_params_market_exchange_validation() -> None:
