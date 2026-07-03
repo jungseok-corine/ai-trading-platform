@@ -26,8 +26,15 @@ log = logging.getLogger(__name__)
 
 
 def _timeframe_to_nmin(timeframe: str) -> int:
-    """'5m'/'1m' 같은 타임프레임 문자열을 해외 분봉 NMIN(분 단위)로 변환한다. 기본 1."""
-    m = re.match(r"^(\d+)\s*m$", (timeframe or "").strip().lower())
+    """타임프레임 문자열을 분 단위로 변환한다. '5m'→5, '1d'→1440, 기본 1.
+
+    신선도 가드가 이 값×3을 임계로 쓰므로 일봉을 1분으로 취급하면
+    일봉 전략의 신호가 항상 차단된다 (C-6.20 수정).
+    """
+    tf = (timeframe or "").strip().lower()
+    if tf in ("1d", "d", "day"):
+        return 1440
+    m = re.match(r"^(\d+)\s*m$", tf)
     return int(m.group(1)) if m else 1
 
 

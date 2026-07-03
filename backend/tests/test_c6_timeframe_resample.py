@@ -160,3 +160,26 @@ async def test_candle_cache_separates_timeframes(db_session: AsyncSession):
     tf1 = {c.trade_time for c in cache[("TEST04", "1m")]}
     tf5 = {c.trade_time for c in cache[("TEST04", "5m")]}
     assert tf1 != tf5
+
+
+def test_nmin_daily_conversion():
+    """C-6.20: '1d'는 1440분 — 신선도 가드가 일봉 신호를 차단하지 않게."""
+    from app.services.market_data_service import _timeframe_to_nmin
+
+    assert _timeframe_to_nmin("1d") == 1440
+    assert _timeframe_to_nmin("5m") == 5
+    assert _timeframe_to_nmin("") == 1
+
+
+def test_staleness_guard_allows_daily_candle():
+    from datetime import datetime, timezone as tz
+
+    from app.services.signal_service import _is_candle_stale
+
+    # 오늘 15:30 종가 일봉 — 6시간 뒤에도 stale 아님 (임계 = 1440×3분)
+    candle = _c(datetime.now(tz.utc).astimezone().strftime("%Y%m%d"), "1530", 100, 101, 99, 100)
+    now = datetime.now(tz.utc)
+    assert _is_candle_stale([candle], "1d", now, max_staleness_minutes=10) is False
+    # 1m이면 같은 상황에서 stale (기존 동작 유지)
+    old = _c("20260601", "0900", 100, 101, 99, 100)
+    assert _is_candle_stale([old], "1m", now, max_staleness_minutes=10) is True
