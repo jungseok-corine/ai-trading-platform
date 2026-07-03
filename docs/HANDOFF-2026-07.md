@@ -66,6 +66,20 @@
 - 사용자와 합의된 위임 수준: paper 영역 실행·수정은 브리핑 후 지시받으면 대행 가능,
   **실전 배치·게이트 켜기는 항상 사용자**.
 
+## 5.5 C-7 전략 합성 파이프라인 (2026-07-04 저녁 추가 — 최종 목표의 골격)
+
+사용자의 최종 목표("웹의 유명 전략 → 코드 변환 → 모의 검증 → 종합 선정 → 실전")를 구현:
+- **DSL 엔진** (`trading/strategy/rule_dsl.py`, `rule_based` 타입): LLM/카탈로그가 만든
+  JSON 스펙을 임의 코드 실행 없이 해석. 지표 어휘 15종, 조건 AST. 알 수 없는 fn/op는 검증 차단.
+- **카탈로그** (`services/strategy_catalog.py`, `POST /strategy-catalog/seed`): 고전 6종
+  (터틀/볼린저/골든크로스/스토캐스틱/MACD/듀얼모멘텀) + 입학시험(거래≥5, 수익>0, MDD<35%).
+- **LLM 리서처** (`POST /strategy-researcher/run`): LLM이 DSL 스펙 제안 → 검증 → 시험 →
+  통과분만 pending. 기본 provider=fake(비용 안전). 수동 트리거 전용.
+- **선정 보드** (`GET /strategy-selection-board`): 백테스트+paper+회고+레짐 종합 점수 랭킹.
+  read-only — 실전은 승격 게이트(사람).
+- 계획·기준: `docs/roadmap/C-7-strategy-synthesis-plan.md`. 후속: 웹검색 연동, 보드 UI,
+  카탈로그 seed 실데이터 실행(체크리스트 M절 — 아직 미실행).
+
 ## 6. 미결 사항 (우선순위순 — NEXT-TASK.md와 동기화)
 
 1. **월요일(7/6) 장 시작 점검** — 상세 절차: `docs/runbooks/monday-market-check.md`
