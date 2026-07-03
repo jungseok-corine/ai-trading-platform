@@ -9,12 +9,25 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.candidate_event import CandidateEvent
-from app.domain.models.enums import ScannerRuleStatus
+from app.domain.models.enums import ScannerRuleStatus, SchedulerRunStatus
 from app.domain.models.scanner import ScannerRule, ScannerRuleVersion
+from app.domain.models.scheduler_run import SchedulerRun
 from app.services.scanner_proposal_generator import (
     ScannerProposalGenerator,
     loosen_conditions,
 )
+
+
+async def _seed_scan_evidence(session: AsyncSession) -> None:
+    """기근 판정의 전제: 스캔(research_pipeline)이 최근에 실제로 돌았다는 증거."""
+    session.add(
+        SchedulerRun(
+            job_id="research_pipeline",
+            status=SchedulerRunStatus.SUCCESS,
+            started_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+    await session.commit()
 
 # ── loosen_conditions 순수 함수 ─────────────────────────────────────────
 
@@ -72,7 +85,8 @@ async def test_drought_generates_loosening_proposal(db_session: AsyncSession):
     version = await _rule_version(
         db_session, [{"type": "volume_spike", "params": {"multiplier": 2.6}}]
     )
-    # 후보 0건 (기근) → 완화 제안
+    await _seed_scan_evidence(db_session)
+    # 스캔은 돌았는데 후보 0건 (기근) → 완화 제안
     proposal = await ScannerProposalGenerator(db_session).generate_for_version(version.id)
     assert proposal is not None
     assert proposal.status.value == "pending"  # 승인은 사람
@@ -85,6 +99,7 @@ async def test_no_drought_when_recent_candidates_exist(db_session: AsyncSession)
     version = await _rule_version(
         db_session, [{"type": "volume_spike", "params": {"multiplier": 2.6}}]
     )
+    await _seed_scan_evidence(db_session)
     db_session.add(
         CandidateEvent(
             scanner_rule_version_id=version.id, symbol_code="005930",
@@ -103,6 +118,17 @@ async def test_drought_at_floor_no_proposal(db_session: AsyncSession):
     """기근이어도 이미 하한이면 제안하지 않는다 (무한 완화 방지)."""
     version = await _rule_version(
         db_session, [{"type": "volume_spike", "params": {"multiplier": 1.2}}]
+    )
+    await _seed_scan_evidence(db_session)
+    proposal = await ScannerProposalGenerator(db_session).generate_for_version(version.id)
+    assert proposal is None
+
+
+@pytest.mark.asyncio
+async def test_no_drought_without_scan_evidence(db_session: AsyncSession):
+    """스캔이 돈 적이 없으면 후보 0건이어도 기근이 아니다 (놀았던 것 ≠ 조건 과빡)."""
+    version = await _rule_version(
+        db_session, [{"type": "volume_spike", "params": {"multiplier": 2.6}}]
     )
     proposal = await ScannerProposalGenerator(db_session).generate_for_version(version.id)
     assert proposal is None

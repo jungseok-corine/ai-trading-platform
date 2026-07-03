@@ -198,16 +198,37 @@ class ScannerProposalGenerator:
         )
 
     async def _is_drought(self, version_id: int) -> bool:
-        """최근 scanner_drought_days일 동안 이 버전의 후보가 0건인지."""
+        """기근 = 최근 N일간 **스캔은 실제로 돌았는데** 이 버전의 후보가 0건.
+
+        스캔 증거(research_pipeline 성공 실행)가 없으면 기근으로 보지 않는다 —
+        시스템이 놀고 있었던 것과 조건이 너무 높은 것은 다른 문제다.
+        """
         from datetime import datetime, timedelta, timezone  # noqa: PLC0415
 
         from sqlalchemy import func, select  # noqa: PLC0415
 
         from app.core.config import get_settings  # noqa: PLC0415
         from app.domain.models.candidate_event import CandidateEvent  # noqa: PLC0415
+        from app.domain.models.enums import SchedulerRunStatus  # noqa: PLC0415
+        from app.domain.models.scheduler_run import SchedulerRun  # noqa: PLC0415
 
         days = get_settings().scanner_drought_days
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+        scans = (
+            await self._session.execute(
+                select(func.count())
+                .select_from(SchedulerRun)
+                .where(
+                    SchedulerRun.job_id == "research_pipeline",
+                    SchedulerRun.status == SchedulerRunStatus.SUCCESS,
+                    SchedulerRun.started_at >= cutoff,
+                )
+            )
+        ).scalar_one()
+        if scans == 0:
+            return False
+
         count = (
             await self._session.execute(
                 select(func.count())
