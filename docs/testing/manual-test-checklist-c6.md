@@ -36,7 +36,8 @@
 ### A-5. Telegram (사용자가 키 연결 후)
 - [ ] `.env`: `NOTIFICATION_PROVIDER=telegram`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
   `NOTIFICATION_EVENTS_ENABLED=true` + 재시작.
-- [ ] `POST /api/v1/notify` (다이제스트 수동 전송)로 채널 연결 확인.
+- [ ] `POST /api/v1/operations-digest/notify?only_if_alerts=false` (다이제스트 강제 전송)로
+  채널 연결 확인 — 응답 `notification.sent=true` + 폰 수신.
 - [ ] daily_analysis run-now로 제안이 생성되면 "AI 제안 검토 요청" 메시지가 폰에 오는지.
 
 ## B. C-6.1b 제안-백테스트 자동 연결
