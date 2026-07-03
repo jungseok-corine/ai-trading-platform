@@ -115,6 +115,9 @@ class CandidateStrategyProposalService:
         await self._session.commit()
         return proposal
 
+    async def get(self, proposal_id: int) -> CandidateStrategyProposal | None:
+        return await self._repo.get(proposal_id)
+
     async def list_for_candidate(
         self, candidate_event_id: int
     ) -> list[CandidateStrategyProposal]:

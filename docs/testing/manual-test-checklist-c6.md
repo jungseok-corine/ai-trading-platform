@@ -123,3 +123,12 @@
 - [ ] 백엔드 재시작 후 **장중에** `curl http://localhost:8000/api/v1/intraday-regime` →
   `regime`이 unknown이 아니고 `symbols_used >= 3`, `detail.per_symbol_timeframe`에 5m 심볼 포함.
 - [ ] A-1 항목 재검증 (이전에 unknown이었다면 이 수정으로 해소됐는지).
+
+## J. C-6.16 Paper 승인 게이트 통합
+
+- [ ] 운영(고급) → 후보 종목 → 전략 제안 패널: PENDING 제안에 "승인 + 실험 준비"(파랑) /
+  "승인만" / "제안 거절" 3버튼 확인.
+- [ ] "승인 + 실험 준비" 클릭 → 한 번에 준비된 실험 카드(DRAFT + 실행 전) 표시.
+- [ ] DB 검증: 해당 제안 experiment_id NOT NULL + suggested_parameters._paper_testing_ready_at 존재
+  + 연결 버전 status='draft' + auto_trade_enabled=false.
+- [ ] "승인만" 클릭 → 기존처럼 "Paper 실험 준비" 개별 버튼 경로 유지 (하위호환).
