@@ -47,7 +47,7 @@ LLM 전략 리서처(신규 발굴)     rule_based 룰 엔진 해석        → 
 - 잡 기본 off (LLM 비용). 중복 방지: 기존 카탈로그와 스펙 해시 비교
 - 웹 검색 연동은 후속 (v1은 LLM 지식 기반 — 유명 전략은 LLM이 이미 안다)
 
-## C-7.4 — 종합 선정 스코어 `READY`
+## C-7.4 — 종합 선정 스코어 `DONE` (GET /strategy-selection-board — UI는 후속)
 - `GET /strategy-selection-board`: 버전별 종합 점수
   = 백테스트(수익·MDD) × paper 실적(기대값·표본) × 회고 판정 × 레짐 적합성 태그
 - D-31 반영: 전략에 적합 레짐 태그(trend/range) — 현재 레짐과 매칭 가중
