@@ -208,6 +208,13 @@ class Settings(BaseSettings):
     # 스캐너 후보 기근 감지 (C-6.17): 최근 N일 후보 0건이면 자동 점검이 조건 완화를 제안한다.
     scanner_drought_days: int = 5
 
+    # KIS 실시간 웹소켓 시세 수집 (C-6.21). 기본 off — 시세 수신 전용(주문 TR 없음).
+    # 켜면 지정 종목의 실시간 체결가를 1분봉으로 집계해 market_data('1m')에 적재한다.
+    kis_ws_enabled: bool = False
+    kis_ws_url: str = "ws://ops.koreainvestment.com:31000"  # 모의투자 실시간 도메인
+    kis_ws_symbols: str = "005930"  # 콤마 구분 (상한 40)
+    kis_ws_flush_seconds: float = 5.0
+
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
     operations_digest_scheduler_enabled: bool = False
