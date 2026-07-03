@@ -35,6 +35,46 @@ class _TightenResult:
     changes: list[str]  # 사람이 읽을 수 있는 변경 설명
 
 
+def loosen_conditions(conditions: list[dict]) -> _TightenResult:
+    """스캐너 조건을 결정적으로 완화한다 (C-6.17 — 후보 기근 탈출).
+
+    tighten_conditions의 역방향: 강화로 문턱이 너무 높아져 후보가 전혀 안 잡히는
+    '기근' 상태에서 진입 문턱을 한 단계 낮춘다.
+    - volume_spike.multiplier ÷1.3 (최소 1.2 — 무의미한 수준까지 낮추지 않음)
+    - price_change_pct.min_pct ÷1.3 (최소 0.5)
+    - turnover_rank.max_rank ÷0.7 (최대 100)
+    """
+    new_conditions: list[dict] = []
+    changes: list[str] = []
+
+    for cond in conditions:
+        ctype = cond.get("type")
+        params = dict(cond.get("params") or {})
+
+        if ctype == ScannerConditionType.VOLUME_SPIKE.value:
+            cur = Decimal(str(params.get("multiplier", 1.5)))
+            new = max(1.2, _round1(cur / TIGHTEN_FACTOR))
+            if Decimal(str(new)) < cur:
+                params["multiplier"] = new
+                changes.append(f"volume_spike multiplier {cur} → {new}")
+        elif ctype == ScannerConditionType.PRICE_CHANGE_PCT.value:
+            cur = Decimal(str(params.get("min_pct", 0)))
+            new = max(0.5, _round1(cur / TIGHTEN_FACTOR))
+            if Decimal(str(new)) < cur:
+                params["min_pct"] = new
+                changes.append(f"price_change_pct min_pct {cur} → {new}")
+        elif ctype == ScannerConditionType.TURNOVER_RANK.value:
+            cur = int(params.get("max_rank", 100))
+            new = min(100, int((Decimal(cur) / RANK_FACTOR).to_integral_value()))
+            if new > cur:
+                params["max_rank"] = new
+                changes.append(f"turnover_rank max_rank {cur} → {new}")
+
+        new_conditions.append({"type": ctype, "params": params})
+
+    return _TightenResult(conditions=new_conditions, changes=changes)
+
+
 def tighten_conditions(conditions: list[dict], *, aggressive: bool = False) -> _TightenResult:
     """스캐너 조건을 결정적으로 강화한다(진입 문턱을 높여 약한 신호를 줄인다).
 
@@ -111,6 +151,11 @@ class ScannerProposalGenerator:
         count = overall.get("count") or 0
         win_rate = overall.get("win_rate")
 
+        # C-6.17 후보 기근 감지: 최근 N일 후보 0건이면 강화의 반대 — 완화를 제안한다.
+        # (강화만 있으면 조건이 시장 위로 올라가 0건에 영구히 갇힌다. 2026-06-23 실사례.)
+        if await self._is_drought(version_id):
+            return await self._propose_loosening(version)
+
         # 데이터가 부족하거나 승률이 기준 이상이면 제안하지 않는다.
         if count < MIN_CANDIDATES_FOR_SUGGESTION:
             return None
@@ -149,5 +194,53 @@ class ScannerProposalGenerator:
             expected_effect="후보 수 감소, 약한 신호 제거로 평균 후보 품질 개선 가능.",
             risk_notes="조건이 강해져 기회가 줄어들 수 있습니다. 새 버전으로 비교 검증이 필요합니다.",
             base_version_id=version_id,
+            source="ai",
+        )
+
+    async def _is_drought(self, version_id: int) -> bool:
+        """최근 scanner_drought_days일 동안 이 버전의 후보가 0건인지."""
+        from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+        from sqlalchemy import func, select  # noqa: PLC0415
+
+        from app.core.config import get_settings  # noqa: PLC0415
+        from app.domain.models.candidate_event import CandidateEvent  # noqa: PLC0415
+
+        days = get_settings().scanner_drought_days
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        count = (
+            await self._session.execute(
+                select(func.count())
+                .select_from(CandidateEvent)
+                .where(
+                    CandidateEvent.scanner_rule_version_id == version_id,
+                    CandidateEvent.triggered_at >= cutoff,
+                )
+            )
+        ).scalar_one()
+        return count == 0
+
+    async def _propose_loosening(self, version) -> ScannerRuleProposal | None:
+        """후보 기근 상태의 버전에 조건 완화 제안을 만든다 (pending — 승인은 사람)."""
+        from app.core.config import get_settings  # noqa: PLC0415
+
+        loosened = loosen_conditions(version.conditions or [])
+        if not loosened.changes:
+            return None  # 이미 하한까지 완화됨 — 더 낮출 게 없다
+        days = get_settings().scanner_drought_days
+        change_text = "; ".join(loosened.changes)
+        return await self._proposal_service.create_proposal(
+            scanner_rule_id=version.scanner_rule_id,
+            suggested_conditions=loosened.conditions,
+            title=f"스캐너 조건 완화 — 후보 기근 (v{version.version_no})",
+            summary=f"최근 {days}일 후보 0건 — 진입 문턱을 한 단계 낮춥니다: {change_text}",
+            rationale=(
+                f"이 버전은 최근 {days}일간 후보를 한 건도 포착하지 못했습니다. "
+                "조건이 현 시장 수준보다 높게 강화되어 있어, 완화 없이는 후보·배정·실험 "
+                "루프 전체가 재료 부족으로 멈춥니다."
+            ),
+            expected_effect="후보 발굴 재개 — 연구 루프에 재료 공급. 후보 품질은 다음 점검에서 재평가.",
+            risk_notes="완화로 약한 신호가 늘 수 있습니다. 승인 후 승률이 낮아지면 자동 점검이 다시 강화를 제안합니다.",
+            base_version_id=version.id,
             source="ai",
         )

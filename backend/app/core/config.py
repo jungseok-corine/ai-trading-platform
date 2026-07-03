@@ -205,6 +205,9 @@ class Settings(BaseSettings):
     # 유니버스 전략 제안 백테스트 시 심볼 상한 (2×N회 리플레이 — 지연 통제)
     proposal_backtest_universe_symbols: int = 5
 
+    # 스캐너 후보 기근 감지 (C-6.17): 최근 N일 후보 0건이면 자동 점검이 조건 완화를 제안한다.
+    scanner_drought_days: int = 5
+
     # 운영 다이제스트 잡 (C-3.9). 기본 비활성 — 켜면 매일 다이제스트를 설정 채널로 보낸다.
     # 채널 기본 none이라 켜도 외부 전송은 없다(채널을 함께 설정해야 실제 발송).
     operations_digest_scheduler_enabled: bool = False
