@@ -74,11 +74,15 @@ class ProposalBacktestService:
             symbols = [symbol]
 
         end_ts = datetime.now(timezone.utc)
-        start_ts = end_ts - timedelta(days=settings.proposal_backtest_days)
         market = base_params.get("market", "KR")
 
-        base_result = await self._run_symbols(base_params, symbols, market, start_ts, end_ts)
-        proposed_result = await self._run_symbols(proposed_params, symbols, market, start_ts, end_ts)
+        base_result = await self._run_symbols(
+            base_params, symbols, market, self._leg_start(base_params, end_ts, settings), end_ts
+        )
+        proposed_result = await self._run_symbols(
+            proposed_params, symbols, market,
+            self._leg_start(proposed_params, end_ts, settings), end_ts,
+        )
 
         return {
             "window_days": settings.proposal_backtest_days,
@@ -90,6 +94,13 @@ class ProposalBacktestService:
             "verdict": _verdict(base_result, proposed_result),
             "note": "저장된 시세 기반 시뮬레이션 — 참고용. 판정과 승인은 사람이 한다.",
         }
+
+    @staticmethod
+    def _leg_start(params: dict[str, Any], end_ts: datetime, settings) -> datetime:
+        """레그별 시작 시각 — 일봉 전략은 분봉 창(기본 14일)으론 봉이 모자라 1년으로 확장."""
+        timeframe = str(params.get("timeframe", "1m")).lower()
+        days = 365 if timeframe in ("1d", "d", "day") else settings.proposal_backtest_days
+        return end_ts - timedelta(days=days)
 
     async def _universe_symbols(self, params: dict[str, Any], settings) -> list[str]:
         """유니버스 종목을 해석해 상위 N개(설정)를 반환한다. 실패 시 빈 리스트."""
