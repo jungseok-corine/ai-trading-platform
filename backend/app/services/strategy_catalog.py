@@ -210,10 +210,13 @@ class StrategyCatalogService:
             ),
         }
 
-    async def _create_proposal(self, entry: dict, agg: dict) -> StrategyProposal | None:
+    async def _create_proposal(
+        self, entry: dict, agg: dict, source: str = "catalog"
+    ) -> StrategyProposal | None:
         """통과 스펙의 pending 제안 생성. 같은 이름의 기존 pending/approved가 있으면 skip."""
         spec = entry["spec"]
-        title = f"[카탈로그] {spec['name']} — 입학시험 통과"
+        label = "카탈로그" if source == "catalog" else "AI리서치"
+        title = f"[{label}] {spec['name']} — 입학시험 통과"
         existing = (
             await self._session.execute(
                 select(StrategyProposal).where(
@@ -251,7 +254,7 @@ class StrategyCatalogService:
                 f"적합 레짐: {entry['regime_fit']} (D-31 — 부적합 국면에서는 성과 저하 가능). "
                 "승인 시 TESTING·신호 전용으로 paper 검증부터."
             ),
-            source="catalog",
+            source=source,
         )
 
     async def _get_or_create_parent(self, spec: dict) -> Strategy:

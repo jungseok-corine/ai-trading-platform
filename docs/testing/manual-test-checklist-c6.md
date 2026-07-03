@@ -150,3 +150,12 @@
   ⚠️ H0STCNT0 필드 순서는 문서 기준 구현 — 불일치 시 kis_websocket.py의 _F_* 인덱스 조정.
 - [ ] 연결 끊기(네트워크 차단) 후 자동 재접속 로그 확인.
 - [ ] 검증 후 게이트 유지 여부 결정 (켜두면 레짐 감지가 실시간화됨).
+
+## M. C-7 전략 합성 파이프라인 (실데이터 검증)
+
+- [ ] `GET /api/v1/strategy-catalog` — 카탈로그 6종 + 출처 표시.
+- [ ] `POST /api/v1/strategy-catalog/seed` — 실데이터(5대형주 일봉 1년) 입학시험 결과 확인:
+  passed/failed와 사유, 통과분 pending 제안(제목 "[카탈로그] ...") 생성.
+- [ ] 통과 제안 승인 → rule_based TESTING 버전 생성 → 러너가 신호 생성하는지 (일봉).
+- [ ] `POST /api/v1/strategy-researcher/run?provider=anthropic&count=3` (LLM 비용 발생) —
+  LLM이 만든 스펙의 검증/시험/제안 흐름 확인. provider 미지정 시 fake(무비용, no-op 수준).
