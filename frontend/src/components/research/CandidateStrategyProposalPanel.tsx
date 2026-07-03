@@ -642,12 +642,13 @@ function SavedProposalRow({
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const reviewMut = useMutation({
-    // 상태만 approved/rejected로 변경 — 전략 생성/배정/실험/매매 없음.
-    mutationFn: (status: "approved" | "rejected") =>
+    // C-6.16: 승인은 실험 준비까지 원클릭(DRAFT — 실행/자동매매/주문 없음). 거절은 상태만.
+    mutationFn: (args: { status: "approved" | "rejected"; withPrepare?: boolean }) =>
       reviewCandidateStrategyProposal(proposal.id, {
-        status,
+        status: args.status,
         reviewed_by: "manual_user",
         review_note: note || undefined,
+        prepare_paper_experiment: args.withPrepare ?? false,
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["candidate-proposals", candidateId] }),
@@ -679,10 +680,25 @@ function SavedProposalRow({
             onChange={(e) => setNote(e.target.value)}
             style={{ flex: "1 1 160px" }}
           />
-          <button disabled={reviewMut.isPending} onClick={() => reviewMut.mutate("approved")}>
-            제안 승인
+          <button
+            className="primary"
+            disabled={reviewMut.isPending}
+            onClick={() => reviewMut.mutate({ status: "approved", withPrepare: true })}
+            title="승인 + Paper 실험 준비 + 준비 승인을 한 번에 (DRAFT — 실행/자동매매 아님)"
+          >
+            승인 + 실험 준비
           </button>
-          <button disabled={reviewMut.isPending} onClick={() => reviewMut.mutate("rejected")}>
+          <button
+            disabled={reviewMut.isPending}
+            onClick={() => reviewMut.mutate({ status: "approved" })}
+            title="상태만 승인 (실험 준비는 나중에 개별 버튼으로)"
+          >
+            승인만
+          </button>
+          <button
+            disabled={reviewMut.isPending}
+            onClick={() => reviewMut.mutate({ status: "rejected" })}
+          >
             제안 거절
           </button>
         </div>

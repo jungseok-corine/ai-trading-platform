@@ -221,6 +221,22 @@ class CandidateProposalExperimentService:
             already_prepared=False,
         )
 
+    async def approve_and_prepare(
+        self, proposal_id: int, confirmed_by: str = "manual_user"
+    ) -> tuple[PreparedExperiment, ReadinessResult]:
+        """C-6.16 게이트 통합: 이미 approved인 제안을 준비 + readiness 기록까지 한 번에.
+
+        기존 3중 게이트(승인 → 준비 → 준비승인)를 승인 시점의 원클릭으로 합친다.
+        비전 원칙 유지: 승인 자체는 여전히 사람의 명시 행위이고,
+        생성물은 여전히 DRAFT + auto_trade=False (runner 비적격 — 신호 기록 없음).
+        신호 기록이 실제로 시작되는 paper signal session 시작은 별도 명시 행위로 남는다.
+        """
+        prepared = await self.prepare(proposal_id, created_by=confirmed_by)
+        readiness = await self.approve_paper_testing_readiness(
+            proposal_id, confirmed=True, confirmed_by=confirmed_by
+        )
+        return prepared, readiness
+
     async def approve_paper_testing_readiness(
         self, proposal_id: int, confirmed: bool, confirmed_by: str | None
     ) -> ReadinessResult:

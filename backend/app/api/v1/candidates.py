@@ -351,6 +351,9 @@ class StrategyProposalReviewRequest(BaseModel):
     status: str  # approved | rejected (실행 없음, 상태만 변경)
     reviewed_by: str | None = None
     review_note: str | None = None
+    # C-6.16 게이트 통합: 승인과 동시에 paper 실험 준비 + readiness 기록까지 수행(옵트인).
+    # 생성물은 여전히 DRAFT + auto_trade=False — 신호 기록/주문 시작 아님.
+    prepare_paper_experiment: bool = False
 
 
 class CandidateStrategyProposalRead(BaseModel):
@@ -434,8 +437,16 @@ async def review_candidate_strategy_proposal(
     proposal_id: int,
     payload: StrategyProposalReviewRequest,
     service: CandidateStrategyProposalService = Depends(get_proposal_service),
+    experiment_service: CandidateProposalExperimentService = Depends(
+        get_proposal_experiment_service
+    ),
 ) -> CandidateStrategyProposalRead:
-    """제안 상태만 approved/rejected로 갱신한다. 어떤 실행/배정/버전 생성도 하지 않는다."""
+    """제안 상태를 approved/rejected로 갱신한다.
+
+    C-6.16: `prepare_paper_experiment=true`로 승인하면 paper 실험 준비 + readiness 기록까지
+    한 번에 수행한다(기존 3중 게이트 통합). 생성물은 DRAFT + auto_trade=False —
+    runner 비적격이므로 신호 기록/주문은 시작되지 않는다.
+    """
     try:
         proposal = await service.review(
             proposal_id,
@@ -449,6 +460,17 @@ async def review_candidate_strategy_proposal(
         raise HTTPException(
             status_code=422, detail="status must be 'approved' or 'rejected'"
         ) from e
+
+    if payload.status == "approved" and payload.prepare_paper_experiment:
+        try:
+            await experiment_service.approve_and_prepare(
+                proposal_id, confirmed_by=payload.reviewed_by or "manual_user"
+            )
+        except (ProposalNotApprovedError, NotPreparedError, InvalidExperimentStateError) as e:
+            # 승인 자체는 이미 성공 — 준비 실패는 기존 개별 게이트로 재시도 가능하게 409로 알린다.
+            raise HTTPException(status_code=409, detail=f"승인됨, 실험 준비 실패: {e}") from e
+        # prepare가 proposal에 experiment_id/prepared_at을 기록했으므로 새로 읽는다.
+        proposal = await service.get(proposal_id) or proposal
     return CandidateStrategyProposalRead.model_validate(proposal)
 
 

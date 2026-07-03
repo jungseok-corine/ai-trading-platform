@@ -176,7 +176,13 @@ export async function approvePaperReadiness(
 // 제안의 상태만 approved/rejected로 변경한다. 어떤 실행/배정/전략 생성도 하지 않는다.
 export async function reviewCandidateStrategyProposal(
   proposalId: number,
-  body: { status: "approved" | "rejected"; reviewed_by?: string; review_note?: string },
+  body: {
+    status: "approved" | "rejected";
+    reviewed_by?: string;
+    review_note?: string;
+    // C-6.16: 승인과 동시에 paper 실험 준비 + readiness 기록 (DRAFT — 실행 아님)
+    prepare_paper_experiment?: boolean;
+  },
 ): Promise<CandidateStrategyProposal> {
   const { data } = await apiClient.patch<CandidateStrategyProposal>(
     `/candidate-strategy-proposals/${proposalId}/review`,
