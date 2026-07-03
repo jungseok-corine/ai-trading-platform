@@ -7,6 +7,7 @@ from app.trading.strategy.macd_trend import MacdTrendStrategy
 from app.trading.strategy.momentum_surge import MomentumSurgeStrategy
 from app.trading.strategy.moving_average_cross import MovingAverageCrossStrategy
 from app.trading.strategy.pullback_trend import PullbackTrendStrategy
+from app.trading.strategy.rule_based import RuleBasedStrategy
 from app.trading.strategy.rsi_reversion import RsiReversionStrategy
 from app.trading.strategy.volume_confirmed_ma_cross import VolumeConfirmedMovingAverageCrossStrategy
 
@@ -23,6 +24,7 @@ _REGISTRY: dict[str, type[Strategy]] = {
     BreakoutHighStrategy.name: BreakoutHighStrategy,
     PullbackTrendStrategy.name: PullbackTrendStrategy,
     MomentumSurgeStrategy.name: MomentumSurgeStrategy,
+    RuleBasedStrategy.name: RuleBasedStrategy,
 }
 
 

@@ -330,6 +330,9 @@ class StrategyVersionParameters(BaseModel):
     surge_lookback: int = Field(default=5, gt=0)
     surge_threshold_pct: float = Field(default=5.0, gt=0)
     exit_drop_pct: float = Field(default=3.0, gt=0)
+    # rule_based(C-7.1) 전용: 선언적 전략 스펙 (지표+진입/청산 조건 AST).
+    # 검증은 validate_rule_spec — 임의 코드 실행 없음.
+    rule_spec: dict | None = None
     # 변동성 레짐별 파라미터 오버라이드 (C-6.4). 사람이 버전 승인 시 밴드를 함께 승인하고,
     # 러너가 현재 레짐(C-6.3)에 맞는 항목을 런타임에만 적용한다(원본 무변경).
     # 안전 키(자동매매 토글/계좌/전략 정체성 등)는 오버라이드 불가.
@@ -337,6 +340,16 @@ class StrategyVersionParameters(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> "StrategyVersionParameters":
+        if self.strategy_type == "rule_based":
+            from app.trading.strategy.rule_dsl import (  # noqa: PLC0415
+                RuleSpecError,
+                validate_rule_spec,
+            )
+
+            try:
+                validate_rule_spec(self.rule_spec)
+            except RuleSpecError as e:
+                raise ValueError(f"rule_spec 오류: {e}") from e
         if self.volatility_overrides is not None:
             from app.trading.strategy.volatility_overrides import (  # noqa: PLC0415
                 validate_volatility_overrides,
