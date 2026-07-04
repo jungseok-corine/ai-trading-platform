@@ -208,6 +208,11 @@ class Settings(BaseSettings):
     # 스캐너 후보 기근 감지 (C-6.17): 최근 N일 후보 0건이면 자동 점검이 조건 완화를 제안한다.
     scanner_drought_days: int = 5
 
+    # LLM 전략 리서처 정기 잡 (C-7.6). 기본 off — 켜면 주 1회 새 전략을 발굴해
+    # 검증·입학시험 후 pending 제안을 만든다 (LLM 비용 발생, 승인은 사람).
+    strategy_researcher_scheduler_enabled: bool = False
+    strategy_researcher_count: int = 3
+
     # KIS 실시간 웹소켓 시세 수집 (C-6.21). 기본 off — 시세 수신 전용(주문 TR 없음).
     # 켜면 지정 종목의 실시간 체결가를 1분봉으로 집계해 market_data('1m')에 적재한다.
     kis_ws_enabled: bool = False

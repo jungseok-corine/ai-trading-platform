@@ -60,6 +60,7 @@ const VERDICT_LABELS: Record<string, { label: string; color: string }> = {
   base_better: { label: "기존이 우세", color: "#c62828" },
   inconclusive: { label: "판단 보류 (차이 미미)", color: "#f9a825" },
   insufficient_data: { label: "표본 부족", color: "#757575" },
+  admission_passed: { label: "입학시험 통과", color: "#2e7d32" },
 };
 
 function btPct(v: number | undefined): string {

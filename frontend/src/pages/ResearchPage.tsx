@@ -28,6 +28,7 @@ import LeaderTrendSection from "../components/research/LeaderTrendSection";
 import AiActivityFeedSection from "../components/research/AiActivityFeedSection";
 import BacktestSection from "../components/research/BacktestSection";
 import ExecutionQualitySection from "../components/research/ExecutionQualitySection";
+import SelectionBoardSection from "../components/research/SelectionBoardSection";
 
 type Section =
   | "ops"
@@ -58,7 +59,8 @@ type Section =
   | "promotion-readiness"
   | "ai-feed"
   | "backtest"
-  | "execution-quality";
+  | "execution-quality"
+  | "selection-board";
 
 // C-6.6: 사용자 동선 4뷰 — "매일 내려야 하는 결정과 그 근거만 전면에".
 // 기존 섹션은 전부 유지하고 그룹으로 재배치만 했다 (삭제 없음).
@@ -89,6 +91,7 @@ const GROUPS: { key: Group; label: string; sections: { key: Section; label: stri
     key: "scoreboard",
     label: "전략 성적표",
     sections: [
+      { key: "selection-board", label: "선정 보드" },
       { key: "experiments", label: "실험 비교" },
       { key: "backtest", label: "백테스트" },
       { key: "retro", label: "제안 회고" },
@@ -200,6 +203,7 @@ export default function ResearchPage() {
       {section === "ai-feed" && <AiActivityFeedSection />}
       {section === "backtest" && <BacktestSection />}
       {section === "execution-quality" && <ExecutionQualitySection />}
+      {section === "selection-board" && <SelectionBoardSection />}
     </div>
   );
 }
