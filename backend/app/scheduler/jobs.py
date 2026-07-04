@@ -883,3 +883,35 @@ async def run_intelligence_evolution_job(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.error("intelligence evolution job failed: %s", exc_message(exc))
         app.state.intelligence_evolution_last_error = exc_message(exc)
+
+
+STRATEGY_RESEARCHER_JOB_ID = "strategy_researcher"
+
+
+async def run_strategy_researcher_job(app: FastAPI) -> None:
+    """LLM 전략 리서처 정기 실행 (C-7.6) — 새 전략 발굴→검증→입학시험→pending 제안.
+
+    기본 비활성 (LLM 비용). 통과 스펙은 pending만 — 승인은 사람.
+    """
+    from app.core.config import get_settings
+    from app.services.notifications import notify_proposals_created
+    from app.services.strategy_researcher import StrategyResearcherService
+
+    settings = get_settings()
+    try:
+        async with async_session_factory() as session:
+            result = await StrategyResearcherService(session).research(
+                count=settings.strategy_researcher_count,
+                provider_name=settings.ai_analysis_provider,
+            )
+        passed = sum(1 for o in result["outcomes"] if o.get("status") == "passed")
+        logger.info(
+            "strategy researcher: received=%s passed=%s outcomes=%s",
+            result["received"], passed,
+            [(o.get("name"), o.get("status")) for o in result["outcomes"]],
+        )
+        await notify_proposals_created("전략 리서처", passed)
+        app.state.strategy_researcher_last_run_at = datetime.now(KST)
+    except Exception as exc:  # noqa: BLE001 - 리서치 실패가 스케줄러를 중단시키지 않도록
+        logger.error("strategy researcher job failed: %s", exc_message(exc))
+        app.state.strategy_researcher_last_error = exc_message(exc)

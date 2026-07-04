@@ -1497,3 +1497,35 @@ export async function getExecutionQuality(days = 30): Promise<ExecutionQuality> 
   });
   return data;
 }
+
+// --- Strategy Selection Board (C-7.4/7.6) -----------------------------------
+export interface SelectionScore {
+  total: number;
+  backtest: number;
+  paper: number;
+  retrospective: number;
+  regime: number;
+}
+
+export interface SelectionRow {
+  strategy_version_id: number;
+  strategy_name: string;
+  strategy_type: string | null;
+  timeframe: string;
+  status: string;
+  regime_fit: string | null;
+  paper_samples: number;
+  score: SelectionScore;
+}
+
+export interface SelectionBoard {
+  current_regime: string | null;
+  count: number;
+  rows: SelectionRow[];
+  note: string;
+}
+
+export async function getSelectionBoard(): Promise<SelectionBoard> {
+  const { data } = await apiClient.get<SelectionBoard>("/strategy-selection-board");
+  return data;
+}

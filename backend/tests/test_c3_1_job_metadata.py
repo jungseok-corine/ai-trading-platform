@@ -43,6 +43,7 @@ _EXPECTED_RISK = {
     "strategy_review": "KEEP_OFF",
     "intelligence_scanner_proposal": "KEEP_OFF",
     "intelligence_evolution": "KEEP_OFF",
+    "strategy_researcher": "KEEP_OFF",
 }
 
 

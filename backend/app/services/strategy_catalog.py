@@ -240,7 +240,7 @@ class StrategyCatalogService:
             "auto_trade_enabled": False,
             "regime_fit": entry["regime_fit"],
         }
-        return await self._proposals.create_proposal(
+        proposal = await self._proposals.create_proposal(
             strategy_id=strategy.id,
             suggested_parameters=params,
             title=title,
@@ -256,6 +256,29 @@ class StrategyCatalogService:
             ),
             source=source,
         )
+        # C-7.6: 입학시험 결과를 backtest_summary로 저장 — 선정 보드가 백테스트 축에 사용.
+        # (신규 전략은 base 버전이 없어 자동 첨부가 skip되므로 시험 성적을 직접 연결한다)
+        proposal.backtest_summary = {
+            "window_days": 365,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "base": {"status": "failed", "error": "신규 전략 — 비교 기준 없음 (입학시험 성적으로 대체)"},
+            "proposed": {
+                "status": "succeeded",
+                "mode": "universe",
+                "timeframe": "1d",
+                "symbols": list(EXAM_SYMBOLS),
+                "symbols_used": agg.get("symbols_used"),
+                "trade_count": agg.get("trade_count"),
+                "win_rate": agg.get("win_rate"),
+                "return_pct": agg.get("return_pct"),
+                "max_drawdown_pct": agg.get("max_drawdown_pct"),
+                "buy_hold_return_pct": agg.get("buy_hold_return_pct"),
+            },
+            "verdict": "admission_passed",
+            "note": "5대형주 일봉 입학시험(C-7.5) 통과 성적 — 참고용. 판정과 승인은 사람이 한다.",
+        }
+        await self._session.commit()
+        return proposal
 
     async def _get_or_create_parent(self, spec: dict) -> Strategy:
         name = f"[카탈로그] {spec['name']}"
