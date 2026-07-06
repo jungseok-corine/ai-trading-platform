@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-06 갱신)
+## Current State (2026-07-06 갱신 — C-6.22 매칭 + 월요일 장 시작 점검 완료)
 
 **⚠️ 후임 모델은 `docs/HANDOFF-2026-07.md`를 먼저 읽어라** — 최근 사흘(C-6.1~6.21)의
 시스템 변화·버그 이력·작업 함정·판단 원칙이 거기 있다.
@@ -20,13 +20,18 @@
 (기본 off — 켜는 건 사람)**. read-only 로그만 — 버전 생성/주문 없음.
 테스트: `tests/test_c6_symbol_trendiness_matching.py` (10). 전체 2098 passed.
 
-**다음 작업 (Status = READY)**: **월요일(2026-07-06) 장 시작 점검** —
-절차는 `docs/runbooks/monday-market-check.md` (후보 재개 / 일봉 전략 v334·v335 첫 신호 /
-v304 판정 / 5m 재축적 / 주말 잡 실패). B모드(명확한 버그는 수정·커밋) 사용자 위임됨.
-⚠️ **로컬 세션 전용** — 실운영 DB(docker backend-db-1)·localhost:8000이 필요해
-원격(웹) 세션에서는 실행 불가.
+**월요일(2026-07-06) 장 시작 점검 `DONE`** (runbook: `docs/runbooks/monday-market-check.md`):
+1. 후보 재개 ✅ — 당일 27건 (스캐너 완화 룰버전 14~16 유효).
+2. v334/v335 일봉 전략 ✅ 정상 평가 중 — 신호 0은 조건 미충족(정상). KIS 일봉 피드에
+   당일(20260706) 캔들 포함 + 신선도 가드 미발동을 스크립트로 재현 확인.
+3. **v304 아카이브 집행** (사전 위임 결정) — 후보 흐르는데도 신호 0건 지속.
+4. 5m 재축적 ✅ — KR 5m이 5분 간격으로 정상 적재 (C-6.18 회귀 없음).
+5. 주말~월요일 잡 실패는 전부 환경성 — 호스트 DNS 단절(`[Errno 8] nodename nor servname`)로
+   paper_signal_session_runner 721회 / dart_ingest 14회 / strategy_runner 1회 실패,
+   2026-07-06 06:00 UTC경 전 잡 자가 복구. 코드 버그 아님 → 수정 없음.
+6. 레짐 ✅ — KR calm (vol_ratio 0.33, 5m 기반 19종목).
 
-**그 다음 후보 (우선순위)**:
+**다음 작업 (Status = READY, 우선순위)**:
 1. C-6.21 웹소켓 라이브 검증 (장중 + 사용자가 KIS_WS_ENABLED 켠 후, 체크리스트 L절)
 2. C-6.22 가동: `assignment_fitness_matching_enabled` 켜기(사람) → 배정 로그의 trend/range
    분포 관찰 → v335(rsi·005930) NAVER류 횡보 종목 재배정 검토(HANDOFF §6-5)와 연결
