@@ -123,6 +123,13 @@
 
 수동 테스트: `docs/testing/manual-test-checklist-c6.md` (A~E 섹션).
 
+### C-6.22 — 종목-전략 적합성 매칭 (D-31 실행) `DONE` (2026-07-06)
+- 배정(assignment) 시 종목 일봉 추세성(trend/range)을 분류해 호환 strategy_type의 규칙을
+  우선 선택: breakout류=추세 전용, rsi_reversion=횡보·하락 방어. 순수 분류기
+  `trading/analysis/symbol_trendiness.py`(MA20/MA50 + 60일 수익률, regime_fit 어휘 재사용),
+  배정 로그 `symbol_trendiness` 기록(u1v2w3x4y5z6). 게이트
+  `assignment_fitness_matching_enabled=false`(기본 off). read-only — 버전 생성/주문 없음.
+
 ### 보류 (C-6 범위 외)
 - C-6.3b websocket 실시간 (실장 검증 필요), Paper 승인 게이트 간소화 (승인 플로우 변경 — 사용자 결정 필요),
   백테스트 verdict vs 회고 적중률 메타 분석, Mac mini 배포.

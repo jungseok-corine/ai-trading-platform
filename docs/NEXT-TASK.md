@@ -5,18 +5,31 @@
 
 ---
 
-## Current State (2026-07-04 갱신 — 모델 인수인계 준비 완료)
+## Current State (2026-07-06 갱신)
 
 **⚠️ 후임 모델은 `docs/HANDOFF-2026-07.md`를 먼저 읽어라** — 최근 사흘(C-6.1~6.21)의
 시스템 변화·버그 이력·작업 함정·판단 원칙이 거기 있다.
 
+**C-6.22 — 종목-전략 적합성 매칭 (D-31 실행)** `DONE` (2026-07-06, 원격 세션):
+후보 배정 시 종목 일봉(1d) 추세성을 trend/range로 분류해(순수 함수
+`trading/analysis/symbol_trendiness.py`, regime_fit 어휘 재사용) 호환되는 strategy_type의
+배정 규칙을 우선 선택 — breakout류=추세 전용, rsi_reversion=횡보·하락 방어(D-31).
+`AssignmentService.assign` 확장(`list_matching` + 호환 필터), 배정 로그에 `symbol_trendiness`
+기록(마이그레이션 u1v2w3x4y5z6, additive), API 노출. 호환 규칙 없으면 기존 최우선 규칙으로
+폴백하되 부적합이 로그로 보인다. **게이트 `assignment_fitness_matching_enabled=false`
+(기본 off — 켜는 건 사람)**. read-only 로그만 — 버전 생성/주문 없음.
+테스트: `tests/test_c6_symbol_trendiness_matching.py` (10). 전체 2098 passed.
+
 **다음 작업 (Status = READY)**: **월요일(2026-07-06) 장 시작 점검** —
 절차는 `docs/runbooks/monday-market-check.md` (후보 재개 / 일봉 전략 v334·v335 첫 신호 /
 v304 판정 / 5m 재축적 / 주말 잡 실패). B모드(명확한 버그는 수정·커밋) 사용자 위임됨.
+⚠️ **로컬 세션 전용** — 실운영 DB(docker backend-db-1)·localhost:8000이 필요해
+원격(웹) 세션에서는 실행 불가.
 
 **그 다음 후보 (우선순위)**:
 1. C-6.21 웹소켓 라이브 검증 (장중 + 사용자가 KIS_WS_ENABLED 켠 후, 체크리스트 L절)
-2. 종목-전략 적합성 매칭 (D-31의 실행 — 추세성 분류 → breakout/rsi 자동 배정)
+2. C-6.22 가동: `assignment_fitness_matching_enabled` 켜기(사람) → 배정 로그의 trend/range
+   분포 관찰 → v335(rsi·005930) NAVER류 횡보 종목 재배정 검토(HANDOFF §6-5)와 연결
 3. 백테스트 적중률 확인 (comparable>0 되면)
 
 ---

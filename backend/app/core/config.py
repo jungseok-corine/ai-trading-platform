@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     # 자율 연구 파이프라인 (C-2.35). 기본 비활성 — 스캔→후보→배정을 주기적으로 자동 실행.
     research_pipeline_scheduler_enabled: bool = False
     research_pipeline_interval_seconds: int = 300
+    # 종목-전략 적합성 매칭 (C-6.22, D-31). 기본 비활성 — 켜면 배정 시 종목 일봉 추세성을
+    # 분류해(trend/range) 호환되는 strategy_type의 규칙을 우선 선택한다(read-only 로그만).
+    assignment_fitness_matching_enabled: bool = False
 
     # 스캐너 룰 자동 점검 (C-2.40). 기본 비활성 — 후보 성과 분석→조건 강화 제안(pending).
     # data_refresh(16:00) 이후에 돌려 성과 데이터가 갱신된 상태로 점검한다.
