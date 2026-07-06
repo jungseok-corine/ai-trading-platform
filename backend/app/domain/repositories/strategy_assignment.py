@@ -24,10 +24,10 @@ class StrategyAssignmentRuleRepository(BaseRepository[StrategyAssignmentRule]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def find_matching(
+    async def list_matching(
         self, scanner_rule_id: int, market: MarketCode
-    ) -> StrategyAssignmentRule | None:
-        """후보에 적용 가능한 enabled 규칙 중 우선순위가 가장 높은 것을 반환한다.
+    ) -> list[StrategyAssignmentRule]:
+        """후보에 적용 가능한 enabled 규칙 전부를 우선순위 순서로 반환한다 (C-6.22).
 
         scanner_rule_id가 일치하거나, scanner_rule_id가 NULL(fallback)인 규칙이 대상이다.
         priority 내림차순, 동률이면 scanner_rule_id 지정 규칙을 fallback보다 우선한다.
@@ -49,7 +49,14 @@ class StrategyAssignmentRuleRepository(BaseRepository[StrategyAssignmentRule]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalars().first()
+        return list(result.scalars().all())
+
+    async def find_matching(
+        self, scanner_rule_id: int, market: MarketCode
+    ) -> StrategyAssignmentRule | None:
+        """후보에 적용 가능한 enabled 규칙 중 우선순위가 가장 높은 것을 반환한다."""
+        rules = await self.list_matching(scanner_rule_id, market)
+        return rules[0] if rules else None
 
 
 class StrategyAssignmentLogRepository(BaseRepository[StrategyAssignmentLog]):

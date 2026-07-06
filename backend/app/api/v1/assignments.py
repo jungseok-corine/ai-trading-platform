@@ -59,6 +59,7 @@ class AssignmentLogRead(BaseModel):
     symbol_code: str
     strategy_type: str
     assigned_parameters: dict | None
+    symbol_trendiness: str | None = None  # C-6.22: trend/range/unknown (매칭 off면 NULL)
     created_at: datetime
 
 

@@ -74,6 +74,11 @@ class AssignmentService:
         """후보에 매칭되는 배정 규칙을 찾아 전략을 배정하고 로그를 남긴다.
 
         매칭되는 규칙이 없으면 None을 반환한다(배정 안 됨).
+
+        적합성 매칭(C-6.22, 기본 off): 켜져 있으면 종목 일봉 추세성(trend/range)을 분류해
+        호환되는 strategy_type의 규칙을 우선 선택한다(D-31: breakout=추세 전용,
+        rsi_reversion=횡보·하락 방어). 호환 규칙이 없으면 기존 최우선 규칙으로 폴백하되,
+        로그의 symbol_trendiness로 부적합이 보이게 남긴다.
         """
         candidate = await self._candidate_repo.get(candidate_event_id)
         if candidate is None:
@@ -82,11 +87,23 @@ class AssignmentService:
         version = await self._version_repo.get(candidate.scanner_rule_version_id)
         scanner_rule_id = version.scanner_rule_id if version is not None else None
 
-        rule: StrategyAssignmentRule | None = None
+        rules: list[StrategyAssignmentRule] = []
         if scanner_rule_id is not None:
-            rule = await self._rule_repo.find_matching(scanner_rule_id, candidate.market)
-        if rule is None:
+            rules = await self._rule_repo.list_matching(scanner_rule_id, candidate.market)
+        if not rules:
             return None
+
+        trendiness: str | None = None
+        rule = rules[0]
+        if self._fitness_matching_enabled():
+            trendiness = await self._classify_symbol_trendiness(candidate.symbol_code)
+            from app.trading.analysis.symbol_trendiness import is_compatible
+
+            compatible = next(
+                (r for r in rules if is_compatible(r.strategy_type, trendiness)), None
+            )
+            if compatible is not None:
+                rule = compatible
 
         assigned_parameters = {
             **(rule.default_parameters or {}),
@@ -100,9 +117,32 @@ class AssignmentService:
             symbol_code=candidate.symbol_code,
             strategy_type=rule.strategy_type,
             assigned_parameters=assigned_parameters,
+            symbol_trendiness=trendiness,
         )
         await self._session.commit()
         return log
+
+    @staticmethod
+    def _fitness_matching_enabled() -> bool:
+        from app.core.config import get_settings
+
+        return bool(get_settings().assignment_fitness_matching_enabled)
+
+    async def _classify_symbol_trendiness(self, symbol_code: str) -> str:
+        """종목의 1d market_data로 추세성을 분류한다. 일봉 부족이면 unknown."""
+        from sqlalchemy import select
+
+        from app.domain.models.market_data import MarketData
+        from app.trading.analysis.symbol_trendiness import classify_trendiness
+
+        stmt = (
+            select(MarketData)
+            .where(MarketData.symbol_code == symbol_code, MarketData.timeframe == "1d")
+            .order_by(MarketData.ts.desc())
+            .limit(260)
+        )
+        candles = list((await self._session.execute(stmt)).scalars().all())
+        return classify_trendiness(candles).classification
 
     async def list_logs(
         self,
